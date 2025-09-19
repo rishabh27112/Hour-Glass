@@ -1,0 +1,66 @@
+/* Dark theme with vibrant colors */
+
+.app-container {
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); /* Dark gradient */
+  color: #ffffff;
+  font-family: 'Roboto', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Orbitron', sans-serif;
+  color: #ff6ec7; /* Vibrant heading color */
+}
+
+button {
+  background: linear-gradient(90deg, #ff6ec7, #7873f5); /* Vibrant button gradient */
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 10px rgba(255, 110, 199, 0.5);
+}
+
+.google-button {
+  background: #ffffff;
+  color: #24243e;
+  border: 1px solid #7873f5;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+.google-button:hover {
+  background: #f1f1f1;
+  box-shadow: 0 4px 10px rgba(120, 115, 245, 0.5);
+}
+
+input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #00d4ff;
+  border-radius: 8px;
+  padding: 10px;
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+input:focus {
+  outline: none;
+  border-color: #007a99;
+}
