@@ -1,36 +1,44 @@
 import React from 'react';
 import styles from './DashboardPage.module.css';
 
-const DashboardPage = () => {
+const NewDashboardPage = () => {
   return (
-    <div className={styles.container}>
+    <div className={styles.dashboardContainer}>
       <header className={styles.header}>
-        <div className={styles.logoPlaceholder}> {/* Placeholder for logo */}
-          <p>LOGO</p>
-        </div>
-        <h1>Hourglass Dashboard</h1>
+        <div className={styles.logo}>Time Tracker</div>
+        <nav className={styles.navbar}>
+          <a href="#dashboard" className={styles.navLink}>Dashboard</a>
+          <a href="#report" className={styles.navLink}>Report</a>
+          <a href="#calendar" className={styles.navLink}>Calendar</a>
+          <a href="#projects" className={styles.navLink}>Projects</a>
+          <div className={styles.profileMenu}>
+            <span>Profile</span>
+            <div className={styles.dropdownMenu}>
+              <a href="#settings" className={styles.dropdownItem}>Settings</a>
+              <a href="#logout" className={styles.dropdownItem}>Logout</a>
+            </div>
+          </div>
+        </nav>
       </header>
-      <main className={styles.main}>
-        <section className={styles.profileSection}> {/* Profile Section */}
-          <h2>Profile</h2>
-          <p>Manage your personal information and preferences.</p>
+      <main className={styles.mainContent}>
+        <section className={styles.insightsSection}>
+          <h2>Insights</h2>
+          <div className={styles.chartsContainer}>
+            <div className={styles.pieChart}>Pie Chart Placeholder</div>
+            <div className={styles.graph}>Graph Placeholder</div>
+          </div>
         </section>
-        <section className={styles.settingsSection}> {/* Settings Section */}
-          <h2>Settings</h2>
-          <p>Adjust your account and application settings.</p>
+        <section className={styles.appsSection}>
+          <h2>Most Used Apps</h2>
+          <ul className={styles.appsList}>
+            <li>App 1</li>
+            <li>App 2</li>
+            <li>App 3</li>
+          </ul>
         </section>
-        <section className={styles.timeTrackingSection}> {/* Time Tracking Section */}
-          <h2>Time Tracking</h2>
-          <p>Track your time efficiently with AI recommendations.</p>
-        </section>
-        <div className={styles.taskPlaceholder}> {/* Placeholder for tracked tasks */}
-          <h3>Tracked Tasks</h3>
-          <p>No tasks tracked yet. Start tracking now!</p>
-        </div>
       </main>
-      <button className={styles.logoutButton}>Log Out</button>
     </div>
   );
 };
 
-export default DashboardPage;
+export default NewDashboardPage;
