@@ -103,3 +103,42 @@
 .appsList li {
   padding: 0.5rem 0;
 }
+
+.statsSection {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.card {
+  background: linear-gradient(135deg, #e0e7ff 0%, #f0f4f8 100%);
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  min-width: 180px;
+  transition: box-shadow 0.2s;
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(74, 144, 226, 0.18);
+}
+
+.cardIcon {
+  font-size: 2.5rem;
+  margin-right: 1.2rem;
+  color: #4a90e2;
+}
+
+.cardTitle {
+  font-size: 1rem;
+  color: #555;
+  margin-bottom: 0.3rem;
+}
+
+.cardValue {
+  font-size: 1.7rem;
+  font-weight: bold;
+  color: #222;
+}
