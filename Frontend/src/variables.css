@@ -1,0 +1,11 @@
+:root {
+  --primary-color: #667eea;
+  --secondary-color: #764ba2;
+  --background-color: #100a29;
+  --card-background: white;
+  --text-color: #1a202c;
+  --subtitle-color: rgba(255, 255, 255, 0.8);
+  --link-color: #667eea;
+  --link-hover-color: #764ba2;
+  --footer-text-color: #718096;
+}
