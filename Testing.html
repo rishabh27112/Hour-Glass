@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracking App - Survey Infographic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- 
+    Data Corrections & Additions from Survey Images:
+    - Profession: Corrected to 92.9% Students, 7.1% Other.
+    - Tracking Habits: Confirmed 55.7% Don't Track vs 44.3% Do.
+    - Current Methods: Added a dedicated bar chart showing "Do not track" (47.1%) and "Manually" (41.4%) are dominant.
+    - Top Struggles: Data updated to reflect new percentages (e.g., Maintaining Focus at 58.6%).
+    - Platform Preference: CHANGED to a Bar Chart to correctly represent the multi-select nature of the question (Mobile: 88.6%).
+    - Desired Features: Data updated and re-ranked (Categorization & Reports tied at 74.3%).
+    - AI Value: Data corrected (High Value is now 62.1%).
+    - Data Sharing: Data updated to 77.1% Yes.
+    - NEW SECTION: Added charts for "Preferred Report Format" and "Expected Usage Frequency" to incorporate all available data.
+    -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F0F9FF; /* Lightest blue from palette */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+    <div class="container mx-auto p-4 md:p-8 max-w-5xl">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-[#00449E] mb-2">The Anatomy of a Modern Time Tracker</h1>
+            <p class="text-lg text-gray-600">Deep Dive: A comprehensive analysis of 70 potential users' time management habits and app expectations.</p>
+        </header>
+
+        <main class="space-y-16">
+            <!-- Section 1: The Opportunity -->
+            <section class="text-center bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-3xl font-bold text-[#00449E] mb-4">1. The Opportunity: A Defined & Waiting Market</h2>
+                <p class="max-w-3xl mx-auto text-gray-600 mb-8">The survey highlights an overwhelmingly student-based audience. Despite this, a majority do not track their time, and those who do rely on basic methods. This signals a clear market gap for an intuitive, automated solution.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div class="bg-blue-50 p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">Primarily a Student Audience</h3>
+                        <p class="text-sm text-gray-500 mb-4">The core user base is academic.</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="professionChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-blue-50 p-6 rounded-2xl text-center">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">Current Tracking Habits</h3>
+                        <p class="text-sm text-gray-500 mb-4">A significant portion of the market is untapped.</p>
+                        <div class="flex flex-col justify-center items-center h-64 md:h-72">
+                            <p class="text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#0079F2] to-[#00449E]">55.7%</p>
+                            <p class="text-xl text-gray-600 mt-2">Don't Track Time At All</p>
+                            <p class="mt-4 text-center text-gray-500 text-sm">Of the 44.3% who do track, the methods are overwhelmingly manual, revealing a need for automation.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Pain Points & Current Methods -->
+            <section class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-3xl font-bold text-[#00449E] text-center mb-4">2. The Pain Points: Focus & Forgetfulness</h2>
+                <p class="max-w-3xl mx-auto text-gray-600 mb-8 text-center">Users' biggest challenges are not just logging hours, but maintaining concentration and remembering to track time consistently. Existing manual methods are a primary source of this friction.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2 text-center">Top Time Management Struggles</h3>
+                        <div class="chart-container h-80">
+                            <canvas id="strugglesChart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2 text-center">Current Tracking Methods Used</h3>
+                        <div class="chart-container h-80">
+                            <canvas id="methodsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Section 3: The Ideal Solution -->
+            <section class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-3xl font-bold text-[#00449E] text-center mb-4">3. The Solution: Mobile, Organized & Insightful</h2>
+                <p class="max-w-3xl mx-auto text-gray-600 mb-8 text-center">There is a clear consensus: the ideal tool is a mobile app. Users prioritize features that help them categorize their activities and receive automated reports, underscoring a demand for organization and effortless insights.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                    <div class="bg-blue-50 p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">Platform Preference is Clear</h3>
+                         <p class="text-sm text-gray-500 mb-4">Users want a time tracker in their pocket. (multi-select)</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="platformChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-blue-50 p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">Most-Requested Features</h3>
+                         <p class="text-sm text-gray-500 mb-4">Organization and reporting are top priorities. (multi-select)</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="featuresChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: The 'Smart' Factor -->
+            <section class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-3xl font-bold text-[#00449E] text-center mb-4">4. The 'Smart' Factor: High Value on AI & Data</h2>
+                <p class="max-w-3xl mx-auto text-gray-600 mb-8 text-center">Users are highly receptive to AI-driven features, particularly for automatic time classification. This, combined with a strong willingness to share activity data for personalized insights, paves the way for a truly intelligent app.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div class="bg-blue-50 p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">High Value Placed on AI</h3>
+                        <p class="text-sm text-gray-500 mb-4">AI that auto-classifies time is seen as a key feature.</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="aiValueChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-blue-50 p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">Willingness to Share Data</h3>
+                        <p class="text-sm text-gray-500 mb-4">Users will grant access for better insights if trust is established.</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="dataSharingChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Section 5: Engagement & Reporting -->
+            <section class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-3xl font-bold text-[#00449E] text-center mb-4">5. Engagement: How Users Want to Interact</h2>
+                <p class="max-w-3xl mx-auto text-gray-600 mb-8 text-center">Most users envision using the app on a weekly basis, suggesting a preference for periodic reviews over constant monitoring. When they do review, they prefer visual summaries like pie charts and bar graphs over text.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div class="bg-blue-50 p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">Preferred Report Formats</h3>
+                        <p class="text-sm text-gray-500 mb-4">Visual data representation is heavily favored.</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="formatChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-blue-50 p-6 rounded-2xl">
+                        <h3 class="text-xl font-bold text-[#0079F2] mb-2">Expected Usage Frequency</h3>
+                        <p class="text-sm text-gray-500 mb-4">A weekly check-in is the most common expectation.</p>
+                        <div class="chart-container h-64 md:h-72">
+                            <canvas id="usageChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="text-center mt-16 border-t pt-8">
+             <h2 class="text-3xl font-bold text-[#00449E] mb-4">Blueprint for a Successful App</h2>
+             <p class="max-w-3xl mx-auto text-gray-600">Based on the data, a successful time-tracking app should be a mobile-first, AI-powered platform that automates time logging, helps users categorize tasks and maintain focus, and delivers insightful, visual weekly reports.</p>
+            <p class="text-gray-500 mt-8">Infographic based on a survey of 70 respondents.</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Reusable color palette
+            const colors = {
+                darkBlue: '#00449E',
+                brightBlue: '#0079F2',
+                mediumBlue: '#48A7F2',
+                lightBlue: '#91D2F2',
+                lighterBlue: '#D4EDF2',
+            };
+
+            // Reusable function to wrap long labels on charts
+            const wrapLabel = (label, maxLength = 15) => {
+                if (label.length <= maxLength) return label;
+                const words = label.split(' ');
+                let lines = [];
+                let currentLine = '';
+                words.forEach(word => {
+                    if ((currentLine + ' ' + word).trim().length > maxLength) {
+                        lines.push(currentLine.trim());
+                        currentLine = word;
+                    } else {
+                        currentLine = (currentLine + ' ' + word).trim();
+                    }
+                });
+                lines.push(currentLine.trim());
+                return lines;
+            };
+            
+            // Default options for doughnut charts
+            const doughnutOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 15 } },
+                }
+            };
+            
+            // Default options for bar charts
+             const barOptions = (indexAxis = 'x', max = 100) => ({
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis,
+                scales: { 
+                    [indexAxis === 'x' ? 'y' : 'x']: { beginAtZero: true, max, grid: { drawOnChartArea: false } },
+                    [indexAxis === 'x' ? 'x' : 'y']: { grid: { display: true, color: '#e0e0e0' } }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            });
+
+
+            // 1. Profession Chart
+            new Chart(document.getElementById('professionChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Student', 'Other (Freelancer, PM, etc.)'],
+                    datasets: [{
+                        data: [92.9, 7.1],
+                        backgroundColor: [colors.brightBlue, colors.lightBlue],
+                        borderColor: '#F0F9FF',
+                        borderWidth: 4
+                    }]
+                },
+                options: doughnutOptions
+            });
+
+            // 2a. Struggles Chart
+            new Chart(document.getElementById('strugglesChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: [
+                        'Maintaining focus', 
+                        'Prioritizing tasks', 
+                        'Identifying time-wasting activities', 
+                        'Estimating task duration',
+                        'Balancing multiple projects'
+                    ],
+                    datasets: [{
+                        label: '% of Respondents',
+                        data: [58.6, 54.3, 54.3, 52.9, 48.6],
+                        backgroundColor: colors.mediumBlue,
+                        borderRadius: 6
+                    }]
+                },
+                options: barOptions('y', 70)
+            });
+            
+             // 2b. Methods Chart
+            new Chart(document.getElementById('methodsChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Do not track', 'Manually (in notes)', 'Spreadsheets', 'Other Digital Tools'],
+                    datasets: [{
+                        label: '% of Respondents',
+                        data: [47.1, 41.4, 5.7, 5.8],
+                        backgroundColor: [colors.darkBlue, colors.brightBlue, colors.mediumBlue, colors.lightBlue],
+                        borderRadius: 6
+                    }]
+                },
+                options: barOptions('y', 50)
+            });
+            
+            // 3a. Platform Chart
+            new Chart(document.getElementById('platformChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Mobile App', 'Web-based', 'Desktop App'],
+                    datasets: [{
+                        label: '% of Respondents',
+                        data: [88.6, 34.3, 32.9],
+                        backgroundColor: [colors.darkBlue, colors.mediumBlue, colors.lightBlue],
+                        borderRadius: 6,
+                    }]
+                },
+                options: barOptions('x', 100)
+            });
+            
+            // 3b. Features Chart
+            new Chart(document.getElementById('featuresChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Categorization', 'Reports', 'Notifications', 'Auto Start/Stop', 'Privacy Controls', 'Export Data'].map(l => wrapLabel(l, 15)),
+                    datasets: [{
+                        label: '% of Respondents',
+                        data: [74.3, 74.3, 55.7, 52.9, 42.9, 38.6],
+                        backgroundColor: colors.brightBlue,
+                        borderRadius: 6,
+                    }]
+                },
+                options: barOptions('x', 80)
+            });
+
+            // 4a. AI Value Chart
+            new Chart(document.getElementById('aiValueChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['High Value (4-5 rating)', 'Neutral (3)', 'Low Value (1-2)'],
+                    datasets: [{
+                        data: [62.1, 18.9, 19.0],
+                        backgroundColor: [colors.brightBlue, colors.mediumBlue, colors.lighterBlue],
+                        borderColor: '#F0F9FF',
+                        borderWidth: 4
+                    }]
+                },
+                options: doughnutOptions
+            });
+
+            // 4b. Data Sharing Chart
+            new Chart(document.getElementById('dataSharingChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Willing to Share', 'Not Willing'],
+                    datasets: [{
+                        data: [77.1, 22.9],
+                        backgroundColor: [colors.brightBlue, colors.lightBlue],
+                        borderColor: '#F0F9FF',
+                        borderWidth: 4
+                    }]
+                },
+                options: doughnutOptions
+            });
+            
+            // 5a. Report Format Chart
+            new Chart(document.getElementById('formatChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Pie Chart', 'Bar Graph', 'Written Paragraph'],
+                    datasets: [{
+                        label: '% of Respondents',
+                        data: [34.3, 27.1, 18.6],
+                        backgroundColor: [colors.darkBlue, colors.mediumBlue, colors.lightBlue],
+                        borderRadius: 6,
+                    }]
+                },
+                options: barOptions('x', 40)
+            });
+
+            // 5b. Usage Frequency Chart
+            new Chart(document.getElementById('usageChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Weekly', 'Daily', 'Rarely', 'Other'],
+                    datasets: [{
+                        data: [37.1, 25.7, 24.3, 12.9],
+                        backgroundColor: [colors.brightBlue, colors.mediumBlue, colors.lightBlue, colors.lighterBlue],
+                        borderColor: '#F0F9FF',
+                        borderWidth: 4
+                    }]
+                },
+                options: doughnutOptions
+            });
+
+        });
+    </script>
+</body>
+</html>
+
