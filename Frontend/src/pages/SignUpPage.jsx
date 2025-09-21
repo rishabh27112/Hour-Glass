@@ -37,20 +37,7 @@ const SignUpPage = () => {
             </button>
           </form>
           
-          <div className={styles.divider}>
-            <span>OR CONTINUE WITH</span>
-          </div>
-          
-          <button className={styles.googleButton}>
-            <span className={styles.googleIcon}>🔗</span>
-            Continue with Google
-          </button>
-          
-          <div className={styles.footer}>
-            <span>Already have an account? </span>
-            <Link to="/login" className={styles.loginLink}>Sign in here</Link>
-          </div>
-          
+         
           <div className={styles.terms}>
             <span>By signing up, you agree to our </span>
             <a href="#" className={styles.link}>Terms of Service</a>

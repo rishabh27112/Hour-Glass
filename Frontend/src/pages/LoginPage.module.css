@@ -171,7 +171,7 @@
 
 .googleButton {
   width: 100%;
-  background: white;
+  background: linear-gradient(90deg, #4285F4 0%, #34A853 40%, #FBBC05 70%, #EA4335 100%);
   border: 2px solid #e2e8f0;
   padding: 12px;
   border-radius: 8px;
@@ -187,8 +187,10 @@
 }
 
 .googleButton:hover {
+  background: black;
   border-color: #cbd5e0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  
 }
 
 .googleIcon {

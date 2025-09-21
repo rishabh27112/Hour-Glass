@@ -44,7 +44,15 @@ const LoginPage = () => {
           </div>
           
           <button className={styles.googleButton}>
-            <span className={styles.googleIcon}>🔗</span>
+            <span className={styles.googleIcon}>
+              <img
+      src="https://img.icons8.com/?size=100&id=17950&format=png&color=FFFFFF"
+      alt="Google"
+      width="20"
+      height="20"
+      style={{ display: 'block' }}
+    />
+            </span>
             Continue with Google
           </button>
           

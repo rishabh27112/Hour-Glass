@@ -12,7 +12,6 @@ const ForgotPasswordPage = () => {
         </div>
         <form className={styles.form}>
           <div className={styles.inputGroup}>
-            <label htmlFor="email">Email</label>
             <input type="email" id="email" placeholder="Enter your email" className={styles.input} />
           </div>
           <button type="submit" className={styles.primaryButton}>Send Reset Link</button>
