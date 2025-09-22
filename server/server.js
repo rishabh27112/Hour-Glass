@@ -10,9 +10,15 @@ const app = express();
 const port= process.env.port || 4000
 connectDB();
 
+const corsOptions = {
+    origin: "http://localhost:3000",
+    methods: "GET, POST, PUT, DELETE, PATCH, HEAD",
+    credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({credentials:true}))
+//app.use(cors({origin: allowedOrigins, credentials:true}))
 
 //API endpoints
 app.get('/', (req,res)=> res.send("API Working"));
