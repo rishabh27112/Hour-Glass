@@ -1,6 +1,4 @@
-
-
-import React from 'react';
+import React, { useState } from 'react';
 import styles from './DashboardPage.module.css';
 
 const stats = [
@@ -22,6 +20,12 @@ const stats = [
 ];
 
 const DashboardPage = () => {
+  const [isDropdownOpen, setDropdownOpen] = useState(false);
+
+  const toggleDropdown = () => {
+    setDropdownOpen(!isDropdownOpen);
+  };
+
   return (
     <div className={styles.dashboardBg}>
       <div className={styles.dashboardCard}>
@@ -32,10 +36,20 @@ const DashboardPage = () => {
         </div>
 
         <nav className={styles.navbar}>
+         
           <a href="#dashboard" className={styles.navLinkActive}>Dashboard</a>
           <a href="#report" className={styles.navLink}>Report</a>
           <a href="#calendar" className={styles.navLink}>Calendar</a>
           <a href="#projects" className={styles.navLink}>Projects</a>
+           <div className={styles.profileDropdown} onClick={toggleDropdown}>
+            <span className={styles.profileName}>Profile</span>
+            {isDropdownOpen && (
+              <ul className={styles.dropdownMenu}>
+                <li><a href="#settings">Settings</a></li>
+                <li><a href="#logout">Logout</a></li>
+              </ul>
+            )}
+          </div>
         </nav>
 
         <section className={styles.statsSection}>

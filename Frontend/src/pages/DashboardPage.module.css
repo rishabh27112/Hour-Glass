@@ -15,8 +15,8 @@
   flex-direction: column;
   align-items: flex-start;
   padding: 32px 0 0 0;
-  border-top-right-radius: 32px;
-  border-bottom-right-radius: 32px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
   min-height: 100vh;
   position: relative;
 }
@@ -43,7 +43,6 @@
   background: linear-gradient(90deg, #3b82f6 0%, #6366f1 100%);
   color: #fff;
   border: none;
-  border-radius: 10px;
   padding: 12px 32px;
   font-size: 1.1rem;
   font-weight: 600;
@@ -68,7 +67,6 @@
   padding: 14px 32px;
   font-size: 1.08rem;
   color: #3b82f6;
-  border-radius: 12px 0 0 12px;
   margin-bottom: 8px;
   cursor: pointer;
   transition: background 0.18s, color 0.18s;
@@ -89,7 +87,6 @@
   align-items: center;
   gap: 14px;
   background: #f6f7fb;
-  border-radius: 12px;
   padding: 10px 18px;
   box-shadow: 0 2px 8px rgba(102,126,234,0.08);
 }
@@ -98,7 +95,7 @@
   height: 40px;
   background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
   color: #fff;
-  border-radius: 50%;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -125,7 +122,6 @@
 .welcomeCard {
   background: linear-gradient(90deg, #3b82f6 0%, #6366f1 100%);
   color: #fff;
-  border-radius: 18px;
   box-shadow: 0 4px 16px rgba(59,130,246,0.13);
   padding: 36px 32px 32px 48px;
   margin-bottom: 32px;
@@ -150,7 +146,6 @@
 }
 .statsNewCard {
   background: #fff;
-  border-radius: 16px;
   box-shadow: 0 2px 8px rgba(59,130,246,0.10);
   padding: 1.7rem 2.2rem 1.3rem 2.2rem;
   min-width: 180px;
@@ -198,7 +193,7 @@
 }
 .activeTimerCard {
   background: linear-gradient(90deg, #f3f4f6 0%, #e0e7ff 100%);
-  border-radius: 16px;
+
   box-shadow: 0 2px 8px rgba(59,130,246,0.10);
   padding: 2.2rem 2.2rem 1.5rem 2.2rem;
   min-width: 320px;
@@ -237,7 +232,6 @@
   background: #22c55e;
   color: #fff;
   border: none;
-  border-radius: 8px;
   padding: 10px 28px;
   font-size: 1.08rem;
   font-weight: 600;
@@ -253,7 +247,7 @@
   background: #fff;
   color: #222;
   border: 1.5px solid #e0e7ff;
-  border-radius: 8px;
+
   padding: 10px 28px;
   font-size: 1.08rem;
   font-weight: 600;
@@ -267,7 +261,6 @@
 }
 .analyticsCard {
   background: #fff;
-  border-radius: 16px;
   box-shadow: 0 2px 8px rgba(59,130,246,0.10);
   padding: 2.2rem 2.2rem 1.5rem 2.2rem;
   min-width: 320px;
@@ -287,7 +280,6 @@
   width: 100%;
   height: 180px;
   background: linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 100%);
-  border-radius: 12px;
   margin-top: 8px;
   box-shadow: 0 1px 4px rgba(59,130,246,0.08);
 }
@@ -329,7 +321,7 @@
   padding: 14px 32px;
   font-size: 1.08rem;
   color: #6c63ff;
-  border-radius: 12px 0 0 12px;
+
   margin-bottom: 8px;
   cursor: pointer;
   transition: background 0.18s, color 0.18s;
@@ -367,7 +359,7 @@
   height: 40px;
   background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
   color: #fff;
-  border-radius: 50%;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,7 +376,7 @@
 .glassCard {
   background: rgba(255,255,255,0.7);
   box-shadow: 0 8px 32px rgba(102,126,234,0.10);
-  border-radius: 20px;
+  border-radius: 0;
   padding: 2.2rem 2.2rem 1.5rem 2.2rem;
   min-width: 180px;
   flex: 1 1 0;
@@ -439,7 +431,7 @@
 .appsModernSection {
   margin-top: 12px;
   background: rgba(255,255,255,0.7);
-  border-radius: 18px;
+  border-radius: 0;
   box-shadow: 0 2px 8px rgba(102,126,234,0.08);
   padding: 1.2rem 2rem 1.2rem 2rem;
   display: flex;
@@ -493,7 +485,7 @@
 
 .dashboardCard {
   background: #fff;
-  border-radius: 24px;
+  border-radius: 0;
   box-shadow: 0 8px 32px rgba(102, 126, 234, 0.15);
   padding: 40px 112px 32px 112px;
   max-width: 600px;
@@ -562,7 +554,7 @@
 
 .statCard {
   background: #f8f9ff;
-  border-radius: 18px;
+  border-radius: 0;
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.10);
   padding: 1.7rem 2.2rem 1.3rem 2.2rem;
   display: flex;
@@ -620,7 +612,7 @@
 .chartPlaceholder {
   flex: 1;
   background: #f4f4f9;
-  border-radius: 12px;
+  border-radius: 0;
   padding: 1.5rem 0.5rem 1.2rem 0.5rem;
   text-align: center;
   color: #a0aec0;
@@ -641,7 +633,7 @@
   width: 100%;
   margin-bottom: 0;
   background: #f8f9ff;
-  border-radius: 16px;
+  border-radius: 0;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.06);
   padding: 18px 18px 10px 18px;
   margin-top: 18px;
@@ -669,66 +661,32 @@
   letter-spacing: 0.2px;
 }
 
-.pieChart, .graph {
-  flex: 1;
-  background-color: #fff;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  padding: 1rem;
-  border-radius: 8px;
-  text-align: center;
+/* Updated background colors for all pages */
+
+/* Login Page */
+.loginPage {
+  background: #121212;
 }
 
-.appsSection {
-  background-color: #fff;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  padding: 1rem;
-  border-radius: 8px;
+/* Signup Page */
+.signupPage {
+  background: #121212;
 }
 
-.appsList {
-  list-style: none;
+/* Dashboard and All Other Pages */
+.dashboardPage {
+  background: #121212;
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure background color applies to the entire page and remove box layout */
+
+/* Apply background color to the entire viewport */
+body {
+  background: #121212;
+  margin: 0;
   padding: 0;
-}
-
-.appsList li {
-  padding: 0.5rem 0;
-}
-
-.statsSection {
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 2rem;
-}
-
-.card {
-  background: linear-gradient(135deg, #e0e7ff 0%, #f0f4f8 100%);
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.08);
-  border-radius: 12px;
-  padding: 1.5rem 2rem;
-  display: flex;
-  align-items: center;
-  min-width: 180px;
-  transition: box-shadow 0.2s;
-}
-
-.card:hover {
-  box-shadow: 0 4px 16px rgba(74, 144, 226, 0.18);
-}
-
-.cardIcon {
-  font-size: 2.5rem;
-  margin-right: 1.2rem;
-  color: #4a90e2;
-}
-
-.cardTitle {
-  font-size: 1rem;
-  color: #555;
-  margin-bottom: 0.3rem;
-}
-
-.cardValue {
-  font-size: 1.7rem;
-  font-weight: bold;
-  color: #222;
 }

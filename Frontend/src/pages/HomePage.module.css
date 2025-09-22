@@ -1,5 +1,3 @@
-/* Enhanced styles for HomePage */
-
 .homeContainer {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     text-align: center;
@@ -54,8 +52,8 @@
 }
 
 .authSection .button {
-    width: 200px; /* Ensures both buttons are of equal size */
-    background: lightblue;
+    width: 200px; 
+    background: green;
     color: white;
     border: none;
     padding: 12px;
