@@ -1,98 +1,132 @@
-.homeContainer {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+/* Recommended: Add this to your main index.css file */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap');
+
+/* --- Main Page Container --- */
+.pageContainer {
+    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    background-color: var(--background-color);
+    color: var(--primary-textcolor);
     text-align: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    min-height: 100vh;
+}
+
+/* --- Navigation Bar --- */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 98%;
+    z-index: 1000;
     display: flex;
-    flex-direction: column;
     justify-content: space-between;
+    align-items: center;
+    opacity: 1;
+    margin-top: 0px;
+    padding: 0.5rem 1rem;
+    background-color: var(--background-color);
 }
 
-.homeHeader {
-    padding: 20px;
-    background: #4a4a4a;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
-
-.homeHeader h1 {
-    font-size: 3rem;
-    margin: 0;
-}
-
-.homeHeader p {
-    font-size: 1.2rem;
-    margin: 10px 0 0;
-}
-
-.homeMain {
-    padding: 40px 20px;
-}
-
-.authSection {
-    margin-bottom: 40px;
-    text-align: center;
-}
-
-.authSection h2 {
-    font-size: 2.5rem;
-    margin-bottom: 20px;
-    color: #e0e7ff;
-}
-
-.authSection .loginContainer,
-.authSection .signupContainer {
-    margin-top: 20px;
+.navLogo a {
+    color: var(--primary-textcolor);
+    text-decoration: none;
+    font-size: 1.5rem;
+    font-weight: 1000;
     display: flex;
-    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-.authSection .loginContainer {
-    margin-bottom: 20px;
+
+.logoIcon {
+    height: 90px;
+    margin-right: 0.5rem;
 }
 
-.authSection .button {
-    width: 200px; 
-    background: green;
-    color: white;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 1rem;
+.navAuth {
+    display: flex;
+    gap: 1rem;
+}
+
+/* --- Hero Section --- */
+.heroSection {
+    padding: 5rem 2rem;
+    background-color: var(--background-color);
+}
+
+.heroSection h1 {
+    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    font-size: 2.5rem;
     font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    margin: 10px; /* Adds spacing between buttons */
+    color: var(--primary-textcolor);
+    margin-bottom: 0.5rem;
 }
 
-.authSection .button:hover {
-    background: blue;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+.heroSection p {
+    font-size: 1.1rem;
+    color: var(--secondary-textcolor);
+    margin-bottom: 2rem;
 }
 
-.detailsSection {
-    margin-top: 40px;
-}
-
-.detailsSection h2 {
-    font-size: 2rem;
-    margin-bottom: 20px;
-}
-
-.detailsSection p {
-    font-size: 1.2rem;
-    line-height: 1.6;
-    margin: 0 auto;
+/* --- Main Content --- */
+.mainContent {
+    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    padding: 4rem 2rem;
     max-width: 800px;
+    margin: 0 auto;
 }
 
-.homeFooter {
-    padding: 20px;
-    background: #4a4a4a;
-    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.2);
+.aboutSection h2 {
+    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    font-size: 2rem;
+    color: var(--primary-textcolor);
+    margin-bottom: 1rem;
 }
 
-.homeFooter p {
-    font-size: 1rem;
-    margin: 0;
+.aboutSection p {
+    line-height: 1.6;
+    color: #c0c0d0;
+}
+
+.buttonPrimary,
+.buttonSecondary {
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: .75rem;
+    transition: all 0.2s ease-in-out;
+    border: 2px solid transparent;
+}
+
+.buttonPrimary {
+    background-color: var(--button-color);
+    color: #ffffff;
+    border-color: var(--button-color);
+}
+
+.buttonPrimary:hover {
+    background-color: var(--button-hover-color);
+    transform: translateY(-1px);
+    border-color: var(--button-hover-color);
+    color: var(--background-color);
+}
+
+.buttonSecondary {
+    background-color: transparent;
+    color: var(--primary-textcolor);
+    border-color: var(--primary-textcolor);
+}
+
+.buttonSecondary:hover {
+    background-color: var(--primary-textcolor);
+    color: var(--background-color);
+    transform: translateY(-1px);
+}
+
+/* --- Footer --- */
+.footer {
+    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    padding: 1.5rem;
+    background-color: var(--background-color);
+    font-size: 0.9rem;
+    color: var(--sub-textcolor);
 }

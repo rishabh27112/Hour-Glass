@@ -5,6 +5,7 @@ import SignUpPage from './pages/SignUpPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import HomePage from './pages/HomePage'; 
+import './variables.css';
 import './App.module.css'; 
 
 const App = () => {

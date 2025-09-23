@@ -1,11 +1,9 @@
 :root {
-  --primary-color: #667eea;
-  --secondary-color: #764ba2;
-  --background-color: #100a29;
-  --card-background: white;
-  --text-color: #1a202c;
-  --subtitle-color: rgba(255, 255, 255, 0.8);
-  --link-color: #667eea;
-  --link-hover-color: #764ba2;
-  --footer-text-color: #718096;
+  --primary-textcolor: #eee8d5;
+  --secondary-textcolor:#b0b0c0;
+  --background-color: #00141a;
+  --button-color :  #2aa198;
+  --button-hover-color: #eee8d5;
+    --primary_font: "Roboto Mono", monospace;
+    --sub-textcolor:#808090;
 }

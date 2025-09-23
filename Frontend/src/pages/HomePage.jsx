@@ -1,35 +1,50 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import styles from './HomePage.module.css';
+import logoIcon from '../Logo/main_logo.png';
 
-const HomePage = () => 
-{
+const HomePage = () => {
   return (
-    <div className={styles.homeContainer}>
-      <header className={styles.homeHeader}>
-        <h1>Welcome to Hour-Glass</h1>
+    <div className={styles.pageContainer}>
+      {/* Section 1: Navigation Bar */}
+      <nav className={styles.navbar}>
+        <div className={styles.navLogo}>
+          <Link to="/">
+            <i class="fa-solid fa-hourglass-half"></i>
+            <span>HourGlass</span>
+          </Link>
+        </div>
+        <div className={styles.navAuth}>
+          <Link to="/login" className={styles.buttonSecondary}>Login</Link>
+          <Link to="/signup" className={styles.buttonPrimary}>Sign Up</Link>
+        </div>
+      </nav>
+
+      {/* Section 2: Hero Welcome Area */}
+      <header className={styles.heroSection}>
+        <h1>Welcome to HourGlass</h1>
         <p>Your ultimate time tracking solution</p>
+        <div className={styles.heroButtons}>
+          {/* Main call to action can be here */}
+          <Link to="/signup" className={styles.buttonPrimary}>Get Started</Link>
+        </div>
       </header>
 
-      <main className={styles.homeMain}>
-        <section className={styles.authSection}>
-          <h2>Get Started</h2>
-          <div className={styles.loginContainer}>
-            <Link to="/login" className={styles.button}>Login</Link>
-          </div>
-          <div className={styles.signupContainer}>
-            <Link to="/signup" className={styles.button}>Sign Up</Link>
-          </div>
-        </section>
-
-        <section className={styles.detailsSection}>
-          <h2>About Hour-Glass</h2>
-          <p>Hour-Glass helps you track your time, manage tasks, and boost productivity. Whether you're working on projects, managing a team, or simply tracking your daily activities, Hour-Glass has got you covered.</p>
+      {/* Section 3: Main Content */}
+      <main className={styles.mainContent}>
+        <section className={styles.aboutSection}>
+          <h2>About HourGlass</h2>
+          <p>
+            HourGlass helps you track your time, manage tasks, and boost productivity.
+            Whether you're working on projects, managing a team, or simply tracking your daily activities,
+            HourGlass has got you covered.
+          </p>
         </section>
       </main>
 
-      <footer className={styles.homeFooter}>
-        <p>&copy; 2025 Hour-Glass. All rights reserved.</p>
+      {/* Section 4: Footer */}
+      <footer className={styles.footer}>
+        <p>&copy; 2025 HourGlass. All rights reserved.</p>
       </footer>
     </div>
   );
