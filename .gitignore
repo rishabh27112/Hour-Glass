@@ -3,5 +3,7 @@ node_modules/
 build/
 dist/
 .env
+dist-electron/
+dist-react/
 .DS_Store
 *.log
