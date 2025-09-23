@@ -1,3 +1,125 @@
+.navbarWithProfile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 32px;
+}
+
+.profileText {
+  font-size: 1rem;
+  color: #667eea;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 16px;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+.profileText:hover, .profileDropdownWrapper:focus .profileText {
+  background: #f3f4f6;
+  color: #764ba2;
+}
+
+.profileDropdownWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  outline: none;
+}
+.profileDropdownMenu {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.18);
+  min-width: 140px;
+  padding: 8px 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  animation: fadeInDropdown 0.18s;
+}
+@keyframes fadeInDropdown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.profileDropdownItem {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 10px 18px;
+  font-size: 1rem;
+  color: #4a4a4a;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.profileDropdownItem:hover:not(:disabled) {
+  background: #f3f4f6;
+  color: #667eea;
+}
+.profileDropdownItem:disabled {
+  color: #bdbdbd;
+  cursor: not-allowed;
+}
+.profileHeader {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.profileDropdownWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  outline: none;
+}
+
+
+.profileDropdownMenu {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.18);
+  min-width: 140px;
+  padding: 8px 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  animation: fadeInDropdown 0.18s;
+}
+
+@keyframes fadeInDropdown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.profileDropdownItem {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 10px 18px;
+  font-size: 1rem;
+  color: #4a4a4a;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.profileDropdownItem:hover:not(:disabled) {
+  background: #f3f4f6;
+  color: #667eea;
+}
+.profileDropdownItem:disabled {
+  color: #bdbdbd;
+  cursor: not-allowed;
+}
 /* New Modern Dashboard Theme (Inspired by attachment) */
 .dashboardNewBg {
   min-height: 100vh;
