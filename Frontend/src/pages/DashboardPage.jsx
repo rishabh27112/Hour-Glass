@@ -1,6 +1,6 @@
 
-
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './DashboardPage.module.css';
 
 const stats = [
@@ -21,13 +21,62 @@ const stats = [
   }
 ];
 
+
 const DashboardPage = () => {
-  // Profile dropdown state
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const [dropdownOpen, setDropdownOpen] = React.useState(false);
+  const dropdownRef = React.useRef(null);
+  const [user, setUser] = React.useState(null);
+  const navigate = useNavigate();
+
+  // Check authentication on mount
+  // Check authentication on mount using cookie-based session on the server
+  React.useEffect(() => {
+    let mounted = true;
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/auth/is-auth', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (!mounted) return;
+        if (!data.success) {
+          navigate('/');
+          return;
+        }
+        // Authenticated via cookie; fetch user data from server
+        const userRes = await fetch('http://localhost:4000/api/user/data', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const userData = await userRes.json();
+        if (!mounted) return;
+        if (userData && userData.success && userData.user) {
+          setUser(userData.user);
+        } else if (userData && userData.user) {
+          setUser(userData.user);
+        } else {
+          // Fallback: try reading from local/session storage
+          const storage = localStorage.getItem('token') ? localStorage : sessionStorage;
+          const token = storage.getItem('token');
+          const storedUser = storage.getItem('user');
+          if (token && storedUser) {
+            try { setUser(JSON.parse(storedUser)); } catch (err) { navigate('/'); }
+          } else {
+            navigate('/');
+          }
+        }
+      } catch (err) {
+        navigate('/');
+      }
+    };
+    checkAuth();
+    return () => { mounted = false; };
+  }, [navigate]);
 
   // Close dropdown on outside click
-  useEffect(() => {
+  React.useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
@@ -39,23 +88,29 @@ const DashboardPage = () => {
     };
   }, []);
 
-  // Logout handler (clear JWT cookie and redirect to login)
+  // Logout handler
   const handleLogout = () => {
-    // Remove JWT cookie (assume httpOnly, so just redirect)
-    window.location.href = '/login';
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    navigate('/login');
   };
 
   return (
     <div className={styles.dashboardBg}>
       <div className={styles.dashboardCard}>
         <div className={styles.profileSection}>
-
           <div className={styles.logoSection}>
             <h1 className={styles.title}>Dashboard</h1>
             <p className={styles.subtitle}>Your productivity at a glance</p>
           </div>
+          {user && (
+            <div className={styles.profileName} style={{marginTop: 8, fontWeight: 'bold', fontSize: 18}}>
+              Welcome, {user.name || user.fullName || 'User'}
+            </div>
+          )}
         </div>
-
 
         <div className={styles.navbarWithProfile}>
           <nav className={styles.navbar}>
@@ -64,20 +119,19 @@ const DashboardPage = () => {
             <a href="#calendar" className={styles.navLink}>Calendar</a>
             <a href="#projects" className={styles.navLink}>Projects</a>
             <div
-            className={styles.profileDropdownWrapper}
-            ref={dropdownRef}
-            tabIndex={0}
-            onMouseEnter={() => setDropdownOpen(true)}
-            onMouseLeave={() => setDropdownOpen(false)}
-            onClick={() => setDropdownOpen((open) => !open)}
-            aria-haspopup="true"
-            aria-expanded={dropdownOpen}
-           
-          >
-            <span className={styles.profileText}>Profile</span>
-            {dropdownOpen && (
-              <div className={styles.profileDropdownMenu}>
-                <button className={styles.profileDropdownItem} onClick={handleLogout}>Logout</button>
+              className={styles.profileDropdownWrapper}
+              ref={dropdownRef}
+              tabIndex={0}
+              onMouseEnter={() => setDropdownOpen(true)}
+              onMouseLeave={() => setDropdownOpen(false)}
+              onClick={() => setDropdownOpen((open) => !open)}
+              aria-haspopup="true"
+              aria-expanded={dropdownOpen}
+            >
+              <span className={styles.profileText}>{user ? (user.name || user.fullName || 'Profile') : 'Profile'}</span>
+              {dropdownOpen && (
+                <div className={styles.profileDropdownMenu}>
+                  <button className={styles.profileDropdownItem} onClick={handleLogout}>Logout</button>
                 <button className={styles.profileDropdownItem} disabled>Settings</button>
               </div>
             )}

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import OtpPopup from '../components/OtpPopup';
+import { useNavigate } from 'react-router-dom';
 import styles from './SignUpPage.module.css';
 
 const SignUpPage = () => {
+  const navigate = useNavigate();
   // Two-step registration state
   const [step, setStep] = useState(1); // 1: email/otp, 2: registration
   const [email, setEmail] = useState('');
@@ -106,7 +107,10 @@ const SignUpPage = () => {
       });
       const data = await response.json();
       if (data.success) {
-        setFormSuccess('Registration successful! You can now log in.');
+        setFormSuccess('Registration successful! Redirecting to login...');
+        setTimeout(() => {
+          navigate('/login');
+        }, 1500);
       } else {
         setFormError(data.message || 'Registration failed');
       }
@@ -121,12 +125,12 @@ const SignUpPage = () => {
         <div className={styles.logoSection}>
           <div className={styles.logo}>⏰</div>
           <h1 className={styles.title}>Time Tracker</h1>
-          <p className={styles.subtitle}>Start tracking your productivity today ✨</p>
+          <p className={styles.subtitle}>Start tracking your productivity today </p>
         </div>
         <div className={styles.card}>
           <div className={styles.header}>
             <h2>Create your account</h2>
-            <p>Join thousands of users tracking their time efficiently ✨</p>
+            <p>Join thousands of users tracking their time efficiently </p>
           </div>
           {step === 1 && (
             <>

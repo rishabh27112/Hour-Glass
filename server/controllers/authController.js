@@ -1,4 +1,8 @@
 import OtpVerification from '../models/otpVerificationModel.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import userModel from '../models/userModel.js';
+import transporter from '../config/nodemailer.js';
 // New: Send OTP endpoint (step 1)
 export const sendOtp = async (req, res) => {
     const { email } = req.body;
@@ -49,10 +53,7 @@ export const verifyOtp = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import userModel from '../models/userModel.js';
-import transporter from '../config/nodemailer.js';
+
 
 export const register = async (req, res) => {
   const { name, email, password } = req.body;
@@ -111,7 +112,9 @@ export const login = async (req, res) => {
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
-        return res.status(200).json({ success: true, message: 'Login successful' });
+        // Return token and user (without password) so frontend can store and use them
+        const userData = { id: user._id, name: user.name, email: user.email };
+        return res.status(200).json({ success: true, message: 'Login successful', token, user: userData });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -134,35 +137,6 @@ export const logout = async (req, res)=>{
     }
 }
 
-export const sendVerifyOtp = async (req, res) => {
-    try {
-        const { email } = req.body;
-        if (!email) {
-            return res.json({ success: false, message: 'Email is required' });
-        }
-        const user = await userModel.findOne({ email });
-        if (!user) {
-            return res.json({ success: false, message: 'User not found' });
-        }
-        if (user.isAccountVerified) {
-            return res.json({ success: false, message: 'Account already verified' });
-        }
-        const otp = String(Math.floor(100000 + Math.random() * 900000));
-        user.verifyOtp = otp;
-        user.verifyOtpExpireAt = Date.now() + 24 * 60 * 60 * 1000;
-        await user.save();
-        const mailOptions = {
-            from: process.env.SENDER_EMAIL,
-            to: user.email,
-            subject: 'Account Verification OTP',
-            text: `Your OTP is ${otp}. Verify your account using this OTP.`
-        };
-        await transporter.sendMail(mailOptions);
-        res.json({ success: true, message: 'Verification OTP sent on email' });
-    } catch (error) {
-        res.json({ success: false, message: error.message });
-    }
-}
 
 export const verifyemail = async (req, res) => {
     const { email, otp } = req.body;
