@@ -1,8 +1,12 @@
-import express from 'express'
-import { isAuthenticated, login, logout, register, resetPassword, sendResetOtp, sendVerifyOtp,verifyemail } from '../controllers/authController.js';
+
+import express from 'express';
+import { isAuthenticated, login, logout, register, resetPassword, sendResetOtp, sendVerifyOtp, verifyemail, sendOtp, verifyOtp } from '../controllers/authController.js';
 import userAuth from '../middleware/userAuth.js';
 
 const authRouter = express.Router();
+
+authRouter.post('/send-otp', sendOtp);
+authRouter.post('/verify-otp', verifyOtp);
 
 authRouter.post('/register', register);
 authRouter.post('/login', login);

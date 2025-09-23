@@ -1,8 +1,38 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import styles from './LoginPage.module.css';
 
+
 const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:4000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Redirect to dashboard (change '/dashboard' to your actual route)
+        navigate('/dashboard');
+      } else {
+        setError(data.message || 'Login failed');
+      }
+    } catch (err) {
+      setError('Login error');
+    }
+    setLoading(false);
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.content}>
@@ -11,21 +41,32 @@ const LoginPage = () => {
           <h1 className={styles.title}>Time Tracker</h1>
           <p className={styles.subtitle}>Track your productivity with precision ✨</p>
         </div>
-        
         <div className={styles.card}>
           <div className={styles.header}>
             <h2>Welcome back</h2>
             <p>Sign in to your account to continue tracking 🚀</p>
           </div>
-          
-          <form className={styles.form}>
+          <form className={styles.form} onSubmit={handleSubmit}>
             <div className={styles.inputGroup}>
-              <input type="email" placeholder="Enter your email" className={styles.input} />
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className={styles.input}
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className={styles.inputGroup}>
-              <input type="password" placeholder="Enter your password" className={styles.input} />
+              <input
+                type="password"
+                placeholder="Enter your password"
+                className={styles.input}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+              />
             </div>
-            
             <div className={styles.options}>
               <label className={styles.checkbox}>
                 <input type="checkbox" />
@@ -33,29 +74,26 @@ const LoginPage = () => {
               </label>
               <Link to="/forgot-password" className={styles.forgotLink}>Forgot password?</Link>
             </div>
-            
-            <button type="submit" className={styles.primaryButton}>
-              ✨ Sign in
+            <button type="submit" className={styles.primaryButton} disabled={loading}>
+              {loading ? 'Signing in...' : '✨ Sign in'}
             </button>
+            {error && <div style={{ color: 'red', marginTop: 8 }}>{error}</div>}
           </form>
-          
           <div className={styles.divider}>
             <span>OR CONTINUE WITH</span>
           </div>
-          
           <button className={styles.googleButton}>
             <span className={styles.googleIcon}>
               <img
-      src="https://img.icons8.com/?size=100&id=17950&format=png&color=FFFFFF"
-      alt="Google"
-      width="20"
-      height="20"
-      style={{ display: 'block' }}
-    />
+                src="https://img.icons8.com/?size=100&id=17950&format=png&color=FFFFFF"
+                alt="Google"
+                width="20"
+                height="20"
+                style={{ display: 'block' }}
+              />
             </span>
             Continue with Google
           </button>
-          
           <div className={styles.footer}>
             <span>Don't have an account? </span>
             <Link to="/signup" className={styles.signupLink}>Sign up here</Link>

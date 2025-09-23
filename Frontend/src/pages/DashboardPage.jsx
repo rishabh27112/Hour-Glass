@@ -1,6 +1,6 @@
 
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styles from './DashboardPage.module.css';
 
 const stats = [
@@ -22,23 +22,71 @@ const stats = [
 ];
 
 const DashboardPage = () => {
+  // Profile dropdown state
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Logout handler (clear JWT cookie and redirect to login)
+  const handleLogout = () => {
+    // Remove JWT cookie (assume httpOnly, so just redirect)
+    window.location.href = '/login';
+  };
+
   return (
     <div className={styles.dashboardBg}>
       <div className={styles.dashboardCard}>
-        <div className={styles.logoSection}>
-          <div className={styles.logo}>⏰</div>
-          <h1 className={styles.title}>Dashboard</h1>
-          <p className={styles.subtitle}>Your productivity at a glance</p>
+        <div className={styles.profileSection}>
+
+          <div className={styles.logoSection}>
+            <h1 className={styles.title}>Dashboard</h1>
+            <p className={styles.subtitle}>Your productivity at a glance</p>
+          </div>
         </div>
 
-        <nav className={styles.navbar}>
-          <a href="#dashboard" className={styles.navLinkActive}>Dashboard</a>
-          <a href="#report" className={styles.navLink}>Report</a>
-          <a href="#calendar" className={styles.navLink}>Calendar</a>
-          <a href="#projects" className={styles.navLink}>Projects</a>
-        </nav>
 
-        <section className={styles.statsSection}>
+        <div className={styles.navbarWithProfile}>
+          <nav className={styles.navbar}>
+            <a href="#dashboard" className={styles.navLinkActive}>Dashboard</a>
+            <a href="#report" className={styles.navLink}>Report</a>
+            <a href="#calendar" className={styles.navLink}>Calendar</a>
+            <a href="#projects" className={styles.navLink}>Projects</a>
+            <div
+            className={styles.profileDropdownWrapper}
+            ref={dropdownRef}
+            tabIndex={0}
+            onMouseEnter={() => setDropdownOpen(true)}
+            onMouseLeave={() => setDropdownOpen(false)}
+            onClick={() => setDropdownOpen((open) => !open)}
+            aria-haspopup="true"
+            aria-expanded={dropdownOpen}
+           
+          >
+            <span className={styles.profileText}>Profile</span>
+            {dropdownOpen && (
+              <div className={styles.profileDropdownMenu}>
+                <button className={styles.profileDropdownItem} onClick={handleLogout}>Logout</button>
+                <button className={styles.profileDropdownItem} disabled>Settings</button>
+              </div>
+            )}
+          </div>
+          </nav>
+          
+        </div>
+
+  <section className={styles.statsSection}>
           {stats.map((stat, idx) => (
             <div className={styles.statCard} key={stat.title}>
               {stat.icon}
@@ -48,7 +96,7 @@ const DashboardPage = () => {
           ))}
         </section>
 
-        <section className={styles.insightsSection}>
+  <section className={styles.insightsSection}>
           <h2>Insights</h2>
           <div className={styles.chartsContainer}>
             <div className={styles.chartPlaceholder}>
@@ -62,7 +110,7 @@ const DashboardPage = () => {
           </div>
         </section>
 
-        <section className={styles.appsSection}>
+  <section className={styles.appsSection}>
           <h2>Most Used Apps</h2>
           <ul className={styles.appsList}>
             <li><span className={styles.appIcon} style={{background: '#e0e7ff', color: '#6c63ff'}}>Slack</span></li>
