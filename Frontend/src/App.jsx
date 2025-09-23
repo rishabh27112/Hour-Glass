@@ -5,12 +5,13 @@ import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
-import './App.module.css'; // Import global futuristic styles
+// import HomePage from './pages/HomePage'; 
+import './App.module.css'; 
 
 const App = () => {
   return (
     <Router>
-      <div className="app-container"> {/* Add futuristic container */}
+      <div className="app-container"> {}
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />

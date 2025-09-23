@@ -2,7 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import styles from './HomePage.module.css';
 
-const HomePage = () => {
+const HomePage = () => 
+{
   return (
     <div className={styles.homeContainer}>
       <header className={styles.homeHeader}>
