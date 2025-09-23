@@ -1,66 +1,72 @@
-/* Dark theme with vibrant colors */
+/* Fancy dark theme with vibrant colors */
 
 .app-container {
-  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); /* Dark gradient */
-  color: #ffffff;
-  font-family: 'Roboto', sans-serif;
   min-height: 100vh;
+  background: linear-gradient(135deg, #13131e, #252540);
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-family: 'Poppins', sans-serif;
+  color: #ffffff;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Orbitron', sans-serif;
-  color: #ff6ec7; /* Vibrant heading color */
+  color: #ffcc00;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
 }
 
 button {
-  background: linear-gradient(90deg, #ff6ec7, #7873f5); /* Vibrant button gradient */
-  color: #ffffff;
+  background: linear-gradient(135deg, #ff7eb3 0%, #ff758c 100%);
+  color: white;
   border: none;
-  border-radius: 8px;
-  padding: 10px 20px;
-  font-size: 1rem;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 10px rgba(255, 110, 199, 0.5);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(255, 126, 179, 0.5);
 }
 
 .google-button {
   background: #ffffff;
-  color: #24243e;
-  border: 1px solid #7873f5;
-  border-radius: 8px;
-  padding: 10px 20px;
-  font-size: 1rem;
+  color: #ff758c;
+  border: 2px solid #ff7eb3;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 1.2rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 .google-button:hover {
-  background: #f1f1f1;
-  box-shadow: 0 4px 10px rgba(120, 115, 245, 0.5);
+  background: #f9f9f9;
+  box-shadow: 0 6px 15px rgba(255, 117, 140, 0.5);
 }
 
 input {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid #00d4ff;
-  border-radius: 8px;
-  padding: 10px;
-  color: #000000;
+  width: 100%;
+  padding: 14px 18px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
   font-size: 1rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-sizing: border-box;
 }
 
 input:focus {
   outline: none;
-  border-color: #007a99;
+  border-color: #ff7eb3;
+  box-shadow: 0 0 0 4px rgba(255, 126, 179, 0.2);
 }
