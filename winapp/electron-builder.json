@@ -1,0 +1,20 @@
+{
+    "appId": "com.hourglass.app",
+    "productName": "Hour Glass",
+    "icon": "../Logo/logo.jpg",
+    "directories": {
+        "output": "dist-electron"
+    },
+    "files": [
+        "dist-electron",
+        "dist-react"
+    ],
+    "win": {
+        "target": "portable"
+    },
+    "nsis": {
+        "oneClick": false,
+        "perMachine": false,
+        "allowToChangeInstallationDirectory": true
+    }
+}

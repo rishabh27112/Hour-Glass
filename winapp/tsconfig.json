@@ -5,6 +5,6 @@
     { "path": "./tsconfig.node.json" }
   ],
   "include": ["src"],
-  "exclude": ["src/electron" ]
+  "exclude": ["src/electron", "src/**/*.d.ts"]
 }
  
