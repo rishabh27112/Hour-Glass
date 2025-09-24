@@ -8,7 +8,7 @@
 
 .profileText {
   font-size: 1rem;
-  color: #667eea;
+  color: var(--background-color);
   font-weight: 500;
   cursor: pointer;
   padding: 4px 16px;
@@ -58,7 +58,7 @@
 }
 .profileDropdownItem:hover:not(:disabled) {
   background: #f3f4f6;
-  color: #667eea;
+  color: var(--background-color);
 }
 .profileDropdownItem:disabled {
   color: #bdbdbd;
@@ -114,7 +114,7 @@
 }
 .profileDropdownItem:hover:not(:disabled) {
   background: #f3f4f6;
-  color: #667eea;
+  color: var(--background-color);
 }
 .profileDropdownItem:disabled {
   color: #bdbdbd;
@@ -597,7 +597,7 @@
 
 .dashboardBg {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--background-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -636,7 +636,7 @@
 }
 
 .subtitle {
-  color: #667eea;
+  color: var(--background-color);
   margin: 0;
   font-size: 1rem;
 }
@@ -650,7 +650,7 @@
 
 .navLink,
 .navLinkActive {
-  color: #667eea;
+  color: var(--background-color);
   text-decoration: none;
   font-weight: 500;
   font-size: 1rem;
@@ -659,10 +659,10 @@
   transition: border-color 0.2s;
 }
 .navLink:hover {
-  border-bottom: 2px solid #667eea;
+  border-bottom: 2px solid var(--background-color);
 }
 .navLinkActive {
-  border-bottom: 2px solid #667eea;
+  border-bottom: 2px solid var(--background-color);
 }
 
 .statsSection {
@@ -696,7 +696,7 @@
 .statIcon {
   font-size: 2.2rem;
   margin-bottom: 0.5rem;
-  color: #667eea;
+  color: var(--background-color);
 }
 .statTitle {
   font-size: 1.05rem;

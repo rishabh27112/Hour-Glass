@@ -42,7 +42,7 @@ const LoginPage = () => {
     <div className={styles.container}>
       <div className={styles.content}>
         <div className={styles.logoSection}>
-          <div className={styles.logo}>⏰</div>
+          <div className={styles.logo}> <i class="fa-solid fa-hourglass-half"></i></div>
           <h1 className={styles.title}>Time Tracker</h1>
           <p className={styles.subtitle}>Track your productivity with precision </p>
         </div>

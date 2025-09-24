@@ -123,8 +123,8 @@ const SignUpPage = () => {
     <div className={styles.container}>
       <div className={styles.content}>
         <div className={styles.logoSection}>
-          <div className={styles.logo}>⏰</div>
-          <h1 className={styles.title}>Time Tracker</h1>
+          <div className={styles.logo}> <i class="fa-solid fa-hourglass-half"></i></div>
+          <h1 className={styles.title}>Hour Glass</h1>
           <p className={styles.subtitle}>Start tracking your productivity today </p>
         </div>
         <div className={styles.card}>
