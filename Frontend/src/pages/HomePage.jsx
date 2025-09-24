@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import styles from './HomePage.module.css';
-import logoIcon from '../Logo/main_logo.png';
 
 const HomePage = () => {
   return (

@@ -1,13 +1,14 @@
-/* Recommended: Add this to your main index.css file */
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap');
+/* @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap'); */
 
 /* --- Main Page Container --- */
 .pageContainer {
-    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    min-height: 100vh;
+    font-family: sans-serif;
     background-color: var(--background-color);
     color: var(--primary-textcolor);
     text-align: center;
 }
+
 
 /* --- Navigation Bar --- */
 .navbar {
@@ -53,7 +54,7 @@
 }
 
 .heroSection h1 {
-    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    font-family: sans-serif;
     font-size: 2.5rem;
     font-weight: 600;
     color: var(--primary-textcolor);
@@ -68,14 +69,14 @@
 
 /* --- Main Content --- */
 .mainContent {
-    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    font-family: sans-serif;
     padding: 4rem 2rem;
     max-width: 800px;
     margin: 0 auto;
 }
 
 .aboutSection h2 {
-    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
+    font-family: sans-serif;
     font-size: 2rem;
     color: var(--primary-textcolor);
     margin-bottom: 1rem;
@@ -124,9 +125,76 @@
 
 /* --- Footer --- */
 .footer {
-    font-family: "Roboto Mono", "Roboto Mono", Vazirmatn, monospace;
-    padding: 1.5rem;
+    font-family: sans-serif;
+    padding: 3rem;
     background-color: var(--background-color);
     font-size: 0.9rem;
     color: var(--sub-textcolor);
+}
+
+/* For Mobile Phones (screens smaller than 768px) */
+@media (max-width: 768px) {
+    .navbar {
+        padding: 0.75rem 1.5rem;
+    }
+
+    .navLogo a {
+        font-size: 1.2rem;
+    }
+
+    .logoIcon {
+        height: 28px;
+    }
+
+    .buttonPrimary,
+    .buttonSecondary {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+
+    .heroSection {
+        padding: 4rem 1.5rem;
+    }
+
+    .heroSection h1 {
+        font-size: 2rem;
+    }
+
+    .heroSection p {
+        font-size: 1rem;
+    }
+
+    .mainContent {
+        padding: 3rem 1.5rem;
+    }
+
+    .aboutSection h2 {
+        font-size: 1.75rem;
+    }
+
+    .aboutSection p {
+        font-size: 1rem;
+    }
+}
+
+/* For Small Mobile Phones (screens smaller than 480px) */
+@media (max-width: 480px) {
+    .navAuth {
+        /* On the smallest screens, hide the login button to prevent crowding. */
+        /* A hamburger menu would be the next step. */
+        gap: 0.5rem;
+    }
+
+    .buttonSecondary {
+        display: none;
+        /* Hide the login button */
+    }
+
+    .buttonPrimary {
+        padding: 8px 12px;
+    }
+
+    .heroSection h1 {
+        font-size: 1.8rem;
+    }
 }
