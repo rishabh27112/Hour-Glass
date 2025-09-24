@@ -1,31 +1,25 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import './App.css'
+import { useEffect, useState } from "react";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activeWindow, setActiveWindow] = useState("Loading...");
+
+  useEffect(() => {
+    // Polling every 1 second
+    const interval = setInterval(async () => {
+      const title = await window.api.getActiveWindowInfo();
+      setActiveWindow(title || "No active window");
+    }, 100);
+
+    return () => clearInterval(interval); // cleanup when component unmounts
+  }, []);
 
   return (
-    <>
-      <div>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div style={{ padding: "20px", fontSize: "18px" }}>
+      <h1>Active Window Tracker</h1>
+      <p>Currently Active Window:</p>
+      <strong>{activeWindow}</strong>
+    </div>
+  );
 }
 
-export default App
+export default App;
