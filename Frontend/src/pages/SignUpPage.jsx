@@ -70,7 +70,8 @@ const SignUpPage = () => {
       if (data.success) {
         setOtpSuccess('OTP verified! Continue registration.');
         setTimeout(() => setStep(2), 1000);
-      } else {
+      } else 
+        {
         setOtpError(data.message || 'Invalid OTP');
       }
     } catch (error) {

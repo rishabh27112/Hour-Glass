@@ -1,0 +1,104 @@
+.dashboardContainer {
+  display: flex;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+.leftContainer {
+  flex: 1;
+  background-color: #f3f4f6;
+  padding: 20px;
+  border-right: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin: 10px;
+}
+
+.middleContainer {
+  flex: 2;
+  padding: 20px;
+  position: relative;
+  border-radius: 10px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 10px;
+}
+
+.rightContainer {
+  flex: 1;
+  background-color: #f3f4f6;
+  padding: 20px;
+  border-left: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin: 10px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb; /* Horizontal bar */
+  padding-bottom: 10px;
+}
+
+.title {
+  font-size: 1.5rem; /* Reduced font size */
+  font-weight: bold;
+  color: #333;
+}
+
+.timerContainer {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.timer {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.timerButtons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.startButton,
+.stopButton {
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.startButton {
+  background-color: #4caf50;
+}
+
+.startButton:hover {
+  background-color: #45a049;
+}
+
+.startButton:disabled {
+  background-color: #a5d6a7;
+  cursor: not-allowed;
+}
+
+.stopButton {
+  background-color: #f44336;
+}
+
+.stopButton:hover {
+  background-color: #e53935;
+}
+
+.stopButton:disabled {
+  background-color: #ef9a9a;
+  cursor: not-allowed;
+}

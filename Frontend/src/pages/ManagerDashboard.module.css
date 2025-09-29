@@ -1,0 +1,165 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.dashboardContainer {
+  display: flex;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+.leftContainer {
+  flex: 1;
+  background-color: #f3f4f6;
+  padding: 20px;
+  border-right: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin: 10px;
+}
+
+.middleContainer {
+  flex: 2;
+  padding: 20px;
+  position: relative;
+  border-radius: 10px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 10px;
+}
+
+.rightContainer {
+  flex: 1;
+  background-color: #f3f4f6;
+  padding: 20px;
+  border-left: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin: 10px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb; /* Horizontal bar */
+  padding-bottom: 10px;
+}
+
+.title {
+  font-size: 1.5rem; /* Reduced font size */
+  font-weight: bold;
+  color: #333;
+}
+
+.addProjectButton {
+  padding: 8px 16px; /* Adjusted padding */
+  font-size: 0.9rem; /* Reduced font size */
+  font-weight: bold;
+  color: #fff;
+  background-color: #4f46e5;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.addProjectButton:hover {
+  background-color: #4338ca;
+}
+
+.projectFormContainer {
+  background: #f9fafb;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.projectForm {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  font-size: 0.9rem; /* Reduced font size */
+  margin-bottom: 10px;
+  color: #555;
+}
+
+.required {
+  color: red;
+}
+
+.input {
+  padding: 8px; /* Adjusted padding */
+  font-size: 0.9rem; /* Reduced font size */
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin-bottom: 15px;
+}
+
+.textarea {
+  padding: 8px; /* Adjusted padding */
+  font-size: 0.9rem; /* Reduced font size */
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin-bottom: 15px;
+  resize: vertical;
+}
+
+.submitButton {
+  padding: 8px 16px; /* Adjusted padding */
+  font-size: 0.9rem; /* Reduced font size */
+  font-weight: bold;
+  color: #fff;
+  background-color: #4f46e5;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.submitButton:hover {
+  background-color: #4338ca;
+}
+
+.error {
+  color: red;
+  font-size: 0.8rem; /* Reduced font size */
+  margin-bottom: 10px;
+}
+
+.content {
+  text-align: center;
+  color: #555;
+}
+
+.projectList {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+}
+
+.projectItem {
+  background: #f9fafb;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 15px;
+}
+
+.projectItem h3 {
+  font-size: 1.2rem;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.projectItem p {
+  font-size: 0.9rem;
+  color: #555;
+  margin: 5px 0;
+}
