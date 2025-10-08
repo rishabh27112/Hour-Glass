@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import styles from './ManagerDashboard.module.css';
 
 const ManagerDashboard = () => {
@@ -8,6 +8,11 @@ const ManagerDashboard = () => {
   const [employees, setEmployees] = useState('');
   const [error, setError] = useState('');
   const [projects, setProjects] = useState([]); // State to store project details
+  const [search, setSearch] = useState('');
+  const [isLeftOpen, setIsLeftOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'archive' | 'delete'
+  const [selected, setSelected] = useState([]); // array of indexes
 
   const handleAddProjectClick = () => {
     setIsAddingProject(!isAddingProject);
@@ -16,8 +21,22 @@ const ManagerDashboard = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!projectName.trim()) {
+    const name = projectName.trim();
+    if (!name) {
       setError('Project name is required.');
+      return;
+    }
+
+    // Must start with an alphabetic letter (A-Z or a-z)
+    if (!/^[A-Za-z]/.test(name)) {
+      setError('Project name must start with a letter.');
+      return;
+    }
+
+    // Check for duplicate (case-insensitive)
+    const exists = projects.some((p) => p.name.toLowerCase() === name.toLowerCase());
+    if (exists) {
+      setError('A project with this name already exists. Please choose a different name.');
       return;
     }
     const newProject = {
@@ -33,23 +52,120 @@ const ManagerDashboard = () => {
   };
 
   return (
-    <div className={styles.dashboardContainer}>
-      <div className={styles.leftContainer}>
-        <h2>Left Container</h2>
-        <p>Content for the left container...</p>
+    <div className={styles.pageContainer}>
+      <div className={styles.taskbarTop}>
+        <div className={styles.taskbarTopLeft}>Hour-Glass</div>
+        <div className={styles.taskbarTopRight}>
+          <div className={styles.profileWrapper}>
+            <button
+              className={styles.profileButton}
+              onClick={() => setProfileOpen(!profileOpen)}
+              aria-label="Open profile menu"
+            >
+              <img src="/Logo/logo.png" alt="profile" className={styles.profileAvatar} />
+            </button>
+            {profileOpen && (
+              <div className={styles.profileMenu} role="menu">
+                <button className={styles.profileMenuItem} role="menuitem">Profile</button>
+                <button className={styles.profileMenuItem} role="menuitem">Logout</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.dashboardContainerRow}>
+      <div className={`${styles.leftContainer} ${isLeftOpen ? styles.leftOpen : styles.leftClosed}`}>
+        <button
+          className={styles.leftToggle}
+          onClick={() => setIsLeftOpen(!isLeftOpen)}
+          aria-label={isLeftOpen ? 'Close left panel' : 'Open left panel'}
+        >
+          {isLeftOpen ? '◀' : '▶'}
+        </button>
+        {isLeftOpen ? (
+          <div className={styles.leftInner}>
+            <h2>Left Container</h2>
+            <p>Content for the left container...</p>
+          </div>
+        ) : null}
       </div>
 
       <div className={styles.middleContainer}>
         <header className={styles.header}>
           <h1 className={styles.title}>Manager Dashboard</h1>
-          <button className={styles.addProjectButton} onClick={handleAddProjectClick}>
-            + Add Project
-          </button>
+
+          <div className={styles.searchGroup}>
+            <input
+              type="text"
+              placeholder="Search projects by name..."
+              className={styles.searchInput}
+              value={search}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearch(v);
+                if (isAddingProject) {
+                  setIsAddingProject(false);
+                  setError('');
+                  setProjectName('');
+                  setProjectDescription('');
+                  setEmployees('');
+                }
+              }}
+            />
+            <button
+              className={styles.clearSearch}
+              onClick={() => setSearch('')}
+              title="Clear search"
+            >
+              X
+            </button>
+          </div>
+
+          <div className={styles.actionGroup}>
+            <button className={styles.addProjectButton} onClick={handleAddProjectClick}>
+              + Add Project
+            </button>
+            <button
+              className={styles.secondaryButton}
+              onClick={() => {
+                setSelectionMode('archive');
+                setSelected([]);
+              }}
+            >
+              Archive
+            </button>
+            <button
+              className={styles.dangerButton}
+              onClick={() => {
+                setSelectionMode('delete');
+                setSelected([]);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+
+          {/* profile moved to taskbar in right container */}
         </header>
 
         {isAddingProject && (
           <div className={styles.projectFormContainer}>
             <form className={styles.projectForm} onSubmit={handleSubmit}>
+              <button
+                type="button"
+                className={styles.closeFormButton}
+                onClick={() => {
+                  setIsAddingProject(false);
+                  setError('');
+                  setProjectName('');
+                  setProjectDescription('');
+                  setEmployees('');
+                }}
+                aria-label="Close add project form"
+              >
+                ✕
+              </button>
               <label className={styles.label}>
                 Project Name <span className={styles.required}>*</span>
                 <input
@@ -89,27 +205,82 @@ const ManagerDashboard = () => {
           </div>
         )}
 
-        <div className={styles.content}>
+          <div className={styles.middleScroll}>
+          <div className={styles.content}>
           <h2>Projects</h2>
+          {selectionMode !== 'none' && (
+            <div className={styles.selectionBar}>
+              <span>{selectionMode === 'delete' ? 'Delete' : 'Archive'} mode</span>
+              <div>
+                <button
+                  className={styles.confirmButton}
+                  onClick={() => {
+                    if (selected.length === 0) return;
+                    if (selectionMode === 'delete') {
+                      setProjects(projects.filter((_, idx) => !selected.includes(idx)));
+                    } else {
+                      // Archive action: currently just remove from list for demo
+                      setProjects(projects.filter((_, idx) => !selected.includes(idx)));
+                    }
+                    setSelectionMode('none');
+                    setSelected([]);
+                  }}
+                >
+                  Confirm
+                </button>
+                <button
+                  className={styles.cancelButton}
+                  onClick={() => {
+                    setSelectionMode('none');
+                    setSelected([]);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {projects.length > 0 ? (
-            <ul className={styles.projectList}>
-              {projects.map((project, index) => (
-                <li key={index} className={styles.projectItem}>
-                  <h3>{project.name}</h3>
-                  <p>{project.description}</p>
-                  <p><strong>Employees:</strong> {project.employees.join(', ')}</p>
-                </li>
-              ))}
-            </ul>
+            (() => {
+              const filtered = projects.filter((p) =>
+                p.name.toLowerCase().includes(search.trim().toLowerCase())
+              );
+              return filtered.length > 0 ? (
+                <ul className={styles.projectList}>
+                  {filtered.map((project, index) => {
+                    const realIndex = projects.indexOf(project);
+                    const checked = selected.includes(realIndex);
+                    return (
+                      <li key={realIndex} className={styles.projectItem}>
+                        {selectionMode !== 'none' && (
+                          <input
+                            type="checkbox"
+                            className={styles.projectCheckbox}
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelected([...selected, realIndex]);
+                              else setSelected(selected.filter((i) => i !== realIndex));
+                            }}
+                          />
+                        )}
+                        <div className={styles.projectInfo}>
+                          <h3>{project.name}</h3>
+                          <p>{project.description}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p>No projects match your search.</p>
+              );
+            })()
           ) : (
             <p>No projects added yet.</p>
           )}
+          </div>
         </div>
       </div>
-
-      <div className={styles.rightContainer}>
-        <h2>Right Container</h2>
-        <p>Content for the right container...</p>
       </div>
     </div>
   );
