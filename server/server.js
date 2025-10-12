@@ -9,10 +9,12 @@ import jwt from 'jsonwebtoken';
 import connectDB from "./config/mongodb.js";
 import authRouter from './routes/authRoutes.js';
 import userRouter from "./routes/userRoutes.js";
+import projectRouter from './routes/ProjectRoutes.js';
+import timeEntryRouter from './routes/TImeEntryRoutes.js';
 
 
 const app = express();
-const port = process.env.port || 4000;
+const port = process.env.PORT || process.env.port || 4000;
 connectDB();
 
 const corsOptions = {
@@ -71,6 +73,8 @@ app.get('/api/auth/google/callback',
 app.get('/', (req, res) => res.send("API Working"));
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
+app.use('/api/projects', projectRouter);
+app.use('/api/time-entries', timeEntryRouter);
 
 // Debug route to inspect Google OAuth session (for dev only)
 app.get('/api/auth/google/success', (req, res) => {
