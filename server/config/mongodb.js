@@ -1,5 +1,14 @@
 import mongoose from "mongoose";
 
+const connectDB = async()=>{
+
+    mongoose.connection.on('connected', ()=>console.log("DataBase Connected"));
+    await mongoose.connect(`${process.env.MONGODB_URL}/Loginpage`);
+};
+
+export default connectDB;
+/*import mongoose from "mongoose";
+
 const userSchema = new mongoose.Schema({
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
@@ -63,4 +72,4 @@ const timeEntrySchema = new mongoose.Schema({
 module.exports = mongoose.model('TimeEntry', timeEntrySchema);
 const userModel = mongoose.models.user || mongoose.model('user', userSchema)
 
-export default userModel; 
+export default userModel;  */

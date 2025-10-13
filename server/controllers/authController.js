@@ -8,8 +8,9 @@ export const sendOtp = async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
     try {
+        const emailLower = String(email).trim().toLowerCase().replace(/[\s,;]+$/g, '').replace(/[;,]/g,'');
         // Check if user already exists
-        const existingUser = await userModel.findOne({ email });
+        const existingUser = await userModel.findOne({ email: emailLower });
         if (existingUser) {
             return res.status(409).json({ success: false, message: 'User already exists' });
         }
@@ -18,14 +19,14 @@ export const sendOtp = async (req, res) => {
         const otpExpireAt = Date.now() + 10 * 60 * 1000; // 10 min
         // Upsert OTP record
         await OtpVerification.findOneAndUpdate(
-            { email },
+            { email: emailLower },
             { otp, otpExpireAt, verified: false },
             { upsert: true, new: true }
         );
         // Send OTP email
         const mailOptions = {
             from: process.env.SENDER_EMAIL,
-            to: email,
+            to: emailLower,
             subject: 'Your OTP for Registration',
             text: `Your OTP is ${otp}. It is valid for 10 minutes.`
         };
@@ -41,7 +42,8 @@ export const verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP are required' });
     try {
-        const record = await OtpVerification.findOne({ email });
+        const emailLower = String(email).trim().toLowerCase().replace(/[\s,;]+$/g, '').replace(/[;,]/g,'');
+        const record = await OtpVerification.findOne({ email: emailLower });
         if (!record) return res.status(404).json({ success: false, message: 'No OTP request found for this email' });
         if (record.verified) return res.json({ success: true, message: 'Email already verified' });
         if (record.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
@@ -56,32 +58,40 @@ export const verifyOtp = async (req, res) => {
 
 
 export const register = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, username } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !username) {
         return res.status(400).json({ success: false, message: 'Missing details' });
     }
     try {
+        const normalizedEmail = String(email).trim().toLowerCase().replace(/[\s,;]+$/g, '').replace(/[;,]/g,'');
+        const normalizedUsername = String(username).trim().toLowerCase();
+        // basic server-side validation for username
+        if (!/^[a-z0-9_]{3,20}$/.test(normalizedUsername)) {
+            return res.status(400).json({ success: false, message: 'Invalid username. Use 3-20 chars: lowercase letters, numbers, underscore.' });
+        }
         // Only allow registration if email is verified in OtpVerification
-        const otpRecord = await OtpVerification.findOne({ email });
+        const otpRecord = await OtpVerification.findOne({ email: normalizedEmail });
         if (!otpRecord || !otpRecord.verified) {
             return res.status(403).json({ success: false, message: 'Please verify your email before registering.' });
         }
-        // Prevent duplicate user
-        const existingUser = await userModel.findOne({ email });
+        // Prevent duplicate user (by email or username)
+        const existingUser = await userModel.findOne({ $or: [{ email: normalizedEmail }, { username: normalizedUsername }] });
         if (existingUser) {
-            return res.status(409).json({ success: false, message: 'User already exists' });
+            const conflictField = existingUser.email === normalizedEmail ? 'Email' : 'Username';
+            return res.status(409).json({ success: false, message: `${conflictField} already in use` });
         }
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = new userModel({
             name,
-            email,
+            email: normalizedEmail,
+            username: normalizedUsername,
             password: hashedPassword,
             isAccountVerified: true
         });
         await user.save();
         // Remove OTP record after successful registration
-        await OtpVerification.deleteOne({ email });
+        await OtpVerification.deleteOne({ email: normalizedEmail });
         return res.status(201).json({ success: true, message: 'User registered successfully. You can now log in.' });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -89,12 +99,15 @@ export const register = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    const { identifier, email, username, password } = req.body;
+    // accept common variants and a safe fallback for common typo
+    const idInput = identifier ?? email ?? username ?? req.body.userName ?? req.body.login ?? req.body.uesrname;
+    if (!idInput || !password) {
         return res.status(400).json({ success: false, message: 'Missing details' });
     }
     try {
-        const user = await userModel.findOne({ email });
+        const normalized = String(idInput).trim().toLowerCase();
+        const user = await userModel.findOne({ $or: [{ email: normalized }, { username: normalized }] });
         if (!user) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
@@ -113,7 +126,7 @@ export const login = async (req, res) => {
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
         // Return token and user (without password) so frontend can store and use them
-        const userData = { id: user._id, name: user.name, email: user.email };
+        const userData = { id: user._id, name: user.name, email: user.email, username: user.username };
         return res.status(200).json({ success: true, message: 'Login successful', token, user: userData });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -144,7 +157,8 @@ export const verifyemail = async (req, res) => {
         return res.json({ success: false, message: 'Email and OTP are required' });
     }
     try {
-        const user = await userModel.findOne({ email });
+        const emailLower = String(email).trim().toLowerCase().replace(/[\s,;]+$/g, '').replace(/[;,]/g,'');
+        const user = await userModel.findOne({ email: emailLower });
         if (!user) {
             return res.json({ success: false, message: 'User not found' });
         }
@@ -184,7 +198,8 @@ export const sendResetOtp = async (req, res)=>{
     }
 
     try{
-        const user = await userModel.findOne({email});
+        const emailLower = String(email).trim().toLowerCase().replace(/[\s,;]+$/g, '').replace(/[;,]/g,'');
+        const user = await userModel.findOne({email: emailLower});
         if(!user){
             return res.json({success: false, message: 'User not Found'});
         }
@@ -217,8 +232,8 @@ export const resetPassword = async(req, res) =>{
     }
 
     try{
-
-        const user = await userModel.findOne({email});
+        const emailLower = String(email).trim().toLowerCase().replace(/[\s,;]+$/g, '').replace(/[;,]/g,'');
+        const user = await userModel.findOne({email: emailLower});
         if(!user){
             return res.json({success: false, message: 'User not Found'}); 
         }
