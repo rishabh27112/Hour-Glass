@@ -409,3 +409,17 @@
 .projectInfo {
   flex: 1;
 }
+
+.projectLink {
+  background: transparent;
+  border: none;
+  color: #0ea5e9;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0;
+  text-align: left;
+}
+
+.projectLink:hover {
+  text-decoration: underline;
+}

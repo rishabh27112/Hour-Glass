@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './ManagerDashboard.module.css';
 
 const ManagerDashboard = () => {
@@ -7,12 +8,29 @@ const ManagerDashboard = () => {
   const [projectDescription, setProjectDescription] = useState('');
   const [employees, setEmployees] = useState('');
   const [error, setError] = useState('');
-  const [projects, setProjects] = useState([]); // State to store project details
+  const [projects, setProjects] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('hg_projects');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }); // State to store project details
   const [search, setSearch] = useState('');
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'archive' | 'delete'
   const [selected, setSelected] = useState([]); // array of indexes
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // persist projects to sessionStorage so ProjectPage can read them
+    try {
+      sessionStorage.setItem('hg_projects', JSON.stringify(projects));
+    } catch (e) {
+      // ignore
+    }
+  }, [projects]);
 
   const handleAddProjectClick = () => {
     setIsAddingProject(!isAddingProject);
@@ -264,7 +282,21 @@ const ManagerDashboard = () => {
                           />
                         )}
                         <div className={styles.projectInfo}>
-                          <h3>{project.name}</h3>
+                          <h3>
+                            <button
+                              className={styles.projectLink}
+                              onClick={() => {
+                                // Close any open overlays before navigating to the project page
+                                setIsAddingProject(false);
+                                setProfileOpen(false);
+                                setSelectionMode('none');
+                                setSelected([]);
+                                navigate(`/projects/${realIndex}`);
+                              }}
+                            >
+                              {project.name}
+                            </button>
+                          </h3>
                           <p>{project.description}</p>
                         </div>
                       </li>
