@@ -10,9 +10,15 @@ const router = express.Router();
 // POST /api/projects - Create a new project
 router.post('/', userAuth, async (req, res) => {
   try {
-    const { ProjectName, Description, members } = req.body;
+    const { ProjectName, Description } = req.body;
     if (!ProjectName) {
       return res.status(400).json({ msg: 'ProjectName is required.' });
+    }
+
+    // Ensure authentication middleware set req.userId
+    if (!req.userId) {
+      console.error('Missing req.userId in Project creation - userAuth may have failed');
+      return res.status(401).json({ msg: 'Authentication required' });
     }
 
     // resolve the current user's username
@@ -28,8 +34,6 @@ router.post('/', userAuth, async (req, res) => {
     const newProject = new Project({
       ProjectName,
       Description: Description || '',
-      // members should be an array of ObjectIds. If frontend passed usernames, we'll ignore here
-      members: Array.isArray(members) ? members : [],
       createdBy: req.userId,
     });
 
@@ -173,6 +177,151 @@ router.delete('/:id/members/:username', userAuth, async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
+
+
+  // POST /api/projects/:id/tasks - Create a task inside a project (creator or members)
+  router.post('/:id/tasks', userAuth, async (req, res) => {
+    try {
+      const { title, description, dueDate } = req.body;
+      if (!title) return res.status(400).json({ msg: 'title is required' });
+
+      const project = await Project.findById(req.params.id);
+      if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+      // Only project creator or members can create tasks
+      const isMemberOrCreator = project.createdBy.toString() === req.userId || project.members.some(m => m.toString() === req.userId);
+      if (!isMemberOrCreator) return res.status(403).json({ msg: 'Not authorized to create tasks in this project' });
+
+      const task = { title, description: description || '' };
+      if (dueDate) {
+        const parsed = new Date(dueDate);
+        if (isNaN(parsed.getTime())) return res.status(400).json({ msg: 'Invalid dueDate' });
+        task.dueDate = parsed;
+        task.isDelayed = parsed.getTime() < Date.now();
+      }
+      project.tasks.push(task);
+      await project.save();
+
+      const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name').populate('tasks.assignee', 'username name');
+      res.status(201).json(populated);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Server Error');
+    }
+  });
+
+
+// GET /api/projects/:id/tasks/overdue - List overdue tasks where alert not yet sent (only creator)
+router.get('/:id/tasks/overdue', userAuth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id).populate('tasks.assignee', 'username name').populate('members', 'username name').populate('createdBy', 'username name');
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+    // Only creator can fetch overdue list (sensible: manager triggers alerts)
+    if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+
+    const now = new Date();
+    const overdue = project.tasks.filter(t => t.dueDate && t.dueDate.getTime() < now.getTime() && !t.delayAlertSent);
+
+    res.json({ projectId: project._id, overdue });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+
+// PATCH /api/projects/:id/tasks/:taskId/alerted - Mark a task's delayAlertSent = true (only creator)
+router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+    // Only creator can mark alert as sent
+    if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+
+    const task = project.tasks.id(req.params.taskId);
+    if (!task) return res.status(404).json({ msg: 'Task not found' });
+
+    task.delayAlertSent = true;
+    // Keep isDelayed consistent
+    if (task.dueDate) task.isDelayed = task.dueDate.getTime() < Date.now();
+
+    await project.save();
+
+    const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name').populate('tasks.assignee', 'username name');
+    res.json(populated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+
+  // PATCH /api/projects/:id/tasks/:taskId/assign - Assign a task to a member (only creator)
+  router.patch('/:id/tasks/:taskId/assign', userAuth, async (req, res) => {
+    try {
+      const { assigneeUsername } = req.body;
+      if (!assigneeUsername) return res.status(400).json({ msg: 'assigneeUsername is required' });
+
+      const project = await Project.findById(req.params.id);
+      if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+      // Only creator can assign tasks
+      if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+
+      // Find the user by username
+      const memberUser = await userModel.findOne({ username: assigneeUsername }).select('_id username');
+      if (!memberUser) return res.status(404).json({ msg: 'Assignee user not found' });
+
+      const memberId = memberUser._id.toString();
+
+      // Ensure assignee is a member of project
+      if (!project.members.some(m => m.toString() === memberId)) return res.status(400).json({ msg: 'User is not a project member' });
+
+      // Find the task
+      const task = project.tasks.id(req.params.taskId);
+      if (!task) return res.status(404).json({ msg: 'Task not found' });
+
+      task.assignee = memberId;
+      await project.save();
+
+      const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name').populate('tasks.assignee', 'username name');
+      res.json(populated);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Server Error');
+    }
+  });
+
+
+  // PATCH /api/projects/:id/tasks/:taskId/status - Update task status (members or creator)
+  router.patch('/:id/tasks/:taskId/status', userAuth, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const allowed = ['todo', 'in-progress', 'done'];
+      if (!status || !allowed.includes(status)) return res.status(400).json({ msg: `status is required and must be one of: ${allowed.join(', ')}` });
+
+      const project = await Project.findById(req.params.id);
+      if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+      // Only project members or creator can update status
+      const isMemberOrCreator = project.createdBy.toString() === req.userId || project.members.some(m => m.toString() === req.userId);
+      if (!isMemberOrCreator) return res.status(403).json({ msg: 'Not authorized to update tasks in this project' });
+
+      const task = project.tasks.id(req.params.taskId);
+      if (!task) return res.status(404).json({ msg: 'Task not found' });
+
+      task.status = status;
+      await project.save();
+
+      const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name').populate('tasks.assignee', 'username name');
+      res.json(populated);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Server Error');
+    }
+  });
 
 
 export default router;
