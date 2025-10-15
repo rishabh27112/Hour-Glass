@@ -214,12 +214,14 @@ router.delete('/:id/members/:username', userAuth, async (req, res) => {
 // GET /api/projects/:id/tasks/overdue - List overdue tasks where alert not yet sent (only creator)
 router.get('/:id/tasks/overdue', userAuth, async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id).populate('tasks.assignee', 'username name').populate('members', 'username name').populate('createdBy', 'username name');
+    const project = await Project.findById(req.params.id);//.populate('tasks.assignee', 'username name').populate('members', 'username name').populate('createdBy', 'username name');
     if (!project) return res.status(404).json({ msg: 'Project not found' });
 
     // Only creator can fetch overdue list (sensible: manager triggers alerts)
+    console.log(project.createdBy.toString() );
+    console.log(req.userId);
     if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
-
+    
     const now = new Date();
     const overdue = project.tasks.filter(t => t.dueDate && t.dueDate.getTime() < now.getTime() && !t.delayAlertSent);
 
