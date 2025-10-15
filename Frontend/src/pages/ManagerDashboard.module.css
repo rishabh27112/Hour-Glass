@@ -46,6 +46,8 @@
   margin: 10px;
   position: relative;
   transition: width 0.25s ease, transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .leftClosed {
@@ -59,6 +61,102 @@
 .leftInner {
   opacity: 1;
   transition: opacity 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.leftInner h2 {
+  font-size: 1.1rem;
+  color: #111827;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.projectListSidebar {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+}
+
+.projectItemSidebar {
+  margin-bottom: 8px;
+}
+
+.projectLinkSidebar {
+  width: 100%;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #374151;
+  transition: all 0.2s ease;
+}
+
+.projectLinkSidebar:hover {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+
+.noProjectsText {
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-style: italic;
+  margin-bottom: 20px;
+}
+
+.leftSectionHeader {
+  font-size: 0.95rem;
+  margin: 12px 0 8px 0;
+  color: #111827;
+  font-weight: 600;
+}
+
+.leftActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.leftButton {
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.leftButton:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.leftButtonDanger {
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.leftButtonDanger:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 
 .leftToggle {

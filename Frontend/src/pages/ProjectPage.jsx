@@ -37,14 +37,26 @@ const ProjectPage = () => {
     });
   };
 
-  const handleRemoveMember = (index) => {
+  const handleRemoveMember = (index, name) => {
     setProjects((prev) => {
       const newProjects = [...prev];
       const p = newProjects[projectIndex] ? { ...newProjects[projectIndex] } : { employees: [] };
+      // Recompute a normalized employee list
       const current = p.employees && Array.isArray(p.employees)
         ? p.employees.map((e) => (e == null ? '' : String(e))).map((s) => s.trim()).filter((s) => s !== '')
         : [];
-      p.employees = current.filter((_, i) => i !== index);
+      // Try to remove by exact name match first (safer if original array had odd values), else fall back to index
+      let idxToRemove = -1;
+      if (typeof name === 'string') {
+        idxToRemove = current.findIndex((n) => n === name);
+      }
+      if (idxToRemove === -1) idxToRemove = index;
+      if (idxToRemove < 0 || idxToRemove >= current.length) {
+        // nothing to remove
+        return prev;
+      }
+      const updated = [...current.slice(0, idxToRemove), ...current.slice(idxToRemove + 1)];
+      p.employees = updated;
       newProjects[projectIndex] = p;
       try { saveProjects(newProjects); } catch (err) { /* ignore */ }
       return newProjects;
@@ -57,7 +69,7 @@ const ProjectPage = () => {
         <h2>Project not found</h2>
         <button onClick={() => navigate(-1)}>Go back</button>
       </div>
-    );
+    );  
   }
 
   return (
@@ -83,19 +95,19 @@ const ProjectPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {((project.employees && project.employees.length > 0) ? project.employees.map((e) => (e == null ? '' : String(e)).trim()).filter((s) => s !== '') : []).length > 0 ? (
-                    ((project.employees && project.employees.length > 0) ? project.employees.map((e) => (e == null ? '' : String(e)).trim()).filter((s) => s !== '') : []).map((name, idx) => (
-                      <tr key={idx}>
+                  {cleanedEmployees.length > 0 ? (
+                    cleanedEmployees.map((name, idx) => (
+                      <tr key={`${name}-${idx}`}>
                         <td>{idx + 1}</td>
                         <td>{name}</td>
                         <td>
-                          {currentMode === 'delete' && <button className={styles.removeButton} onClick={() => handleRemoveMember(idx)}>-</button>}
+                          {currentMode === 'delete' && <button className={styles.removeButton} onClick={() => handleRemoveMember(idx, name)}>-</button>}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={3}>No team members</td>
+                      <td colSpan={3} className={styles.italic}>No members yet</td>
                     </tr>
                   )}
                 </tbody>

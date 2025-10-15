@@ -28,7 +28,7 @@ const LoginPage = () => {
         const storage = rememberMe ? localStorage : sessionStorage;
         if (data.token) storage.setItem('token', data.token);
         if (data.user) storage.setItem('user', JSON.stringify(data.user));
-        navigate('/select_view');
+  navigate('/dashboard');
       } else {
         setError(data.message || 'Login failed');
       }

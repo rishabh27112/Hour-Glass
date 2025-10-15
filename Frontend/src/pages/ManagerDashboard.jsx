@@ -22,6 +22,17 @@ const ManagerDashboard = () => {
   const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'archive' | 'delete'
   const [selected, setSelected] = useState([]); // array of indexes
   const navigate = useNavigate();
+  // read current user from storage (login writes to sessionStorage or localStorage)
+  const currentUser = React.useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem('user') || localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
+  const currentUserId = currentUser?.email || currentUser?.username || currentUser?._id || null;
 
   useEffect(() => {
     // persist projects to sessionStorage so ProjectPage can read them
@@ -57,12 +68,19 @@ const ManagerDashboard = () => {
       setError('A project with this name already exists. Please choose a different name.');
       return;
     }
+    const employeeList = employees
+      .split(',')
+      .map((emp) => emp.trim())
+      .filter(Boolean);
+
     const newProject = {
       name: projectName,
       description: projectDescription,
-      employees: employees.split(',').map((emp) => emp.trim()),
+      employees: employeeList,
       archived: false,
       deleted: false,
+      // set current user as owner when creating a project
+      owner: currentUserId,
     };
     setProjects([...projects, newProject]); // Add new project to the list
     setProjectName('');
@@ -105,8 +123,63 @@ const ManagerDashboard = () => {
         </button>
         {isLeftOpen ? (
           <div className={styles.leftInner}>
-            <h2>Left Container</h2>
-            <p>Content for the left container...</p>
+            <h3 className={styles.leftSectionHeader}>Projects you lead</h3>
+            {projects.filter((p) => !p.archived && !p.deleted && p.owner === currentUserId).length > 0 ? (
+              <ul className={styles.projectListSidebar}>
+                {projects
+                  .filter((p) => !p.archived && !p.deleted && p.owner === currentUserId)
+                  .map((project) => {
+                    const realIndex = projects.indexOf(project);
+                    return (
+                      <li key={realIndex} className={styles.projectItemSidebar}>
+                        <button
+                          className={styles.projectLinkSidebar}
+                          onClick={() => {
+                            setIsAddingProject(false);
+                            setProfileOpen(false);
+                            setSelectionMode('none');
+                            setSelected([]);
+                            navigate(`/projects/${realIndex}`);
+                          }}
+                        >
+                          {project.name}
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : (
+              <p className={styles.noProjectsText}>You are not leading any projects yet.</p>
+            )}
+
+            <h3 className={styles.leftSectionHeader}>Projects you are part of</h3>
+            {projects.filter((p) => !p.archived && !p.deleted && p.employees && currentUserId && p.employees.includes(currentUserId) && p.owner !== currentUserId).length > 0 ? (
+              <ul className={styles.projectListSidebar}>
+                {projects
+                  .filter((p) => !p.archived && !p.deleted && p.employees && currentUserId && p.employees.includes(currentUserId) && p.owner !== currentUserId)
+                  .map((project) => {
+                    const realIndex = projects.indexOf(project);
+                    return (
+                      <li key={realIndex} className={styles.projectItemSidebar}>
+                        <button
+                          className={styles.projectLinkSidebar}
+                          onClick={() => {
+                            setIsAddingProject(false);
+                            setProfileOpen(false);
+                            setSelectionMode('none');
+                            setSelected([]);
+                            navigate(`/projects/${realIndex}`);
+                          }}
+                        >
+                          {project.name}
+                        </button>
+                      </li>
+                    );
+                  })}
+              </ul>
+            ) : (
+              <p className={styles.noProjectsText}>You are not part of any projects yet.</p>
+            )}
             <div className={styles.leftActions}>
               <button
                 className={styles.leftButton}
@@ -129,7 +202,7 @@ const ManagerDashboard = () => {
 
       <div className={styles.middleContainer}>
         <header className={styles.header}>
-          <h1 className={styles.title}>Manager Dashboard</h1>
+          <h1 className={styles.title}>Dashboard</h1>
 
           <div className={styles.searchGroup}>
             <input

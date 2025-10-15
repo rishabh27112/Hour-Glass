@@ -120,10 +120,15 @@
 }
 
 .editContainer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  margin-top: 0;
+  /* make the edit controls flow with document instead of absolutely overlaying the table
+     so the "Done" button does not appear over the first member row */
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  /* create space at the top so the edit panels render below the table header/first row */
+  padding-top: 32px;
 }
 
 .threeDot {
@@ -132,12 +137,17 @@
   font-size: 20px;
   cursor: pointer;
   padding: 4px;
+  /* restore original top-right placement */
+  position: absolute;
+  top: 8px;
+  left: 8px; /* moved to left side */
+  z-index: 1002;
 }
 
 .dropdown {
   position: absolute;
   top: 100%;
-  right: 0;
+  left: 0; /* anchor dropdown to the left of the three-dot */
   background: white;
   border: 1px solid #ccc;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -176,4 +186,9 @@
   border: 1px solid #d1d5db;
   border-radius: 6px;
   cursor: pointer;
+}
+
+.italic {
+  font-style: italic;
+  color: #6b7280;
 }
