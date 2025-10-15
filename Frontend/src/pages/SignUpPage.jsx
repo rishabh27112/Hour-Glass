@@ -14,7 +14,7 @@ const SignUpPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMsg, setResendMsg] = useState('');
-  const [form, setForm] = useState({ fullName: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ fullName: '', username: '', password: '', confirmPassword: '' });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
@@ -70,8 +70,7 @@ const SignUpPage = () => {
       if (data.success) {
         setOtpSuccess('OTP verified! Continue registration.');
         setTimeout(() => setStep(2), 1000);
-      } else 
-        {
+      } else {
         setOtpError(data.message || 'Invalid OTP');
       }
     } catch (error) {
@@ -88,8 +87,14 @@ const SignUpPage = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setFormError(''); setFormSuccess('');
-    if (!form.fullName || !form.password || !form.confirmPassword) {
+    if (!form.fullName || !form.username || !form.password || !form.confirmPassword) {
       setFormError('All fields are required');
+      return;
+    }
+    // Very basic username check (lowercase letters, numbers, underscores, 3-20 chars)
+    const usernameOk = /^[a-z0-9_]{3,20}$/.test(form.username.trim().toLowerCase());
+    if (!usernameOk) {
+      setFormError('Username must be 3-20 chars, lowercase letters/numbers/underscore only');
       return;
     }
     if (form.password !== form.confirmPassword) {
@@ -103,6 +108,7 @@ const SignUpPage = () => {
         body: JSON.stringify({
           name: form.fullName,
           email,
+          username: form.username.trim().toLowerCase(),
           password: form.password
         })
       });
@@ -124,8 +130,8 @@ const SignUpPage = () => {
     <div className={styles.container}>
       <div className={styles.content}>
         <div className={styles.logoSection}>
-          <div className={styles.logo}> <i class="fa-solid fa-hourglass-half"></i></div>
-          <h1 className={styles.title}>Hour Glass</h1>
+          <div className={styles.logo}>⏰</div>
+          <h1 className={styles.title}>Time Tracker</h1>
           <p className={styles.subtitle}>Start tracking your productivity today </p>
         </div>
         <div className={styles.card}>
@@ -197,6 +203,16 @@ const SignUpPage = () => {
                   placeholder="Full name"
                   className={styles.input}
                   value={form.fullName}
+                  onChange={handleFormChange}
+                />
+              </div>
+              <div className={styles.inputGroup}>
+                <input
+                  type="text"
+                  name="username"
+                  placeholder="Username (unique)"
+                  className={styles.input}
+                  value={form.username}
                   onChange={handleFormChange}
                 />
               </div>

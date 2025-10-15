@@ -61,6 +61,8 @@ const ManagerDashboard = () => {
       name: projectName,
       description: projectDescription,
       employees: employees.split(',').map((emp) => emp.trim()),
+      archived: false,
+      deleted: false,
     };
     setProjects([...projects, newProject]); // Add new project to the list
     setProjectName('');
@@ -105,6 +107,22 @@ const ManagerDashboard = () => {
           <div className={styles.leftInner}>
             <h2>Left Container</h2>
             <p>Content for the left container...</p>
+            <div className={styles.leftActions}>
+              <button
+                className={styles.leftButton}
+                onClick={() => navigate('/archive')}
+                aria-label="Open archived projects"
+              >
+                Archive
+              </button>
+              <button
+                className={styles.leftButtonDanger}
+                onClick={() => navigate('/bin')}
+                aria-label="Open bin (deleted projects)"
+              >
+                Bin
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -234,12 +252,16 @@ const ManagerDashboard = () => {
                   className={styles.confirmButton}
                   onClick={() => {
                     if (selected.length === 0) return;
-                    if (selectionMode === 'delete') {
-                      setProjects(projects.filter((_, idx) => !selected.includes(idx)));
-                    } else {
-                      // Archive action: currently just remove from list for demo
-                      setProjects(projects.filter((_, idx) => !selected.includes(idx)));
-                    }
+                    // instead of removing, mark items with archived/deleted flags
+                    setProjects((prev) =>
+                      prev.map((p, idx) => {
+                        if (!selected.includes(idx)) return p;
+                        if (selectionMode === 'delete') {
+                          return { ...p, deleted: true };
+                        }
+                        return { ...p, archived: true };
+                      })
+                    );
                     setSelectionMode('none');
                     setSelected([]);
                   }}
@@ -260,9 +282,9 @@ const ManagerDashboard = () => {
           )}
           {projects.length > 0 ? (
             (() => {
-              const filtered = projects.filter((p) =>
-                p.name.toLowerCase().includes(search.trim().toLowerCase())
-              );
+              const filtered = projects
+                .filter((p) => !p.archived && !p.deleted)
+                .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
               return filtered.length > 0 ? (
                 <ul className={styles.projectList}>
                   {filtered.map((project, index) => {
@@ -291,7 +313,7 @@ const ManagerDashboard = () => {
                                 setProfileOpen(false);
                                 setSelectionMode('none');
                                 setSelected([]);
-                                navigate(`/projects/${realIndex}`);
+                                navigate(/projects/`${realIndex}`);
                               }}
                             >
                               {project.name}

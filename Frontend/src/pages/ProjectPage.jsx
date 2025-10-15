@@ -11,26 +11,44 @@ const ProjectPage = () => {
   const initialProjects = raw ? JSON.parse(raw) : [];
   const [projects, setProjects] = useState(initialProjects);
   const [currentMode, setCurrentMode] = useState(null); // 'add' or 'delete'
-  const project = projects[id];
+  const projectIndex = Number(id);
+  const project = projects[projectIndex];
 
   const saveProjects = (updatedProjects) => {
     sessionStorage.setItem('hg_projects', JSON.stringify(updatedProjects));
   };
 
+  // derive a cleaned employees list for rendering and operations
+  const cleanedEmployees = project && Array.isArray(project.employees)
+    ? project.employees.map((e) => (e == null ? '' : String(e))).map((s) => s.trim()).filter((s) => s !== '')
+    : [];
+
   const handleAddMember = (name) => {
-    const updatedProj = { ...project, employees: Array.isArray(project.employees) ? [...project.employees, name] : [name] };
-    const newProjects = [...projects];
-    newProjects[id] = updatedProj;
-    setProjects(newProjects);
-    saveProjects(newProjects);
+    setProjects((prev) => {
+      const newProjects = [...prev];
+      const p = newProjects[projectIndex] ? { ...newProjects[projectIndex] } : { employees: [] };
+      const current = p.employees && Array.isArray(p.employees)
+        ? p.employees.map((e) => (e == null ? '' : String(e))).map((s) => s.trim()).filter((s) => s !== '')
+        : [];
+      p.employees = [...current, name];
+      newProjects[projectIndex] = p;
+      try { saveProjects(newProjects); } catch (err) { /* ignore */ }
+      return newProjects;
+    });
   };
 
   const handleRemoveMember = (index) => {
-    const updatedProj = { ...project, employees: project.employees.filter((_, i) => i !== index) };
-    const newProjects = [...projects];
-    newProjects[id] = updatedProj;
-    setProjects(newProjects);
-    saveProjects(newProjects);
+    setProjects((prev) => {
+      const newProjects = [...prev];
+      const p = newProjects[projectIndex] ? { ...newProjects[projectIndex] } : { employees: [] };
+      const current = p.employees && Array.isArray(p.employees)
+        ? p.employees.map((e) => (e == null ? '' : String(e))).map((s) => s.trim()).filter((s) => s !== '')
+        : [];
+      p.employees = current.filter((_, i) => i !== index);
+      newProjects[projectIndex] = p;
+      try { saveProjects(newProjects); } catch (err) { /* ignore */ }
+      return newProjects;
+    });
   };
 
   if (!project) {
@@ -65,8 +83,8 @@ const ProjectPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {(project.employees && project.employees.length > 0) ? (
-                    project.employees.map((name, idx) => (
+                  {((project.employees && project.employees.length > 0) ? project.employees.map((e) => (e == null ? '' : String(e)).trim()).filter((s) => s !== '') : []).length > 0 ? (
+                    ((project.employees && project.employees.length > 0) ? project.employees.map((e) => (e == null ? '' : String(e)).trim()).filter((s) => s !== '') : []).map((name, idx) => (
                       <tr key={idx}>
                         <td>{idx + 1}</td>
                         <td>{name}</td>
