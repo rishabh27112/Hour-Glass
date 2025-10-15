@@ -313,7 +313,7 @@ const ManagerDashboard = () => {
                                 setProfileOpen(false);
                                 setSelectionMode('none');
                                 setSelected([]);
-                                navigate(/projects/`${realIndex}`);
+                                navigate(`/projects/${realIndex}`);
                               }}
                             >
                               {project.name}
