@@ -4,9 +4,9 @@ function App() {
   const [activeWindow, setActiveWindow] = useState("Loading...");
 
   useEffect(() => {
-    // Polling every 1 second
+    // Polling every 100 ms
     const interval = setInterval(async () => {
-      const title = await window.api.getActiveWindowInfo();
+      const title = await window.getCurrentWinAPI.getActiveWindowInfo();
       setActiveWindow(title || "No active window");
     }, 100);
 
