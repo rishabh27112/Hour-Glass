@@ -10,18 +10,18 @@ function Navbar() {
       <div className=" mx-auto px-6 py-4 flex justify-between items-center">
         {/* Logo */}
         <div className="flex items-center space-x-2">
-          <i class="text-white text-2xl text-bold ri-hourglass-line"></i>
-          <span className="text-white text-2xl font-bold">Hour Glass</span>
+          <i class="text-white text-4xl text-bold ri-hourglass-line"></i>
+          <span className="text-white text-3xl font-bold  shadow-cyan-400">Hour Glass</span>
         </div>
 
 
         <div className="hidden md:flex items-center space-x-6">
-          <a href="#" className="text-gray-300 hover:text-[#18d4d1] px-3 py-1 rounded-md hover:bg-[#2c2c2c] transition-colors duration-200">Home</a>
-          <a href="#" className="text-gray-300 hover:text-[#18d4d1] px-3 py-1 rounded-md hover:bg-[#2c2c2c] transition-colors duration-200">About Us</a>
+          <a href="#" className="text-gray-300 font-bold text-xl hover:text-[#18d4d1] px-3 py-1 rounded-md hover:bg-[#2c2c2c] transition-colors duration-200">Home</a>
+          <a href="#" className="text-gray-300 font-bold text-xl hover:text-[#18d4d1] px-3 py-1 rounded-md hover:bg-[#2c2c2c] transition-colors duration-200">About Us</a>
           <a
             href="#"
-            className="ml-4 border border-[#18d4d1] text-[#18d4d1] font-semibold py-2 px-5 rounded-lg 
-                       hover:bg-[#18d4d1] hover:text-[#1b1b1b] transition-all duration-200"
+            className="ml-4 border border-[#18d4d1] text-[#18d4d1] font-semibold text-xl py-2 px-5 rounded-lg 
+                       hover:bg-[#18d4d1] hover:translate-y-0.5 hover:text-[#1b1b1b] transition-all duration-200"
           >
             Sign In
           </a>

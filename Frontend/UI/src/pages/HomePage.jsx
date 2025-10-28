@@ -1,7 +1,6 @@
 // src/App.jsx
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
-import SocialProof from '../components/SocialProof';
 import Features from '../components/Features';
 import HowItWorks from '../components/HowItWorks';
 import Testimonials from '../components/Testimonials';
@@ -13,7 +12,6 @@ function HomePage() {
         <div className="antialiased">
             <Navbar />
             <Hero />
-            <SocialProof />
             <Features />
             <HowItWorks />
             <Testimonials />

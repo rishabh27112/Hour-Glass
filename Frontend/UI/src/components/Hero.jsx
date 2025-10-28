@@ -1,7 +1,7 @@
 import React from 'react';
 import 'remixicon/fonts/remixicon.css'
 
-function Hero() {
+const Hero = () => {
     return (
         <div className="relative overflow-hidden pt-12 pb-24 md:pt-24 md:pb-48 bg-[#1b1b1b]">
 
@@ -10,7 +10,7 @@ function Hero() {
 
             <div className="container mx-auto px-6 text-center relative z-10">
                 {/* Main Headline */}
-                <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight max-w-4xl mx-auto">
+                <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight max-w-4xl mx-auto tracking-light">
                     Streamline Your Workday with <span className="text-[#18d4d1]">Effortless Time Tracking</span>
                 </h1>
 
@@ -20,11 +20,19 @@ function Hero() {
                 </p>
 
                 <div className="mt-12">
-                    <button className="w-full sm:w-auto bg-[#18d4d1] text-[#131212] font-bold spac py-3 px-5 rounded-xl hover:bg-[#14a3a1] transition-colors duration-200 tracking-light">
+                    <button
+                        className="group w-full sm:w-auto bg-[#18d4d1] text-[#131212] font-bold py-3 px-5 rounded-xl tracking-light
+                        transition-all duration-300 ease-in-out
+                        hover:bg-white
+                        hover:translate-y-0.5
+                        hover:shadow-lg hover:shadow-[#1b1b1b]/50"
+                    >
                         <div className='flex items-center gap-2'>
-                            <span className='text-xl'> Start tracking for free</span>
+                            <span className='text-xl font-semibold tracking-wide'> Start tracking for free</span>
                             <span className=''>
-                                <i class="ri-arrow-right-line text-xl bg-white rounded-2xl p-1 hover:bg-gray-300"></i>
+                                <i class="ri-arrow-right-line text-xl bg-white rounded-2xl p-1.5 group-hover:bg-[#18d4d1]
+                                 transition-all duration-300 ease-in-out
+                                "></i>
                             </span>
                         </div>
                     </button>
@@ -34,7 +42,7 @@ function Hero() {
                 <div className="mt-20 md:mt-32 relative">
                     <div className="bg-[#2c2c2c] p-8 rounded-2xl shadow-2xl border border-[#3a3a3a]">
                         <p className="text-gray-400">
-                            <span className="font-bold text-[#18d4d1]">Placeholder for your dashboard screenshot.</span>
+                            <span className="font-bold text-[#18d4d1]">Placeholder for dashboard screenshots.</span>
                         </p>
                         {/* <img src="/path/to/your/dashboard-screenshot.png" alt="TrackMe Dashboard" className="w-full h-auto rounded-xl" /> */}
                     </div>
