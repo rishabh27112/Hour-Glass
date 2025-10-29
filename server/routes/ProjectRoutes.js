@@ -114,11 +114,11 @@ router.delete('/:id', userAuth, async (req, res) => {
 });
 
 
-// POST /api/projects/:id/members - Add a member by username (only creator)
+// POST /api/projects/:id/members - Add a member by username, email, or id (only creator)
 router.post('/:id/members', userAuth, async (req, res) => {
   try {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ msg: 'username is required' });
+    const { username, email, userId } = req.body;
+    if (!username && !email && !userId) return res.status(400).json({ msg: 'username, email, or userId is required' });
 
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ msg: 'Project not found' });
@@ -126,8 +126,12 @@ router.post('/:id/members', userAuth, async (req, res) => {
     // Only creator can add members
     if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
 
-    // Find the user by username
-    const memberUser = await userModel.findOne({ username }).select('_id username');
+    // Find the user by id, email, or username
+    let memberUser = null;
+    if (userId) memberUser = await userModel.findById(userId).select('_id username');
+    else if (email) memberUser = await userModel.findOne({ email }).select('_id username');
+    else if (username) memberUser = await userModel.findOne({ username }).select('_id username');
+
     if (!memberUser) return res.status(404).json({ msg: 'Member user not found' });
 
     const memberId = memberUser._id;
