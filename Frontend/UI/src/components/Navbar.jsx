@@ -1,5 +1,6 @@
 // src/components/Navbar.jsx
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FiMenu, FiX } from 'react-icons/fi';
 import 'remixicon/fonts/remixicon.css'
 function Navbar() {
@@ -10,21 +11,21 @@ function Navbar() {
       <div className=" mx-auto px-6 py-4 flex justify-between items-center">
         {/* Logo */}
         <div className="flex items-center space-x-2">
-          <i class="text-white text-4xl text-bold ri-hourglass-line"></i>
+          <i className="text-white text-4xl text-bold ri-hourglass-line"></i>
           <span className="text-white text-3xl font-bold  shadow-cyan-400">Hour Glass</span>
         </div>
 
 
         <div className="hidden md:flex items-center space-x-6">
-          <a href="#" className="text-gray-300 font-bold text-xl hover:text-[#18d4d1] px-3 py-1 rounded-md hover:bg-[#2c2c2c] transition-colors duration-200">Home</a>
+          <Link to="/" className="text-gray-300 font-bold text-xl hover:text-[#18d4d1] px-3 py-1 rounded-md hover:bg-[#2c2c2c] transition-colors duration-200">Home</Link>
           <a href="#" className="text-gray-300 font-bold text-xl hover:text-[#18d4d1] px-3 py-1 rounded-md hover:bg-[#2c2c2c] transition-colors duration-200">About Us</a>
-          <a
-            href="#"
+          <Link
+            to="/signin"
             className="ml-4 border border-[#18d4d1] text-[#18d4d1] font-semibold text-xl py-2 px-5 rounded-lg 
                        hover:bg-[#18d4d1] hover:translate-y-0.5 hover:text-[#1b1b1b] transition-all duration-200"
           >
             Sign In
-          </a>
+          </Link>
         </div>
 
         {/* Mobile Menu Button */}
