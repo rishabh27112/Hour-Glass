@@ -21,7 +21,7 @@ export const getUserData = async(req, res) => {
     }  
 
     catch(error){
-
+        
     }
 }
 
@@ -58,7 +58,8 @@ export const searchUsers = async (req, res) => {
             queryObj = {};
         }
 
-        const users = await userModel.find(queryObj).select('_id username name createdAt').sort({ createdAt: -1 }).limit(lim);
+    // include email in selection so clients can show/search-by-email results
+    const users = await userModel.find(queryObj).select('_id username name email createdAt').sort({ createdAt: -1 }).limit(lim);
 
         // Mask usernames for display: show first char and replace rest with '*' (preserves length)
         const masked = users.map(u => {
@@ -71,5 +72,30 @@ export const searchUsers = async (req, res) => {
     } catch (error) {
         console.error('searchUsers error', error);
         return res.status(500).json({ success: false, message: 'Server error searching users' });
+    }
+}
+
+// GET /api/user/:username - return basic public profile for a username (authenticated)
+export const getUserByUsername = async (req, res) => {
+    try {
+        const { username } = req.params;
+        if (!username || !username.trim()) {
+            return res.status(400).json({ success: false, message: 'Missing username parameter' });
+        }
+
+        // helper to escape regex special chars
+        const escapeRegex = (s) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const safe = escapeRegex(username.trim());
+
+        const user = await userModel.findOne({ username: { $regex: new RegExp('^' + safe + '$', 'i') } }).select('_id username name email createdAt');
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        return res.json({ success: true, user: { _id: user._id, username: user.username, name: user.name || '', email: user.email || '', createdAt: user.createdAt } });
+    } catch (error) {
+        console.error('getUserByUsername error', error);
+        return res.status(500).json({ success: false, message: 'Server error fetching user' });
     }
 }

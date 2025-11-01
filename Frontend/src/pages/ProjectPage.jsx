@@ -7,7 +7,7 @@ const ProjectPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // Auth check: redirect to login if not authenticated
+  // Auth check: redirect to login if not authenticated and store current user
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -19,6 +19,8 @@ const ProjectPage = () => {
           try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
           try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
           navigate('/login');
+        } else {
+          setCurrentUser(json.userData);
         }
       } catch (err) {
         try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
@@ -33,6 +35,14 @@ const ProjectPage = () => {
   const raw = sessionStorage.getItem('hg_projects');
   const initialProjects = raw ? JSON.parse(raw) : [];
   const [projects, setProjects] = useState(initialProjects);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const rawUser = sessionStorage.getItem('user') || localStorage.getItem('user');
+      return rawUser ? JSON.parse(rawUser) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [currentMode, setCurrentMode] = useState(null); // 'add' or 'delete'
   // Find project by server _id or client-side _clientId or by numeric index (older/legacy routes)
   let project = projects.find(p => String(p._id) === id || String(p._clientId) === id);
@@ -63,6 +73,7 @@ const ProjectPage = () => {
             name: p.ProjectName || p.name || '',
             description: p.Description || p.description || '',
             members: p.members || [],
+            createdBy: p.createdBy || null,
             tasks: p.tasks || [],
             status: p.status || 'active',
             archived: p.status === 'archived',
@@ -79,6 +90,14 @@ const ProjectPage = () => {
     })();
     return () => { mounted = false; };
   }, [id, project]);
+
+  // determine whether the current user is the creator of this project
+  const isCreator = (() => {
+    if (!project || !currentUser) return false;
+    const creatorId = (project.createdBy && (project.createdBy._id || project.createdBy)) || project.createdById || project.owner || null;
+    const currentId = currentUser._id || currentUser.id || null;
+    return creatorId && currentId && String(creatorId) === String(currentId);
+  })();
 
   const saveProjects = (updatedProjects) => {
     sessionStorage.setItem('hg_projects', JSON.stringify(updatedProjects));
@@ -106,6 +125,65 @@ const ProjectPage = () => {
   };
   const cleanedEmployees = getCleanedEmployees();
 
+  // build member rows for rendering (use structured members when available)
+  const memberRows = (() => {
+    const list = (project && project.members && Array.isArray(project.members)) ? project.members : cleanedEmployees || [];
+    return list.map((m, idx) => {
+      const displayName = (m && typeof m === 'object') ? (m.username || m.name || String(m)) : String(m);
+      const usernameForApi = (m && typeof m === 'object') ? (m.username || '') : String(m);
+      return (
+        <tr key={`${displayName}-${idx}`}>
+          <td>{idx + 1}</td>
+          <td>{displayName}</td>
+          <td>
+            {currentMode === 'delete' && isCreator && (
+              <button
+                className={styles.removeButton}
+                onClick={async () => {
+                  if (project && project._id && usernameForApi) {
+                    try {
+                      const res = await fetch(`/api/projects/${project._id}/members/${encodeURIComponent(usernameForApi)}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                      });
+                      if (res.ok) {
+                        const updated = await res.json();
+                        const normalize = (p) => ({
+                          _id: p._id,
+                          name: p.ProjectName || p.name || '',
+                          description: p.Description || p.description || '',
+                          members: p.members || [],
+                          tasks: p.tasks || [],
+                          status: p.status || 'active',
+                          archived: p.status === 'archived',
+                          deleted: p.status === 'deleted',
+                        });
+                        const normalized = normalize(updated);
+                        setProjects((prev) => {
+                          const clone = [...prev];
+                          const i = clone.findIndex(p => String(p._id) === String(project._id));
+                          if (i >= 0) clone[i] = normalized;
+                          else clone.unshift(normalized);
+                          try { saveProjects(clone); } catch (e) { console.error('saveProjects failed', e); }
+                          return clone;
+                        });
+                        return;
+                      }
+                    } catch (err) {
+                      console.error('delete member failed', err);
+                    }
+                  }
+                  // fallback to local-only removal
+                  handleRemoveMember(idx, displayName);
+                }}
+              >-</button>
+            )}
+          </td>
+        </tr>
+      );
+    });
+  })();
+
   const handleAddMember = async (identifier) => {
     // identifier may be a username (string) or an object { username, email, _id }
     // Build payload: prefer email if identifier contains '@', else username or userId
@@ -123,6 +201,14 @@ const ProjectPage = () => {
       return payload;
     };
 
+    // Helper: produce a display string for local-only projects when we can't contact server
+    const identifierToDisplay = (id) => {
+      if (!id) return '';
+      if (typeof id === 'string') return id;
+      if (id && typeof id === 'object') return id.username || id.email || id._id || '';
+      return String(id);
+    };
+
     // If project has a server _id, call backend to add member so it's persisted
     if (project && project._id) {
       try {
@@ -134,17 +220,31 @@ const ProjectPage = () => {
           body: JSON.stringify(payload)
         });
         const updated = await res.json();
-        if (!res.ok) {
+        if (res.ok) {
+          // API returns populated project; normalize into the client shape we use and merge into state
+          const normalize = (p) => ({
+            _id: p._id,
+            name: p.ProjectName || p.name || '',
+            description: p.Description || p.description || '',
+            members: p.members || [],
+            tasks: p.tasks || [],
+            status: p.status || 'active',
+            archived: p.status === 'archived',
+            deleted: p.status === 'deleted',
+          });
+          const normalized = normalize(updated);
+          setProjects((prev) => {
+            const clone = [...prev];
+            const idx = clone.findIndex(p => String(p._id) === String(project._id));
+            if (idx >= 0) clone[idx] = normalized;
+            else clone.unshift(normalized);
+            try { saveProjects(clone); } catch (e) { console.error('saveProjects failed', e); }
+            return clone;
+          });
+        } else {
           console.error('add member failed', res.status, updated);
+          // bubble up minimal error state (UI shows console for now)
         }
-        // API returns populated project; merge into sessionStorage and state
-        setProjects((prev) => {
-          const clone = [...prev];
-          const idx = clone.findIndex(p => String(p._id) === String(project._id));
-          if (idx !== -1) clone[idx] = updated;
-          try { saveProjects(clone); } catch (e) { console.error('saveProjects failed', e); }
-          return clone;
-        });
       } catch (err) {
         console.error('Error adding member', err);
       }
@@ -158,7 +258,8 @@ const ProjectPage = () => {
       const current = p.employees && Array.isArray(p.employees)
         ? p.employees.map((e) => (e == null ? '' : String(e))).map((s) => s.trim()).filter((s) => s !== '')
         : [];
-      p.employees = [...current, username];
+      const display = identifierToDisplay(identifier);
+      p.employees = [...current, display];
       newProjects[projectIndex] = p;
       try { saveProjects(newProjects); } catch (err) { console.error('saveProjects failed', err); }
       return newProjects;
@@ -223,16 +324,8 @@ const ProjectPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {cleanedEmployees.length > 0 ? (
-                    cleanedEmployees.map((name, idx) => (
-                      <tr key={`${name}-${idx}`}>
-                        <td>{idx + 1}</td>
-                        <td>{name}</td>
-                        <td>
-                          {currentMode === 'delete' && <button className={styles.removeButton} onClick={() => handleRemoveMember(idx, name)}>-</button>}
-                        </td>
-                      </tr>
-                    ))
+                  {memberRows && memberRows.length > 0 ? (
+                    memberRows
                   ) : (
                     <tr>
                       <td colSpan={3} className={styles.italic}>No members yet</td>
@@ -240,11 +333,14 @@ const ProjectPage = () => {
                   )}
                 </tbody>
               </table>
-              <EditMembers 
-                project={project} 
+              {/* compute creator status and pass currentUser so EditMembers can enable/disable actions */}
+              <EditMembers
+                project={project}
                 onAdd={handleAddMember}
                 currentMode={currentMode}
                 setCurrentMode={setCurrentMode}
+                currentUser={currentUser}
+                isCreator={isCreator}
               />
             </div>
           </div>
@@ -284,7 +380,7 @@ const ProjectPage = () => {
   );
 };
 
-  function EditMembers({ project, onAdd, currentMode, setCurrentMode }) {
+  function EditMembers({ project, onAdd, currentMode, setCurrentMode, currentUser, isCreator }) {
     const [showMenu, setShowMenu] = useState(false);
     const [searchBy, setSearchBy] = useState('email'); // 'email' or 'username'
     const [query, setQuery] = useState('');
@@ -320,12 +416,12 @@ const ProjectPage = () => {
         let url = '';
         if (!q) {
           // empty query — fetch some suggestions with a small limit
-          url = `/api/user/search?limit=10`;
+          url = `http://localhost:4000/api/user/search?limit=10`;
         } else if (searchBy === 'email') {
-          url = `/api/user/search?email=${encodeURIComponent(q)}`;
+          url = `http://localhost:4000/api/user/search?email=${encodeURIComponent(q)}`;
         } else {
           // username search uses username param (prefix)
-          url = `/api/user/search?username=${encodeURIComponent(q)}`;
+          url = `http://localhost:4000/api/user/search?username=${encodeURIComponent(q)}`;
         }
 
         const res = await fetch(url, { credentials: 'include' });
@@ -357,8 +453,14 @@ const ProjectPage = () => {
         <button className={styles.threeDot} onClick={toggleMenu}>⋮</button>
         {showMenu && (
           <div className={styles.dropdown}>
-            <button onClick={selectAdd}>Add Member</button>
-            <button onClick={selectDelete}>Delete Members</button>
+            {isCreator ? (
+              <>
+                <button onClick={selectAdd}>Add Member</button>
+                <button onClick={selectDelete}>Delete Members</button>
+              </>
+            ) : (
+              <div style={{ padding: 8, color: '#666' }}>Only project creator can manage members</div>
+            )}
           </div>
         )}
 
@@ -398,7 +500,11 @@ const ProjectPage = () => {
                         <td>{u.name || '-'}</td>
                         <td>{u.usernameMasked || u.username || '-'}</td>
                         <td>{u.email || '-'}</td>
-                        <td><button onClick={() => handleAddFromResult(u)}>Add</button></td>
+                        <td>
+                          <button onClick={() => handleAddFromResult(u)} disabled={!isCreator}>
+                            {isCreator ? 'Add' : 'Not allowed'}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -425,6 +531,8 @@ const ProjectPage = () => {
     onAdd: PropTypes.func.isRequired,
     currentMode: PropTypes.string,
     setCurrentMode: PropTypes.func.isRequired,
+    currentUser: PropTypes.object,
+    isCreator: PropTypes.bool,
   };
 
 export default ProjectPage;

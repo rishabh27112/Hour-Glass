@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import styles from './LoginPage.module.css';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +19,7 @@ const LoginPage = () => {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ identifier, password })
       });
       const data = await response.json();
       if (data.success) {
@@ -28,7 +28,7 @@ const LoginPage = () => {
         const storage = rememberMe ? localStorage : sessionStorage;
         if (data.token) storage.setItem('token', data.token);
         if (data.user) storage.setItem('user', JSON.stringify(data.user));
-  navigate('/dashboard');
+        navigate('/dashboard');
       } else {
         setError(data.message || 'Login failed');
       }
@@ -42,7 +42,7 @@ const LoginPage = () => {
     <div className={styles.container}>
       <div className={styles.content}>
         <div className={styles.logoSection}>
-          <div className={styles.logo}> <i class="fa-solid fa-hourglass-half"></i></div>
+          <div className={styles.logo}>⏰</div>
           <h1 className={styles.title}>Time Tracker</h1>
           <p className={styles.subtitle}>Track your productivity with precision </p>
         </div>
@@ -54,11 +54,11 @@ const LoginPage = () => {
           <form className={styles.form} onSubmit={handleSubmit}>
             <div className={styles.inputGroup}>
               <input
-                type="email"
-                placeholder="Enter your email"
+                type="text"
+                placeholder="Email or username"
                 className={styles.input}
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
                 required
               />
             </div>

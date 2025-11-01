@@ -43,7 +43,10 @@ const ArchivePage = () => {
           description: p.Description || p.description,
           archived: p.status === 'archived',
           deleted: p.status === 'deleted',
+          // keep createdById for backward compatibility
           createdById: p.createdBy && (p.createdBy._id || p.createdBy),
+          // also expose an "owner" field similar to ManagerDashboard.normalizeProject
+          owner: (p.createdBy && (p.createdBy.username || p.createdBy._id)) || p.owner || null,
         })) : []);
       } catch (err) {
         console.error('archive fetch error', err);
@@ -53,6 +56,36 @@ const ArchivePage = () => {
 
     fetchProjects();
   }, []);
+
+  // derive a convenient currentUserId that may be an email, username or _id
+  const currentUserId = profileUser && (profileUser.email || profileUser.username || profileUser._id || null);
+
+  // helper: gather possible owner identifiers from a project (handles object or string shapes)
+  const getProjectOwners = (p) => {
+    const out = new Set();
+    if (!p) return out;
+    const pushVal = (v) => {
+      if (!v && v !== 0) return;
+      if (typeof v === 'string' || typeof v === 'number') out.add(String(v));
+      else if (typeof v === 'object') {
+        if (v._id) out.add(String(v._id));
+        if (v.username) out.add(String(v.username));
+        if (v.email) out.add(String(v.email));
+      }
+    };
+    pushVal(p.createdById);
+    pushVal(p.owner);
+    // legacy: if raw createdBy exists on raw project object
+    if (p.raw && p.raw.createdBy) pushVal(p.raw.createdBy);
+    return out;
+  };
+
+  const canRestore = (project) => {
+    if (!profileUser || !project) return false;
+    const userIds = [profileUser._id, profileUser.username, profileUser.email].filter(Boolean).map(String);
+    const owners = Array.from(getProjectOwners(project));
+    return userIds.some((u) => owners.includes(u));
+  };
 
   // helper kept for legacy but not used since app fetches from server
   const updateProjectAt = (idx, changes) => {
@@ -89,7 +122,7 @@ const ArchivePage = () => {
                     <p>{project.description}</p>
                   </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      {profileUser && String(profileUser._id) === String(project.createdById) ? (
+                      {canRestore(project) ? (
                         <button
                           className={styles.secondaryButton}
                           onClick={async () => {
@@ -110,26 +143,27 @@ const ArchivePage = () => {
                               });
 
                               if (r.ok) {
-                                // update state by refetching list (keeps shape mapping consistent)
+                                // simple refresh: reload the page so the archived list updates
                                 alert('Project restored');
                                 try {
-                                  const res2 = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
-                                  if (res2.ok) {
-                                    const arr = await res2.json();
-                                    setProjects(Array.isArray(arr) ? arr.map(p => ({
-                                      _id: p._id,
-                                      name: p.ProjectName || p.name,
-                                      description: p.Description || p.description,
-                                      archived: p.status === 'archived',
-                                      deleted: p.status === 'deleted',
-                                      createdById: p.createdBy && (p.createdBy._id || p.createdBy),
-                                    })) : []);
-                                  } else {
-                                    const body = await res2.text().catch(() => '');
-                                    console.error('refresh after restore failed', res2.status, body);
-                                  }
+                                  // use a full reload to ensure server data is re-fetched
+                                  window.location.reload();
                                 } catch (err) {
-                                  console.error('refresh after restore failed', err);
+                                  // fallback: update state by refetching projects
+                                  try {
+                                    const res2 = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
+                                    if (res2.ok) {
+                                      const arr = await res2.json();
+                                      setProjects(Array.isArray(arr) ? arr.map(p => ({
+                                        _id: p._id,
+                                        name: p.ProjectName || p.name,
+                                        description: p.Description || p.description,
+                                        archived: p.status === 'archived',
+                                        deleted: p.status === 'deleted',
+                                        createdById: p.createdBy && (p.createdBy._id || p.createdBy),
+                                      })) : []);
+                                    }
+                                  } catch (e) { /* ignore fallback errors */ }
                                 }
                               } else {
                                 // attempt to read json then text for better error message
@@ -147,7 +181,7 @@ const ArchivePage = () => {
                           Restore
                         </button>
                       ) : (
-                        <button className={styles.secondaryButton} disabled title="Only project owner can restore">Restore</button>
+                        <button className={styles.secondaryButton} disabled title="Only project owner or creator can restore">Restore</button>
                       )}
                       <button
                         className={styles.leftButtonDanger}

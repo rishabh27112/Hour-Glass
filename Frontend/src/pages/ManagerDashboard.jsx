@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './ManagerDashboard.module.css';
 
@@ -9,6 +9,92 @@ const ManagerDashboard = () => {
   const [employees, setEmployees] = useState('');
   const [error, setError] = useState('');
   const [projects, setProjects] = useState([]); // State to store project details
+  const [showMemberPanel, setShowMemberPanel] = useState(false);
+  const [memberSearchBy, setMemberSearchBy] = useState('email'); // 'email' or 'username'
+  const [memberQuery, setMemberQuery] = useState('');
+  const [memberResults, setMemberResults] = useState([]);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError, setMemberError] = useState('');
+  const [addedMembers, setAddedMembers] = useState([]); // users selected to be added to the new project
+  const memberDebounceRef = useRef(null);
+
+  // Member search helpers used while creating a project
+  const doMemberSearch = async () => {
+    const q = (memberQuery || '').trim();
+    setMemberLoading(true);
+    setMemberError('');
+    try {
+      let url = '';
+  // use relative paths so CRA dev server proxy (configured in package.json) forwards to backend
+  if (!q) url = `/api/user/search?limit=10`;
+  else if (memberSearchBy === 'email') url = `/api/user/search?email=${encodeURIComponent(q)}`;
+  else url = `/api/user/search?username=${encodeURIComponent(q)}`;
+
+      const res = await fetch(url, { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      console.log('member search response', json);
+      if (res.ok) setMemberResults(json.users || []);
+      else { setMemberError(json.message || 'Search failed'); setMemberResults([]); }
+    } catch (err) {
+      console.error('member search error', err);
+      setMemberError('Search failed');
+      setMemberResults([]);
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
+  const handleAddFromResult = (user) => {
+    // Avoid duplicates by _id or username/email
+    setAddedMembers((prev) => {
+      const exists = prev.some(p => (user._id && p._id && p._id === user._id) || (user.username && p.username && p.username === user.username) || (user.email && p.email && p.email === user.email));
+      if (exists) return prev;
+      return [...prev, user];
+    });
+    // optionally remove from search results to give quick feedback
+    setMemberResults((prev) => prev.filter(r => r._id !== user._id));
+  };
+
+  const removeAddedMember = (idx) => {
+    setAddedMembers((prev) => [...prev.slice(0, idx), ...prev.slice(idx + 1)]);
+  };
+
+  // Autocomplete on the Employees (comma-separated) input: detect current token and search
+  const onEmployeesChange = (val) => {
+    setEmployees(val);
+    // find the token currently being edited (after last comma)
+    const parts = val.split(',');
+    const last = parts[parts.length - 1].trim();
+    if (!last) {
+      setMemberResults([]);
+      setMemberQuery('');
+      return;
+    }
+    setMemberQuery(last);
+    // pick search mode automatically
+    setMemberSearchBy(last.includes('@') ? 'email' : 'username');
+
+    // debounce the search
+    if (memberDebounceRef.current) clearTimeout(memberDebounceRef.current);
+    memberDebounceRef.current = setTimeout(() => {
+      doMemberSearch();
+    }, 300);
+  };
+
+  const selectSuggestionIntoInput = (user) => {
+    // Choose display value: prefer username, then email, then id
+    const display = user.username || user.email || user._id || '';
+    // Replace the last token in employees input with the selected display value
+    const parts = employees.split(',');
+    parts[parts.length - 1] = ' ' + display; // keep comma separation tidy
+    const newVal = parts.map(p => p.trim()).filter(Boolean).join(', ');
+    setEmployees(newVal);
+    // mark as selected member as well
+    handleAddFromResult(user);
+    // clear search results
+    setMemberResults([]);
+    setMemberQuery('');
+  };
   const [search, setSearch] = useState('');
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -33,7 +119,14 @@ const ManagerDashboard = () => {
     }
   }, []);
 
-  const currentUserId = currentUser?.email || currentUser?.username || currentUser?._id || null;
+  // derive a set of possible identifiers for the current user (prefer server-fetched profile)
+  const getUserIdentifiers = (u) => {
+    if (!u) return [];
+    return [u._id, u.username, u.email].filter(Boolean).map(String);
+  };
+
+  // prefer the freshest profileUser (fetched from server); fall back to stored currentUser
+  const currentUserIds = React.useMemo(() => getUserIdentifiers(profileUser || currentUser), [profileUser, currentUser]);
 
   // Ensure user is authenticated on mount. If not, redirect to login.
   useEffect(() => {
@@ -83,6 +176,8 @@ const ManagerDashboard = () => {
       employees: Array.isArray(p.members) ? p.members.map(m => (m && (m.username || m.name) ? (m.username || m.name) : (m._id || ''))) : (p.employees || []),
       archived: (p.status && p.status === 'archived') || false,
   deleted: (p.status === 'deleted'),
+      // expose createdBy id for more robust ownership checks
+      createdById: p.createdBy && (p.createdBy._id || p.createdBy),
       owner: (p.createdBy && (p.createdBy.username || p.createdBy._id)) || p.owner || null,
       raw: p,
     };
@@ -144,11 +239,60 @@ const ManagerDashboard = () => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        // consume body (optional) but we will refresh from server
-        await res.json().catch(() => null);
+        // try to read the created project from server response
+        const created = await res.json().catch(() => null);
+
+        // build a local project object and add it immediately so the UI shows the new project
+  const membersArr = (employees || '').split(',').map(s => s.trim()).filter(Boolean);
+  const ownerId = (profileUser && (profileUser.username || profileUser.email || profileUser._id)) || (currentUser && (currentUser.username || currentUser.email || currentUser._id)) || null;
+
+        const localProject = {
+          _id: (created && created._id) || `local-${Date.now()}`,
+          name: (created && (created.ProjectName || created.name)) || projectName,
+          description: (created && (created.Description || created.description)) || projectDescription,
+          employees: Array.isArray(created && created.members) ? (created.members.map(m => (m && (m.username || m.name) ? (m.username || m.name) : (m._id || '')))) : [...membersArr, ...addedMembers.map(u => (u.username || u.email || u._id || ''))],
+          archived: false,
+          deleted: false,
+          owner: ownerId,
+          raw: created || { ProjectName: projectName, Description: projectDescription, members: membersArr, createdBy: ownerId },
+        };
+
+        // prepend to projects list for immediate feedback
+        setProjects((prev) => {
+          const next = [localProject, ...prev];
+          try { sessionStorage.setItem('hg_projects', JSON.stringify(next)); } catch (e) {}
+          return next;
+        });
+
         alert('Project created successfully');
         setProjectName(''); setProjectDescription(''); setEmployees(''); setIsAddingProject(false);
-        await fetchProjects();
+        // If the server returned a created project id and we have addedMembers, call the members API to persist them
+        (async () => {
+          try {
+            if (created && created._id && Array.isArray(addedMembers) && addedMembers.length > 0) {
+              for (const u of addedMembers) {
+                const payload = {};
+                if (u.email) payload.email = u.email;
+                else if (u._id) payload.userId = u._id;
+                else if (u.username) payload.username = u.username;
+                else continue;
+                try {
+                  await fetch(`http://localhost:4000/api/projects/${created._id}/members`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                  });
+                } catch (err) {
+                  console.error('add member during create failed for', u, err);
+                }
+              }
+            }
+          } finally {
+            // refresh list from server to reconcile
+            fetchProjects();
+          }
+        })();
       } else {
         const json = await res.json().catch(() => ({}));
         const msg = json.msg || json.message || 'Failed to create project';
@@ -241,10 +385,10 @@ const ManagerDashboard = () => {
         {isLeftOpen ? (
           <div className={styles.leftInner}>
             <h3 className={styles.leftSectionHeader}>Projects you lead</h3>
-            {projects.filter((p) => !p.archived && !p.deleted && p.owner === currentUserId).length > 0 ? (
+            {projects.filter((p) => !p.archived && !p.deleted && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById))).length > 0 ? (
               <ul className={styles.projectListSidebar}>
                 {projects
-                  .filter((p) => !p.archived && !p.deleted && p.owner === currentUserId)
+                  .filter((p) => !p.archived && !p.deleted && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))
                   .map((project) => {
                     const realIndex = projects.indexOf(project);
                     return (
@@ -270,10 +414,10 @@ const ManagerDashboard = () => {
             )}
 
             <h3 className={styles.leftSectionHeader}>Projects you are part of</h3>
-            {projects.filter((p) => !p.archived && !p.deleted && p.employees && currentUserId && p.employees.includes(currentUserId) && p.owner !== currentUserId).length > 0 ? (
+            {projects.filter((p) => !p.archived && !p.deleted && p.employees && currentUserIds.length > 0 && p.employees.some(e => currentUserIds.includes(String(e))) && !((p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))).length > 0 ? (
               <ul className={styles.projectListSidebar}>
                 {projects
-                  .filter((p) => !p.archived && !p.deleted && p.employees && currentUserId && p.employees.includes(currentUserId) && p.owner !== currentUserId)
+                  .filter((p) => !p.archived && !p.deleted && p.employees && currentUserIds.length > 0 && p.employees.some(e => currentUserIds.includes(String(e))) && !((p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById))))
                   .map((project) => {
                     const realIndex = projects.indexOf(project);
                     return (
@@ -418,9 +562,103 @@ const ManagerDashboard = () => {
                   type="text"
                   className={styles.input}
                   value={employees}
-                  onChange={(e) => setEmployees(e.target.value)}
+                  onChange={(e) => onEmployeesChange(e.target.value)}
                 />
               </label>
+
+              {/* Inline suggestions as user types in the Employees field */}
+              {memberResults && memberResults.length > 0 && (
+                <div style={{ border: '1px solid #eee', padding: 6, borderRadius: 6, marginTop: 6 }}>
+                  <div style={{ fontSize: 13, marginBottom: 6 }}>Suggestions</div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {memberResults.map((u) => (
+                      <li key={u._id || u.email || u.username} style={{ padding: '6px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: 13 }}>
+                          <div><strong>{u.username || u.name || '-'}</strong></div>
+                          <div style={{ fontSize: 12, color: '#666' }}>{u.email || ''}</div>
+                        </div>
+                        <div>
+                          <button type="button" className={styles.smallButton} onClick={() => selectSuggestionIntoInput(u)}>Use</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className={styles.smallButton}
+                  onClick={() => setShowMemberPanel((s) => !s)}
+                >
+                  {showMemberPanel ? 'Close member panel' : 'Add members by search'}
+                </button>
+                <span style={{ marginLeft: 12, color: '#666' }}>Or enter comma-separated usernames/emails above.</span>
+              </div>
+
+              {showMemberPanel && (
+                <div style={{ border: '1px solid #eee', padding: 8, marginTop: 8, borderRadius: 6 }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ fontSize: 13 }}>
+                      <input type="radio" checked={memberSearchBy === 'email'} onChange={() => setMemberSearchBy('email')} /> Email
+                    </label>
+                    <label style={{ fontSize: 13 }}>
+                      <input type="radio" checked={memberSearchBy === 'username'} onChange={() => setMemberSearchBy('username')} /> Username
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={memberSearchBy === 'email' ? 'Search by email' : 'Search by username'}
+                      value={memberQuery}
+                      onChange={(e) => setMemberQuery(e.target.value)}
+                      className={styles.input}
+                      style={{ flex: 1 }}
+                    />
+                    <button type="button" className={styles.smallButton} onClick={doMemberSearch} disabled={memberLoading}>
+                      {memberLoading ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
+                  {memberError && <div style={{ color: 'red', marginBottom: 8 }}>{memberError}</div>}
+
+                  <div>
+                    {memberResults && memberResults.length > 0 ? (
+                      <table className={styles.table} style={{ marginBottom: 8 }}>
+                        <thead>
+                          <tr><th>Name</th><th>Username</th><th>Email</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                          {memberResults.map((u) => (
+                            <tr key={u._id || u.email || u.username}>
+                              <td>{u.name || '-'}</td>
+                              <td>{u.username || '-'}</td>
+                              <td>{u.email || '-'}</td>
+                              <td><button type="button" className={styles.smallButton} onClick={() => handleAddFromResult(u)}>Add</button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div style={{ color: '#666', marginBottom: 8 }}>No results</div>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop: 6 }}>
+                    <strong>Selected members:</strong>
+                    {addedMembers && addedMembers.length > 0 ? (
+                      <ul style={{ marginTop: 6 }}>
+                        {addedMembers.map((m, i) => (
+                          <li key={m._id || m.username || m.email} style={{ marginBottom: 4 }}>
+                            {m.name || m.username || m.email}
+                            <button type="button" style={{ marginLeft: 8 }} className={styles.smallButton} onClick={() => removeAddedMember(i)}>Remove</button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div style={{ color: '#666', marginTop: 6 }}>No members selected</div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {error && <p className={styles.error}>{error}</p>}
 
