@@ -42,6 +42,40 @@ interface TimeEntry {
 	duration: number;
 }
 
+// Helper: Convert Date to IST string
+function toISTString(date: Date): string {
+    // IST is UTC+5:30
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(date.getTime() + istOffsetMs);
+    const yyyy = istDate.getUTCFullYear();
+    const mm = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(istDate.getUTCDate()).padStart(2, '0');
+    const hh = String(istDate.getUTCHours()).padStart(2, '0');
+    const min = String(istDate.getUTCMinutes()).padStart(2, '0');
+    const ss = String(istDate.getUTCSeconds()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss} IST`;
+}
+
+// Helper: Parse IST string back to Date
+function parseISTString(str: string): Date {
+    // Format: YYYY-MM-DD HH:mm:ss IST
+    const match = str.match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) IST/);
+    if (!match) return new Date(str); // fallback
+    const [_, yyyy, mm, dd, hh, min, ss] = match;
+    // Construct UTC date, then subtract IST offset
+    const utcDate = new Date(Date.UTC(
+        Number(yyyy),
+        Number(mm) - 1,
+        Number(dd),
+        Number(hh),
+        Number(min),
+        Number(ss)
+    ));
+    // Subtract IST offset to get UTC
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    return new Date(utcDate.getTime() - istOffsetMs);
+}
+
 class TimeTracker {
 	private entries: TimeEntry[] = [];
 	private currentEntry: TimeEntry | null = null;
@@ -123,17 +157,16 @@ class TimeTracker {
 			const dataToSave = {
 				entries: this.entries.map(entry => ({
 					...entry,
-					startTime: entry.startTime.toISOString(),
-					endTime: entry.endTime.toISOString(),
+					startTime: toISTString(entry.startTime),
+					endTime: toISTString(entry.endTime),
 				})),
 				currentEntry: this.currentEntry ? {
 					...this.currentEntry,
-					startTime: this.currentEntry.startTime.toISOString(),
-					endTime: this.currentEntry.endTime.toISOString(),
+					startTime: toISTString(this.currentEntry.startTime),
+					endTime: toISTString(this.currentEntry.endTime),
 				} : null,
-				lastSaved: new Date().toISOString(),
+				lastSaved: toISTString(new Date()),
 			};
-
 			fs.writeFileSync(this.dataFilePath, JSON.stringify(dataToSave, null, 2), 'utf-8');
 			console.log(`Tracking data saved to: ${this.dataFilePath}`);
 			return { success: true, filePath: this.dataFilePath };
@@ -149,8 +182,8 @@ class TimeTracker {
 				const data = JSON.parse(fs.readFileSync(this.dataFilePath, 'utf-8'));
 				this.entries = data.entries.map((entry: { apptitle: string; appname: string; startTime: string; endTime: string; duration: number }) => ({
 					...entry,
-					startTime: new Date(entry.startTime),
-					endTime: new Date(entry.endTime),
+					startTime: parseISTString(entry.startTime),
+					endTime: parseISTString(entry.endTime),
 				}));
 				console.log(`Loaded ${this.entries.length} tracking entries from file`);
 			}
@@ -283,4 +316,3 @@ app.on("activate", () => {
 app.on("before-quit", () => {
 	tracker.stopTracking();
 });
-
