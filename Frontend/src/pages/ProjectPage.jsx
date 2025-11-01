@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './ProjectPage.module.css';
@@ -6,6 +6,28 @@ import styles from './ProjectPage.module.css';
 const ProjectPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  // Auth check: redirect to login if not authenticated
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/user/data', { method: 'GET', credentials: 'include' });
+        const json = await res.json();
+        if (!mounted) return;
+        if (!json || !json.success || !json.userData) {
+          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+          navigate('/login');
+        }
+      } catch (err) {
+        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+        navigate('/login');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [navigate]);
 
   // For now we'll read projects from sessionStorage (set by ManagerDashboard)
   const raw = sessionStorage.getItem('hg_projects');
@@ -23,6 +45,40 @@ const ProjectPage = () => {
       project = projects[maybeIndex];
     }
   }
+
+  // If we couldn't find a project locally, and id looks like an ObjectId, fetch the single project from server
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (project) return; // already have it
+      if (!id) return;
+      if (!/^[0-9a-fA-F]{24}$/.test(String(id))) return;
+      try {
+        const res = await fetch(`http://localhost:4000/api/projects/${id}`, { credentials: 'include' });
+        if (!mounted) return;
+        if (res.ok) {
+          const p = await res.json();
+          const normalized = [{
+            _id: p._id,
+            name: p.ProjectName || p.name || '',
+            description: p.Description || p.description || '',
+            members: p.members || [],
+            tasks: p.tasks || [],
+            status: p.status || 'active',
+            archived: p.status === 'archived',
+            deleted: p.status === 'deleted',
+          }];
+          setProjects(normalized);
+          try { sessionStorage.setItem('hg_projects', JSON.stringify(normalized)); } catch (e) { console.warn('sessionStorage set failed', e); }
+        } else {
+          console.error('Failed to fetch project', res.status);
+        }
+      } catch (err) {
+        console.error('fetch project error', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [id, project]);
 
   const saveProjects = (updatedProjects) => {
     sessionStorage.setItem('hg_projects', JSON.stringify(updatedProjects));
@@ -52,18 +108,35 @@ const ProjectPage = () => {
 
   const handleAddMember = async (identifier) => {
     // identifier may be a username (string) or an object { username, email, _id }
-    const username = typeof identifier === 'string' ? identifier : (identifier.username || identifier.email || identifier._id);
+    // Build payload: prefer email if identifier contains '@', else username or userId
+    const buildPayload = (id) => {
+      const payload = {};
+      if (typeof id === 'string') {
+        if (id.includes('@')) payload.email = id;
+        else if (/^[0-9a-fA-F]{24}$/.test(id)) payload.userId = id;
+        else payload.username = id;
+      } else if (id && typeof id === 'object') {
+        if (id.email) payload.email = id.email;
+        else if (id._id) payload.userId = id._id;
+        else if (id.username) payload.username = id.username;
+      }
+      return payload;
+    };
 
     // If project has a server _id, call backend to add member so it's persisted
     if (project && project._id) {
       try {
+        const payload = buildPayload(identifier);
         const res = await fetch(`/api/projects/${project._id}/members`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ username })
+          body: JSON.stringify(payload)
         });
         const updated = await res.json();
+        if (!res.ok) {
+          console.error('add member failed', res.status, updated);
+        }
         // API returns populated project; merge into sessionStorage and state
         setProjects((prev) => {
           const clone = [...prev];
@@ -240,12 +313,21 @@ const ProjectPage = () => {
 
     const doSearch = async () => {
       const q = query.trim();
-      if (!q) return setError('Enter a search term');
       setLoading(true);
       setError('');
       try {
-  // server mounts user routes at /api/user
-  const url = searchBy === 'email' ? `/api/user/search?email=${encodeURIComponent(q)}` : `/api/user/search?username=${encodeURIComponent(q)}`;
+        // server mounts user routes at /api/user
+        let url = '';
+        if (!q) {
+          // empty query — fetch some suggestions with a small limit
+          url = `/api/user/search?limit=10`;
+        } else if (searchBy === 'email') {
+          url = `/api/user/search?email=${encodeURIComponent(q)}`;
+        } else {
+          // username search uses username param (prefix)
+          url = `/api/user/search?username=${encodeURIComponent(q)}`;
+        }
+
         const res = await fetch(url, { credentials: 'include' });
         const json = await res.json();
         if (res.ok) {
@@ -314,7 +396,7 @@ const ProjectPage = () => {
                     {results.map((u) => (
                       <tr key={u._id || u.email || u.username}>
                         <td>{u.name || '-'}</td>
-                        <td>{u.username || '-'}</td>
+                        <td>{u.usernameMasked || u.username || '-'}</td>
                         <td>{u.email || '-'}</td>
                         <td><button onClick={() => handleAddFromResult(u)}>Add</button></td>
                       </tr>

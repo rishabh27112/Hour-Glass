@@ -66,6 +66,27 @@ router.get('/', userAuth, async (req, res) => {
   }
 });
 
+// GET /api/projects/:id - Get single project with populated fields (creator or member)
+router.get('/:id', userAuth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id)
+      .populate('createdBy', 'username name')
+      .populate('members', 'username name')
+      .populate('tasks.assignee', 'username name');
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+    // Only creator or members can view
+    const isMemberOrCreator = project.createdBy && project.createdBy._id && project.createdBy._id.toString() === req.userId
+      || (project.members && project.members.some(m => m.toString() === req.userId));
+    if (!isMemberOrCreator) return res.status(403).json({ msg: 'Not authorized' });
+
+    res.json(project);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
 
 // PATCH /api/projects/:id/archive - Archive a project (only creator)
 router.patch('/:id/archive', userAuth, async (req, res) => {
@@ -105,8 +126,40 @@ router.delete('/:id', userAuth, async (req, res) => {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ msg: 'Project not found' });
   if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    // Soft-delete: mark status = 'deleted' so frontend can show Bin and allow restore
+    project.status = 'deleted';
+    await project.save();
+    res.json({ msg: 'Project moved to bin', project });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// PATCH /api/projects/:id/restore-deleted - Restore from bin (only creator)
+router.patch('/:id/restore-deleted', userAuth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+    if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    // Restore deleted project to active
+    project.status = 'active';
+    await project.save();
+    res.json(project);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// DELETE /api/projects/:id/permanent - Permanently delete a project (only creator)
+router.delete('/:id/permanent', userAuth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+    if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
     await project.deleteOne();
-    res.json({ msg: 'Project deleted' });
+    res.json({ msg: 'Project permanently deleted' });
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error');

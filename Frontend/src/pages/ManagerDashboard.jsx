@@ -8,17 +8,18 @@ const ManagerDashboard = () => {
   const [projectDescription, setProjectDescription] = useState('');
   const [employees, setEmployees] = useState('');
   const [error, setError] = useState('');
-  const [projects, setProjects] = useState(() => {
-    try {
-      const raw = sessionStorage.getItem('hg_projects');
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  }); // State to store project details
+  const [projects, setProjects] = useState([]); // State to store project details
   const [search, setSearch] = useState('');
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileUser, setProfileUser] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('user') || localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'archive' | 'delete'
   const [selected, setSelected] = useState([]); // array of indexes
   const navigate = useNavigate();
@@ -34,8 +35,38 @@ const ManagerDashboard = () => {
 
   const currentUserId = currentUser?.email || currentUser?.username || currentUser?._id || null;
 
+  // Ensure user is authenticated on mount. If not, redirect to login.
   useEffect(() => {
-    // persist projects to sessionStorage so ProjectPage can read them
+    let cancelled = false;
+    const verify = async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/user/data', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const json = await res.json();
+        if (!json || !json.success || !json.userData) {
+          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+          if (!cancelled) navigate('/login');
+        } else {
+          // keep local profile in sync
+          setProfileUser(json.userData);
+        }
+      } catch (err) {
+        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+        if (!cancelled) navigate('/login');
+      }
+    };
+
+    verify();
+    return () => { cancelled = true; };
+  }, [navigate]);
+
+  useEffect(() => {
+    // persist projects to sessionStorage so ProjectPage (legacy) can read them,
+    // but primary source is server.
     try {
       sessionStorage.setItem('hg_projects', JSON.stringify(projects));
     } catch (e) {
@@ -43,12 +74,46 @@ const ManagerDashboard = () => {
     }
   }, [projects]);
 
+  // Helper to normalize server project -> frontend shape
+  const normalizeProject = (p) => {
+    return {
+      _id: p._id,
+      name: p.ProjectName || p.name || '',
+      description: p.Description || p.description || '',
+      employees: Array.isArray(p.members) ? p.members.map(m => (m && (m.username || m.name) ? (m.username || m.name) : (m._id || ''))) : (p.employees || []),
+      archived: (p.status && p.status === 'archived') || false,
+  deleted: (p.status === 'deleted'),
+      owner: (p.createdBy && (p.createdBy.username || p.createdBy._id)) || p.owner || null,
+      raw: p,
+    };
+  };
+
+  // Fetch projects from server on mount
+  const fetchProjects = async () => {
+    try {
+      const res = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
+      if (!res.ok) {
+        throw new Error('Failed to load projects');
+      }
+      const arr = await res.json();
+      setProjects(Array.isArray(arr) ? arr.map(normalizeProject) : []);
+    } catch (err) {
+      console.error('fetchProjects error', err);
+      setProjects([]);
+      alert('Error loading projects from server. See console for details.');
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
   const handleAddProjectClick = () => {
     setIsAddingProject(!isAddingProject);
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const name = projectName.trim();
     if (!name) {
@@ -68,44 +133,96 @@ const ManagerDashboard = () => {
       setError('A project with this name already exists. Please choose a different name.');
       return;
     }
-    const employeeList = employees
-      .split(',')
-      .map((emp) => emp.trim())
-      .filter(Boolean);
+    // employees input is currently stored locally for legacy behavior; server create only needs name/description
 
-    const newProject = {
-      name: projectName,
-      description: projectDescription,
-      employees: employeeList,
-      archived: false,
-      deleted: false,
-      // set current user as owner when creating a project
-      owner: currentUserId,
-    };
-    setProjects([...projects, newProject]); // Add new project to the list
-    setProjectName('');
-    setProjectDescription('');
-    setEmployees('');
-    setIsAddingProject(false);
+    try {
+      const payload = { ProjectName: projectName, Description: projectDescription };
+      const res = await fetch('http://localhost:4000/api/projects', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        // consume body (optional) but we will refresh from server
+        await res.json().catch(() => null);
+        alert('Project created successfully');
+        setProjectName(''); setProjectDescription(''); setEmployees(''); setIsAddingProject(false);
+        await fetchProjects();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        const msg = json.msg || json.message || 'Failed to create project';
+        setError(msg);
+        alert('Error creating project: ' + msg);
+      }
+    } catch (err) {
+      console.error('create project error', err);
+      setError('Network error while creating project');
+      alert('Network error while creating project');
+    }
   };
 
   return (
     <div className={styles.pageContainer}>
       <div className={styles.taskbarTop}>
         <div className={styles.taskbarTopLeft}>Hour-Glass</div>
-        <div className={styles.taskbarTopRight}>
+          <div className={styles.taskbarTopRight}>
           <div className={styles.profileWrapper}>
             <button
               className={styles.profileButton}
-              onClick={() => setProfileOpen(!profileOpen)}
+              onClick={async () => {
+                // toggle and fetch latest profile from server when opening
+                const newVal = !profileOpen;
+                setProfileOpen(newVal);
+                if (newVal) {
+                  try {
+                    const res = await fetch('http://localhost:4000/api/user/data', {
+                      method: 'GET',
+                      credentials: 'include',
+                    });
+                    const json = await res.json();
+                    if (json && json.success && json.userData) {
+                      setProfileUser(json.userData);
+                      // keep storage in sync
+                      try {
+                        const storage = sessionStorage.getItem('user') ? sessionStorage : localStorage;
+                        storage.setItem('user', JSON.stringify(json.userData));
+                      } catch (err) {}
+                    }
+                  } catch (err) {
+                    // ignore fetch errors; fall back to stored user
+                  }
+                }
+              }}
               aria-label="Open profile menu"
             >
               <img src="/Logo/logo.png" alt="profile" className={styles.profileAvatar} />
             </button>
             {profileOpen && (
               <div className={styles.profileMenu} role="menu">
-                <button className={styles.profileMenuItem} role="menuitem">Profile</button>
-                <button className={styles.profileMenuItem} role="menuitem">Logout</button>
+                <div className={styles.profileMenuItem} role="menuitem" style={{cursor:'default'}}>
+                  Signed in as <strong style={{marginLeft:6}}>{profileUser?.username || profileUser?.email || profileUser?.name || 'User'}</strong>
+                </div>
+                <button
+                  className={styles.profileMenuItem}
+                  role="menuitem"
+                  onClick={async () => {
+                    try {
+                      await fetch('http://localhost:4000/api/auth/logout', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                      });
+                    } catch (err) {
+                      // ignore network errors
+                    }
+                    try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch(e) {}
+                    try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch(e) {}
+                    navigate('/login');
+                  }}
+                >
+                  Logout
+                </button>
               </div>
             )}
           </div>
@@ -139,7 +256,7 @@ const ManagerDashboard = () => {
                             setProfileOpen(false);
                             setSelectionMode('none');
                             setSelected([]);
-                            navigate(`/projects/${realIndex}`);
+                            navigate(`/projects/${project._id || realIndex}`);
                           }}
                         >
                           {project.name}
@@ -168,7 +285,7 @@ const ManagerDashboard = () => {
                             setProfileOpen(false);
                             setSelectionMode('none');
                             setSelected([]);
-                            navigate(`/projects/${realIndex}`);
+                            navigate(`/projects/${project._id || realIndex}`);
                           }}
                         >
                           {project.name}
@@ -325,18 +442,29 @@ const ManagerDashboard = () => {
                   className={styles.confirmButton}
                   onClick={() => {
                     if (selected.length === 0) return;
-                    // instead of removing, mark items with archived/deleted flags
-                    setProjects((prev) =>
-                      prev.map((p, idx) => {
-                        if (!selected.includes(idx)) return p;
-                        if (selectionMode === 'delete') {
-                          return { ...p, deleted: true };
-                        }
-                        return { ...p, archived: true };
-                      })
-                    );
-                    setSelectionMode('none');
-                    setSelected([]);
+                    // Perform server-side archive/delete for items that have _id
+                    (async () => {
+                      const toProcess = selected.slice();
+                      let successCount = 0;
+                      let failCount = 0;
+                      for (const idx of toProcess) {
+                        const p = projects[idx];
+                        if (!p || !p._id) continue;
+                        try {
+                          if (selectionMode === 'delete') {
+                            const r = await fetch(`http://localhost:4000/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include' });
+                            if (r.ok) successCount++; else failCount++;
+                          } else {
+                            const r = await fetch(`http://localhost:4000/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include' });
+                            if (r.ok) successCount++; else failCount++;
+                          }
+                        } catch (err) { console.error('project action error', err); failCount++; }
+                      }
+                      await fetchProjects();
+                      setSelectionMode('none');
+                      setSelected([]);
+                      alert(`Operation complete. Success: ${successCount}, Failed: ${failCount}`);
+                    })();
                   }}
                 >
                   Confirm
@@ -386,7 +514,7 @@ const ManagerDashboard = () => {
                                 setProfileOpen(false);
                                 setSelectionMode('none');
                                 setSelected([]);
-                                navigate(`/projects/${realIndex}`);
+                                navigate(`/projects/${project._id || realIndex}`);
                               }}
                             >
                               {project.name}

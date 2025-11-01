@@ -6,30 +6,63 @@ const BinPage = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
 
+  // Auth check: redirect to login if unauthenticated
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('hg_projects');
-      const parsed = raw ? JSON.parse(raw) : [];
-      setProjects(parsed);
-    } catch (e) {
-      setProjects([]);
-    }
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/user/data', { method: 'GET', credentials: 'include' });
+        const json = await res.json();
+        if (!mounted) return;
+        if (!json || !json.success || !json.userData) {
+          sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
+          localStorage.removeItem('user'); localStorage.removeItem('token');
+          navigate('/login');
+        }
+      } catch (err) {
+        sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
+        localStorage.removeItem('user'); localStorage.removeItem('token');
+        navigate('/login');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchProjects();
   }, []);
 
-  const updateProjects = (updater) => {
-    setProjects((prev) => {
-      const copy = prev.map((p) => ({ ...p }));
-      const next = updater(copy);
+  // Fetch projects from server and set state (also used after actions to refresh)
+  async function fetchProjects() {
+    try {
+      const res = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch projects');
+      const arr = await res.json();
+      setProjects(Array.isArray(arr) ? arr.map(p => ({
+        _id: p._id,
+        name: p.ProjectName || p.name,
+        description: p.Description || p.description,
+        archived: p.status === 'archived',
+        deleted: p.status === 'deleted',
+        raw: p,
+      })) : []);
+    } catch (err) {
+      console.error('bin fetch error', err);
       try {
-        sessionStorage.setItem('hg_projects', JSON.stringify(next));
+        const raw = sessionStorage.getItem('hg_projects');
+        setProjects(raw ? JSON.parse(raw) : []);
       } catch (e) {
-        // ignore
+        console.warn('sessionStorage read/parse failed', e);
+        setProjects([]);
       }
-      return next;
-    });
-  };
+    }
+  }
 
-  const deletedList = projects.map((p, idx) => ({ ...p, _idx: idx })).filter((p) => p.deleted);
+  const deletedList = projects.filter((p) => (
+    (p && p.deleted === true) ||
+    (p && p.status === 'deleted') ||
+    (p && p.raw && p.raw.status === 'deleted')
+  ));
 
   return (
     <div className={styles.pageContainer} style={{ padding: 24 }}>
@@ -45,13 +78,13 @@ const BinPage = () => {
             <p>No deleted projects.</p>
           ) : (
             <ul className={styles.projectList}>
-              {deletedList.map((project) => (
-                <li key={project._idx} className={styles.projectItem}>
+                  {deletedList.map((project) => (
+                <li key={project._id} className={styles.projectItem}>
                   <div className={styles.projectInfo} style={{ textAlign: 'left' }}>
                     <h3>
                       <button
                         className={styles.projectLink}
-                        onClick={() => navigate(/projects/`${project._idx}`)}
+                        onClick={() => navigate(`/projects/${project._id}`)}
                       >
                         {project.name}
                       </button>
@@ -61,16 +94,36 @@ const BinPage = () => {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       className={styles.secondaryButton}
-                      onClick={() => updateProjects((arr) => {
-                        arr[project._idx] = { ...arr[project._idx], deleted: false };
-                        return arr;
-                      })}
+                      onClick={async () => {
+                        try {
+                          const r = await fetch(`http://localhost:4000/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include' });
+                          if (r.ok) {
+                            // refresh from server to get canonical state
+                            await fetchProjects();
+                          } else {
+                            const body = await r.text().catch(() => '');
+                            alert('Restore failed: ' + r.status + ' ' + body);
+                          }
+                        } catch (err) { console.error(err); alert('Restore error'); }
+                      }}
                     >
                       Restore
                     </button>
                     <button
                       className={styles.dangerButton}
-                      onClick={() => updateProjects((arr) => arr.filter((_, i) => i !== project._idx))}
+                      onClick={async () => {
+                        if (!globalThis.confirm('Permanently delete this project? This cannot be undone.')) return;
+                        try {
+                          const r = await fetch(`http://localhost:4000/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include' });
+                          if (r.ok) {
+                            // refresh canonical list
+                            await fetchProjects();
+                          } else {
+                            const body = await r.text().catch(() => '');
+                            alert('Permanent delete failed: ' + r.status + ' ' + body);
+                          }
+                        } catch (err) { console.error(err); alert('Permanent delete error'); }
+                      }}
                     >
                       Delete Permanently
                     </button>

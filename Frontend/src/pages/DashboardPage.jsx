@@ -30,7 +30,7 @@ const DashboardPage = () => {
 
   // Check authentication on mount
   // Check authentication on mount using cookie-based session on the server
-  React.useEffect(() => {
+    React.useEffect(() => {
     let mounted = true;
     const checkAuth = async () => {
       try {
@@ -42,7 +42,7 @@ const DashboardPage = () => {
         const data = await res.json();
         if (!mounted) return;
         if (!data.success) {
-          navigate('/');
+          navigate('/login');
           return;
         }
         // Authenticated via cookie; fetch user data from server
@@ -52,10 +52,10 @@ const DashboardPage = () => {
         });
         const userData = await userRes.json();
         if (!mounted) return;
-        if (userData && userData.success && userData.user) {
-          setUser(userData.user);
-        } else if (userData && userData.user) {
-          setUser(userData.user);
+        if (userData && userData.success && (userData.user || userData.userData)) {
+          setUser(userData.user || userData.userData);
+        } else if (userData && (userData.user || userData.userData)) {
+          setUser(userData.user || userData.userData);
         } else {
           // Fallback: try reading from local/session storage
           const storage = localStorage.getItem('token') ? localStorage : sessionStorage;
@@ -64,11 +64,11 @@ const DashboardPage = () => {
           if (token && storedUser) {
             try { setUser(JSON.parse(storedUser)); } catch (err) { navigate('/'); }
           } else {
-            navigate('/');
+            navigate('/login');
           }
         }
       } catch (err) {
-        navigate('/');
+        navigate('/login');
       }
     };
     checkAuth();
