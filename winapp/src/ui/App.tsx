@@ -7,8 +7,12 @@ function App() {
   useEffect(() => {
     // Polling every 100 ms
     const interval = setInterval(async () => {
-      const title = await window.getCurrentWinAPI.getActiveWindowInfo();
-      setActiveWindow(title || "No active window");
+      const windowInfo = await window.getCurrentWinAPI.getActiveWindowInfo();
+      if (windowInfo && windowInfo.title) {
+        setActiveWindow(`${windowInfo.owner.name} - ${windowInfo.title}`);
+      } else {
+        setActiveWindow("No active window");
+      }
     }, 100);
 
     return () => clearInterval(interval); // cleanup when component unmounts

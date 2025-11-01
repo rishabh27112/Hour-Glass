@@ -16,10 +16,10 @@ function createWindow() {
 	});
 
 	if (process.env.NODE_ENV === "development") {
-		mainWindow.loadURL("http://localhost:3000");
+		mainWindow.loadURL("http://localhost:24000");
 		mainWindow.webContents.openDevTools();
 	} else {
-		mainWindow.loadFile(path.join(__dirname, "../Frontend/build/index.html"));
+		mainWindow.loadFile(path.join(__dirname, "../dist-react/index.html"));
 	}
 
 	mainWindow.on("closed", () => {
@@ -252,7 +252,19 @@ class TimeTracker {
 }
 
 ipcMain.handle("getCurrentWindow", async () => {
-	return await getActiveWindowInfo();
+	const result = await getActiveWindowInfo();
+	if (result) {
+		// Return only serializable data
+		return {
+			title: result.title,
+			owner: {
+				name: result.owner.name,
+				processId: result.owner.processId,
+				path: result.owner.path
+			}
+		};
+	}
+	return null;
 });
 
 const tracker = new TimeTracker();
