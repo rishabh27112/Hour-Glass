@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "outDir": "../../dist-electron",
+    "module": "commonjs",
+    "target": "es2020",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "sourceMap": true
+  },
+  "include": ["*.ts"]
+}

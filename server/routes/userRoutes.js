@@ -1,6 +1,6 @@
 import express from 'express'
 import userAuth from '../middleware/userAuth.js';
-import { getUserData, searchUsers, getUserByUsername } from '../controllers/userController.js';
+import { getUserData, searchUsers} from '../controllers/userController.js';
 
 const userRouter = express.Router();
 
@@ -9,6 +9,6 @@ userRouter.get('/data',userAuth, getUserData)
 userRouter.get('/search', userAuth, searchUsers);
 
 // GET /api/user/:username - lookup a user by username (authenticated)
-userRouter.get('/:username', userAuth, getUserByUsername);
+// userRouter.get('/:username', userAuth, getUserByUsername);
 
 export default userRouter;
