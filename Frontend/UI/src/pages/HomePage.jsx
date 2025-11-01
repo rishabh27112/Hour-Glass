@@ -9,7 +9,7 @@ import Footer from '../components/Footer';
 
 function HomePage() {
     return (
-        <div className="antialiased">
+        <div className="antialiased tracking-wide">
             <Navbar />
             <Hero />
             <Features />
