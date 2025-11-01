@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import "./global.d.ts";
 function App() {
   const [activeWindow, setActiveWindow] = useState("Loading...");
 
