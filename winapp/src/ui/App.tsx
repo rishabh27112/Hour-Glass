@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 
+interface TimeEntry {
+  apptitle: string;
+  appname: string;
+  startTime: Date;
+  endTime: Date;
+  duration: number;
+}
+
 declare global {
   interface Window {
     TimeTracker: {
@@ -7,6 +15,9 @@ declare global {
       stop: () => Promise<void>;
       sendData: () => Promise<void>;
       saveData: () => Promise<void>;
+      isStorageEmpty: () => Promise<boolean>;
+      readStoredEntries: () => Promise<TimeEntry[]>;
+      clearStorage: () => Promise<void>;
     };
     getCurrentWinAPI: {
         getCurrentWindow: () => Promise<{
