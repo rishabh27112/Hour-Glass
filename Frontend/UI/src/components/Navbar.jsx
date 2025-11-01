@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiMenu, FiX } from 'react-icons/fi';
 import 'remixicon/fonts/remixicon.css'
+import Logo from './Logo';
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -11,7 +12,7 @@ function Navbar() {
       <div className=" mx-auto px-6 py-4 flex justify-between items-center">
         {/* Logo */}
         <div className="flex items-center space-x-2">
-          <i className="text-white text-4xl text-bold ri-hourglass-line"></i>
+         <Logo/>
           <span className="text-white text-3xl font-bold  shadow-cyan-400">Hour Glass</span>
         </div>
 
@@ -42,13 +43,12 @@ function Navbar() {
           <div className="flex flex-col items-center space-y-4">
             <a href="#" className="text-gray-300 hover:text-[#18d4d1]">Home</a>
             <a href="#" className="text-gray-300 hover:text-[#18d4d1]">About Us</a>
-            <a
-              href="#"
+            <Link to="/signin"
               className="border border-[#18d4d1] text-[#18d4d1] font-semibold py-2 px-5 rounded-lg 
                          hover:bg-[#18d4d1] hover:text-[#1b1b1b] transition-all duration-300 w-fit"
             >
               Sign In
-            </a>
+            </Link>
           </div>
         </div>
       )}
