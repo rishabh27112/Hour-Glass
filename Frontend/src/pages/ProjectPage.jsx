@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import PropTypes from 'prop-types';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './ProjectPage.module.css';
+import EditMembers from './ProjectPage/EditMembers.jsx';
+import TasksPanel from './ProjectPage/TasksPanel.jsx';
 
 const ProjectPage = () => {
   const { id } = useParams();
@@ -121,6 +122,85 @@ const ProjectPage = () => {
     const timer = { taskId, startedAt: Date.now() };
     setActiveTimer(timer);
     persistActiveTimer(timer);
+  };
+  
+  // Handler to submit Add Task (extracted from inline handler)
+  const handleAddTaskSubmit = async () => {
+    const title = (taskTitle || '').trim();
+    if (!title) { setTaskError('Title is required'); return; }
+    setTaskLoading(true); setTaskError('');
+    try {
+      // validate assignee must be a project member (if provided)
+      if (taskAssignee && (!cleanedEmployees || !cleanedEmployees.includes(taskAssignee))) {
+        setTaskError('Assignee must be a member of this project');
+        return;
+      }
+      // server-backed project
+      if (project && project._id) {
+        // Build payload matching server schema: title, description, assignee, dueDate, status
+        const payload = {
+          title,
+          description: taskDescription || undefined,
+          assignee: taskAssignee || undefined,
+          dueDate: taskDueDate ? new Date(taskDueDate).toISOString() : undefined,
+          status: taskStatus,
+        };
+        const res = await fetch(`/api/projects/${project._id}/tasks`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (res.ok) {
+          // API returns updated project; normalize to the UI shape before setting state
+          const normalized = {
+            _id: json._id || json.id,
+            name: json.ProjectName || json.name || '',
+            description: json.Description || json.description || '',
+            members: json.members || [],
+            tasks: json.tasks || [],
+            status: json.status || 'active',
+            archived: json.status === 'archived',
+            deleted: json.status === 'deleted',
+          };
+          setProjects((prev) => {
+            const clone = [...prev];
+            const idx = clone.findIndex(p => String(p._id) === String(project._id));
+            if (idx !== -1) clone[idx] = normalized;
+            try { saveProjects(clone); } catch (e) { console.error('saveProjects failed', e); }
+            return clone;
+          });
+          setShowAddTaskDialog(false);
+          setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
+        } else {
+          console.error('add task failed', res.status, json);
+          setTaskError((json && json.message) || 'Failed to add task');
+        }
+      } else {
+        // local optimistic project
+        setProjects((prev) => {
+          const newProjects = [...prev];
+          const p = newProjects[projectIndex] ? { ...newProjects[projectIndex] } : { tasks: [] };
+          const current = Array.isArray(p.tasks) ? p.tasks.slice() : [];
+          const newTask = {
+            _clientId: `task-${Date.now()}`,
+            title,
+            description: taskDescription || '',
+            assignee: taskAssignee || currentUserId || taskAssigned || '',
+            dueDate: taskDueDate || null,
+            status: taskStatus,
+            createdAt: new Date().toISOString(),
+          };
+          p.tasks = [...current, newTask];
+          newProjects[projectIndex] = p;
+          try { saveProjects(newProjects); } catch (e) { console.error('saveProjects failed', e); }
+          return newProjects;
+        });
+        setShowAddTaskDialog(false);
+        setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
+      }
+    } catch (err) {
+      console.error('add task error', err);
+      setTaskError('Failed to add task');
+    } finally { setTaskLoading(false); }
   };
   // Find project by server _id or client-side _clientId or by numeric index (older/legacy routes)
   let project = projects.find(p => String(p._id) === id || String(p._clientId) === id);
@@ -285,7 +365,7 @@ const ProjectPage = () => {
   // Delete a member: if project has a server-side _id, call DELETE endpoint
   const handleDeleteMember = async (name) => {
     if (!name) return;
-    const ok = window.confirm(`Remove member "${name}" from project?`);
+  const ok = globalThis.confirm(`Remove member "${name}" from project?`);
     if (!ok) return;
 
     // If server-backed project, call API
@@ -507,261 +587,45 @@ const ProjectPage = () => {
             </div>
           </div>
 
-          <div className={styles.rightPanel}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>Active Tasks</h3>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className={styles.filterButton} onClick={() => setShowTaskFilter((s) => !s)}>Filter</button>
-                <button type="button" className={styles.addTaskVisible} onClick={() => setShowAddTaskDialog(true)}>+ Add Task</button>
-              </div>
-            </div>
-            {showTaskFilter && (
-              <div style={{ margin: '8px 0', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                    Member
-                    <select value={filterMember} onChange={(e) => setFilterMember(e.target.value)} style={{ padding: 6 }}>
-                      <option value="">All</option>
-                      {cleanedEmployees && cleanedEmployees.map((m, i) => (
-                        <option key={`${m}-${i}`} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-                    Status
-                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: 6 }}>
-                      <option value="">All</option>
-                      <option value="todo">To do</option>
-                      <option value="in-progress">In progress</option>
-                      <option value="done">Done</option>
-                    </select>
-                  </label>
-
-                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                    <button onClick={() => { setFilterMember(''); setFilterStatus(''); setShowTaskFilter(false); }}>Clear</button>
-                    <button onClick={() => setShowTaskFilter(false)}>Apply</button>
-                  </div>
-                </div>
-              </div>
-            )}
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>#</th>
-                  <th>Task</th>
-                  <th>Assigned</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(tasksToShow && tasksToShow.length > 0) ? (
-                  tasksToShow.map((task, idx) => {
-                    const tid = getTaskKey(task, idx);
-                    const isActive = activeTimer && activeTimer.taskId === tid;
-                    const displayedAssigned = task.assignedTo || task.assignee || task.assigneeName || '-';
-                    return (
-                      <tr key={tid}>
-                        <td>
-                          {isActive ? (
-                            <button onClick={() => pauseTimer(tid)}>⏸</button>
-                          ) : (
-                            <button onClick={() => startTimer(tid)}>▶</button>
-                          )}
-                        </td>
-                        <td>{idx + 1}</td>
-                        <td>{task.title || task.name || 'Untitled task'}</td>
-                        <td>{displayedAssigned}</td>
-                        <td>{task.status || 'todo'}</td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={5}>No active tasks</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <TasksPanel
+            tasksToShow={tasksToShow}
+            getTaskKey={getTaskKey}
+            activeTimer={activeTimer}
+            pauseTimer={pauseTimer}
+            startTimer={startTimer}
+            showTaskFilter={showTaskFilter}
+            setShowTaskFilter={setShowTaskFilter}
+            filterMember={filterMember}
+            setFilterMember={setFilterMember}
+            filterStatus={filterStatus}
+            setFilterStatus={setFilterStatus}
+            cleanedEmployees={cleanedEmployees}
+            setShowAddTaskDialog={setShowAddTaskDialog}
+            showAddTaskDialog={showAddTaskDialog}
+            taskTitle={taskTitle}
+            setTaskTitle={setTaskTitle}
+            taskDescription={taskDescription}
+            setTaskDescription={setTaskDescription}
+            taskAssignee={taskAssignee}
+            setTaskAssignee={setTaskAssignee}
+            taskDueDate={taskDueDate}
+            setTaskDueDate={setTaskDueDate}
+            taskError={taskError}
+            taskLoading={taskLoading}
+            handleAddTaskSubmit={handleAddTaskSubmit}
+            setTaskLoading={setTaskLoading}
+            setTaskError={setTaskError}
+            setTaskAssigned={setTaskAssigned}
+            setTaskStatus={setTaskStatus}
+            taskStatus={taskStatus}
+          >
+          </TasksPanel>
         </div>
-        {showAddTaskDialog && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-            <div style={{ width: 640, maxWidth: '95%', background: '#fff', borderRadius: 8, padding: 16 }}>
-              <h3>Add Task</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input type="text" placeholder="Task title" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} style={{ padding: 8 }} />
-                <textarea placeholder="Description (optional)" value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} style={{ padding: 8, minHeight: 80 }} />
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  Assign to member
-                  <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)} style={{ padding: 8 }}>
-                    {/* only allow selecting members that are part of this project */}
-                    {cleanedEmployees && cleanedEmployees.length > 0 ? (
-                      cleanedEmployees.map((m, i) => (
-                        <option key={`${m}-${i}`} value={m}>{m}</option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="">No members</option>
-                        <option value="">All Members</option>
-                      </>
-                    )}
-                    <option value="">Unassigned</option>
-                  </select>
-                </label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
-                    Due date
-                    <input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} style={{ padding: 8 }} />
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12, justifyContent: 'center' }}>
-                    <span>Status: To do (default)</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button onClick={() => { setShowAddTaskDialog(false); setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo'); setTaskError(''); }} >Cancel</button>
-                  <button disabled={taskLoading} onClick={async () => {
-                    const title = (taskTitle || '').trim();
-                    if (!title) { setTaskError('Title is required'); return; }
-                    setTaskLoading(true); setTaskError('');
-                    try {
-                      // validate assignee must be a project member (if provided)
-                      if (taskAssignee && (!cleanedEmployees || !cleanedEmployees.includes(taskAssignee))) {
-                        setTaskError('Assignee must be a member of this project');
-                        return;
-                      }
-                      // server-backed project
-                      if (project && project._id) {
-                        // Build payload matching server schema: title, description, assignee, dueDate, status
-                          const payload = {
-                            title,
-                            description: taskDescription || undefined,
-                            assignee: taskAssignee || undefined,
-                            dueDate: taskDueDate ? new Date(taskDueDate).toISOString() : undefined,
-                            status: taskStatus,
-                          };
-                        const res = await fetch(`/api/projects/${project._id}/tasks`, {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload)
-                        });
-                        const json = await res.json();
-                        if (res.ok) {
-                          // API returns updated project; normalize to the UI shape before setting state
-                          const normalized = {
-                            _id: json._id || json.id,
-                            name: json.ProjectName || json.name || '',
-                            description: json.Description || json.description || '',
-                            members: json.members || [],
-                            tasks: json.tasks || [],
-                            status: json.status || 'active',
-                            archived: json.status === 'archived',
-                            deleted: json.status === 'deleted',
-                          };
-                          setProjects((prev) => {
-                            const clone = [...prev];
-                            const idx = clone.findIndex(p => String(p._id) === String(project._id));
-                            if (idx !== -1) clone[idx] = normalized;
-                            try { saveProjects(clone); } catch (e) { console.error('saveProjects failed', e); }
-                            return clone;
-                          });
-                          setShowAddTaskDialog(false);
-                          setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
-                        } else {
-                          console.error('add task failed', res.status, json);
-                          setTaskError((json && json.message) || 'Failed to add task');
-                        }
-                      } else {
-                        // local optimistic project
-                        setProjects((prev) => {
-                          const newProjects = [...prev];
-                          const p = newProjects[projectIndex] ? { ...newProjects[projectIndex] } : { tasks: [] };
-                          const current = Array.isArray(p.tasks) ? p.tasks.slice() : [];
-                          const newTask = {
-                            _clientId: `task-${Date.now()}`,
-                            title,
-                            description: taskDescription || '',
-                            assignee: taskAssignee || currentUserId || taskAssigned || '',
-                            dueDate: taskDueDate || null,
-                            status: taskStatus,
-                            createdAt: new Date().toISOString(),
-                          };
-                          p.tasks = [...current, newTask];
-                          newProjects[projectIndex] = p;
-                          try { saveProjects(newProjects); } catch (e) { console.error('saveProjects failed', e); }
-                          return newProjects;
-                        });
-                        setShowAddTaskDialog(false);
-                        setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
-                      }
-                    } catch (err) {
-                      console.error('add task error', err);
-                      setTaskError('Failed to add task');
-                    } finally { setTaskLoading(false); }
-                  }}>
-                    {taskLoading ? 'Adding...' : 'Add Task'}
-                  </button>
-                </div>
-                {taskError && <div style={{ color: 'red' }}>{taskError}</div>}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 };
 
-  function EditMembers({ project, onAdd, currentMode, setCurrentMode, onOpenAddDialog }) {
-    const [showMenu, setShowMenu] = useState(false);
-  // EditMembers now only provides the menu and delete flow; add-dialog handled centrally
-
-    const toggleMenu = () => setShowMenu((s) => !s);
-
-    const selectAdd = () => {
-      // open centralized add dialog in parent
-      if (typeof onOpenAddDialog === 'function') onOpenAddDialog();
-      setShowMenu(false);
-    };
-
-    const selectDelete = () => {
-      setCurrentMode('delete');
-      setShowMenu(false);
-    };
-
-    const doneEditing = () => {
-      setCurrentMode(null);
-    };
-
-    // search/add handled by parent dialog now
-
-    return (
-      <div className={styles.editContainer}>
-        <button className={styles.threeDot} onClick={toggleMenu}>⋮</button>
-        {showMenu && (
-          <div className={styles.dropdown}>
-            <button onClick={selectAdd}>Add Member</button>
-            <button onClick={selectDelete}>Delete Members</button>
-          </div>
-        )}
-
-        {/* Add-panel removed: Add actions are handled via centralized dialog opened by onOpenAddDialog */}
-
-        {currentMode === 'delete' && (
-          <div className={styles.deletePanel}>
-            <p>Click the minus buttons to remove members.</p>
-            <button className={styles.doneButton} onClick={doneEditing}>Done</button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  EditMembers.propTypes = {
-    project: PropTypes.object,
-    onAdd: PropTypes.func.isRequired,
-    currentMode: PropTypes.string,
-    setCurrentMode: PropTypes.func.isRequired,
-    onOpenAddDialog: PropTypes.func.isRequired,
-  };
+  // EditMembers extracted to ./ProjectPage/EditMembers.jsx
 
 export default ProjectPage;
