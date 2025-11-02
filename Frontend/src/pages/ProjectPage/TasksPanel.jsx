@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import styles from '../ProjectPage.module.css';
 
@@ -82,11 +83,11 @@ export default function TasksPanel(props) {
           </tr>
         </thead>
         <tbody>
-          {(tasksToShow && tasksToShow.length > 0) ? (
+              {(tasksToShow && tasksToShow.length > 0) ? (
             tasksToShow.map((task, idx) => {
               const tid = getTaskKey(task, idx);
               const isActive = activeTimer && activeTimer.taskId === tid;
-              const displayedAssigned = task.assignedTo || task.assignee || task.assigneeName || '-';
+                  const displayedAssigned = task.assignedTo || task.assignee || task.assigneeName || '-';
               return (
                 <tr key={tid}>
                   <td>
@@ -97,7 +98,12 @@ export default function TasksPanel(props) {
                     )}
                   </td>
                   <td>{idx + 1}</td>
-                  <td>{task.title || task.name || 'Untitled task'}</td>
+                      <td>
+                        {/* link to task page */}
+                        <Link to={`/projects/${props.projectId || ''}/tasks/${tid}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                          {task.title || task.name || 'Untitled task'}
+                        </Link>
+                      </td>
                   <td>{displayedAssigned}</td>
                   <td>{task.status || 'todo'}</td>
                 </tr>
@@ -186,4 +192,5 @@ TasksPanel.propTypes = {
   taskLoading: PropTypes.bool,
   handleAddTaskSubmit: PropTypes.func.isRequired,
   setTaskError: PropTypes.func.isRequired,
+  projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 };

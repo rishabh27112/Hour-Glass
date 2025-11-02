@@ -648,6 +648,7 @@ const ProjectPage = () => {
             filterStatus={filterStatus}
             setFilterStatus={setFilterStatus}
             cleanedEmployees={cleanedEmployees}
+            projectId={project && (project._id || project._clientId) }
             setShowAddTaskDialog={setShowAddTaskDialog}
             showAddTaskDialog={showAddTaskDialog}
             taskTitle={taskTitle}
