@@ -333,10 +333,17 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
       const memberUser = await userModel.findOne({ username: assigneeUsername }).select('_id username');
       if (!memberUser) return res.status(404).json({ msg: 'Assignee user not found' });
 
-      const memberId = memberUser._id.toString();
+      // Normalize member id and check membership robustly. project.members may
+      // contain ObjectIds, strings, or populated user objects ({ _id, username })
+      const memberObjId = memberUser._id;
+      // Normalize all project member ids to strings (handles populated docs, ObjectIds, strings)
+      const memberIdStrings = (project.members || []).map(m => {
+        if (m == null) return '';
+        if (typeof m === 'object' && m._id) return m._id.toString();
+        return m.toString();
+      });
 
-      // Ensure assignee is a member of project
-      if (!project.members.some(m => m.toString() === memberId)) return res.status(400).json({ msg: 'User is not a project member' });
+      if (!memberExists) return res.status(400).json({ msg: 'User is not a project member' });
 
       // Find the task
       const task = project.tasks.id(req.params.taskId);
