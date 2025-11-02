@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { send } from "process";
 
 contextBridge.exposeInMainWorld("getCurrentWinAPI", {
   getCurrentWindow: () => ipcRenderer.invoke("getCurrentWindow"),
@@ -13,4 +12,7 @@ contextBridge.exposeInMainWorld('TimeTracker', {
   stop: () => ipcRenderer.invoke('TimeTracker:stop'),
   sendData: () => ipcRenderer.invoke('TimeTracker:sendData'),
   saveData: () => ipcRenderer.invoke('TimeTracker:saveData'),
+  isStorageEmpty: () => ipcRenderer.invoke('TimeTracker:isStorageEmpty'),
+  readStoredEntries: () => ipcRenderer.invoke('TimeTracker:readStoredEntries'),
+  clearStorage: () => ipcRenderer.invoke('TimeTracker:clearStorage'),
 });
