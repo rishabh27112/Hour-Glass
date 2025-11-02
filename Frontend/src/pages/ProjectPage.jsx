@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './ProjectPage.module.css';
 import EditMembers from './ProjectPage/EditMembers.jsx';
@@ -250,50 +250,6 @@ const ProjectPage = () => {
     })();
     return () => { mounted = false; };
   }, [id, project]);
-
-  // Ensure we fetch latest project (including tasks) when the page opens for a server-backed project.
-  // This fetch runs once per project._id and updates the `projects` state with the server data.
-  const tasksFetchedRef = useRef({});
-  useEffect(() => {
-    if (!project || !project._id) return;
-    const idToFetch = String(project._id);
-    if (tasksFetchedRef.current[idToFetch]) return; // already fetched once
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch(`/api/projects/${idToFetch}`, { credentials: 'include' });
-        if (!mounted) return;
-        if (res.ok) {
-          const p = await res.json();
-          const normalized = {
-            _id: p._id,
-            name: p.ProjectName || p.name || '',
-            description: p.Description || p.description || '',
-            members: p.members || [],
-            createdBy: p.createdBy || null,
-            tasks: p.tasks || [],
-            status: p.status || 'active',
-            archived: p.status === 'archived',
-            deleted: p.status === 'deleted',
-          };
-          setProjects((prev) => {
-            const clone = [...prev];
-            const idx = clone.findIndex((pp) => String(pp._id) === idToFetch);
-            if (idx !== -1) clone[idx] = normalized;
-            else clone.unshift(normalized);
-            try { saveProjects(clone); } catch (e) { console.warn('sessionStorage set failed', e); }
-            return clone;
-          });
-          tasksFetchedRef.current[idToFetch] = true;
-        } else {
-          console.error('Failed to fetch project tasks', res.status);
-        }
-      } catch (err) {
-        console.error('fetch project tasks error', err);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [project && project._id]);
 
   // determine whether the current user is the creator of this project
   const isCreator = (() => {
