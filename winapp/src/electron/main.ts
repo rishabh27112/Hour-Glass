@@ -3,6 +3,7 @@ import * as path from "path";
 import activeWin from 'active-win';
 import { FileStorageManager } from './fileStorage';
 import * as https from 'https';
+import mongoose from "mongoose";
 
 
 let mainWindow: BrowserWindow | null = null;
@@ -82,9 +83,16 @@ class TimeTracker {
 	private storage: FileStorageManager;
 	private isSyncing: boolean = false;
 
+	private user_id: mongoose.Types.ObjectId | null;
+	private project_id: mongoose.Types.ObjectId | null;
+	private task_id: mongoose.Types.ObjectId | null;
+
 	constructor(sys:SystemResourceMonitor) {
 		this.sm = sys;
 		this.storage = new FileStorageManager();
+		this.user_id = null;
+		this.project_id = null;
+		this.task_id = null;
 		console.log(`TimeTracker initialized with storage at: ${this.storage.getFilePath()}`);
 	}
 
@@ -184,27 +192,24 @@ class TimeTracker {
 	private async sendToServer(entries: TimeEntry[]): Promise<boolean> {
 		// TODO: Implement actual server upload logic here
 		// For now, just simulate the behavior
-		console.log(`Sending ${entries.length} entries to server (placeholder)`);
+		console.log(`Sending ${entries.length} entries to server`);
 		
 		try {
-			// Simulate server call
-			// Shreyas, Replace this with actual HTTP request to our server
-			// Example:
-			// const response = await fetch('YOUR_SERVER_URL/api/timeentries', {
-			//   method: 'POST',
-			//   headers: { 'Content-Type': 'application/json' },
-			//   body: JSON.stringify(entries)
-			// });
-			// return response.ok;
+
+			//call  server API to send entries
 			
-			return true; // Simulating success for now
+			return false; // Simulating success for now
 		} catch (error) {
 			console.error('Error sending to server:', error);
 			return false;
 		}
 	}
 
-	public startTracking(intervalMs: number = 200) {
+	public startTracking(usr : mongoose.Types.ObjectId, proj : mongoose.Types.ObjectId, task : mongoose.Types.ObjectId, intervalMs: number = 200) {
+		this.user_id = usr;
+		this.project_id = proj;
+		this.task_id = task;
+		
 		console.log(`TimeTracker started with interval ${intervalMs} ms`);
 		
 		// Start auto-sync when tracking starts
@@ -324,10 +329,15 @@ ipcMain.handle("getCurrentWindow:stop", () => {
 
 
 
-
-ipcMain.handle('TimeTracker:start', () => {
-	tracker.startTracking();
+ipcMain.handle('TimeTracker:start', (event, usr: string, proj: string, task: string, intervalMs?: number) => {
+    // Convert string IDs to mongoose.Types.ObjectId
+    const userId = new mongoose.Types.ObjectId(usr);
+    const projectId = new mongoose.Types.ObjectId(proj);
+    const taskId = new mongoose.Types.ObjectId(task);
+    tracker.startTracking(userId, projectId, taskId, intervalMs ?? 200);
 });
+
+
 ipcMain.handle('TimeTracker:stop', async () => {
 	await tracker.stopTracking();
 });

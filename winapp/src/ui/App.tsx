@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 interface TimeEntry {
   apptitle: string;
   appname: string;
@@ -11,7 +10,7 @@ interface TimeEntry {
 declare global {
   interface Window {
     TimeTracker: {
-      start: () => Promise<void>;
+      start: (usr:string, proj:string, task:string) => Promise<void>;
       stop: () => Promise<void>;
       sendData: () => Promise<void>;
       saveData: () => Promise<void>;
@@ -34,7 +33,7 @@ function App() {
   const [activeWindow, setActiveWindow] = useState("Loading...");
 
   useEffect(() => {
-    window.TimeTracker.start();
+    window.TimeTracker.start("64a7b2f4f1c2e3d4b5a6c7d8","64a7b2f4f1c2e3d4b5a6c7d9","64a7b2f4f1c2e3d4b5a6c7da");
     window.getCurrentWinAPI.start();
     const interval = setInterval(async () => {
       const title = await window.getCurrentWinAPI.getCurrentWindow().then(info => info.title)  .catch(() => "No active window");
