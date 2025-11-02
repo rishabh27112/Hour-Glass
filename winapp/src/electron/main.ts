@@ -3,7 +3,6 @@ import * as path from "path";
 import activeWin from 'active-win';
 import { FileStorageManager } from './fileStorage';
 import * as https from 'https';
-import mongoose from "mongoose";
 
 
 let mainWindow: BrowserWindow | null = null;
@@ -83,9 +82,9 @@ class TimeTracker {
 	private storage: FileStorageManager;
 	private isSyncing: boolean = false;
 
-	private user_id: mongoose.Types.ObjectId | null;
-	private project_id: mongoose.Types.ObjectId | null;
-	private task_id: mongoose.Types.ObjectId | null;
+	private user_id: string | null;
+	private project_id: string | null;
+	private task_id: string | null;
 
 	constructor(sys:SystemResourceMonitor) {
 		this.sm = sys;
@@ -195,8 +194,25 @@ class TimeTracker {
 		console.log(`Sending ${entries.length} entries to server`);
 		
 		try {
-
-			//call  server API to send entries
+			for(let i=0; i < entries.length; i++) {
+				const payload = {
+					user_id: this.user_id,
+					project_id: this.project_id,
+					task_id: this.task_id,
+					time: entries[i],
+				}
+				//change server address here
+				fetch("https://localhost:4000/api/timetrackerdata", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify(payload)
+				})
+				.then(res => res.json())
+				.then(data => console.log("Server response:", data))
+				.catch(err => console.error(err));
+			}
 			
 			return false; // Simulating success for now
 		} catch (error) {
@@ -205,7 +221,7 @@ class TimeTracker {
 		}
 	}
 
-	public startTracking(usr : mongoose.Types.ObjectId, proj : mongoose.Types.ObjectId, task : mongoose.Types.ObjectId, intervalMs: number = 200) {
+	public startTracking(usr : string, proj : string, task : string, intervalMs: number = 200) {
 		this.user_id = usr;
 		this.project_id = proj;
 		this.task_id = task;
@@ -330,10 +346,10 @@ ipcMain.handle("getCurrentWindow:stop", () => {
 
 
 ipcMain.handle('TimeTracker:start', (event, usr: string, proj: string, task: string, intervalMs?: number) => {
-    // Convert string IDs to mongoose.Types.ObjectId
-    const userId = new mongoose.Types.ObjectId(usr);
-    const projectId = new mongoose.Types.ObjectId(proj);
-    const taskId = new mongoose.Types.ObjectId(task);
+    // Convert string IDs to string
+    const userId = new string(usr);
+    const projectId = new string(proj);
+    const taskId = new string(task);
     tracker.startTracking(userId, projectId, taskId, intervalMs ?? 200);
 });
 
