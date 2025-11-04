@@ -320,8 +320,9 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
   // PATCH /api/projects/:id/tasks/:taskId/assign - Assign a task to a member (only creator)
   router.patch('/:id/tasks/:taskId/assign', userAuth, async (req, res) => {
     try {
-      const { assigneeUsername } = req.body;
-      if (!assigneeUsername) return res.status(400).json({ msg: 'assigneeUsername is required' });
+      // Accept assignee identification by username, email or id for flexibility
+      const { assigneeUsername, assigneeEmail, assigneeId } = req.body;
+      if (!assigneeUsername && !assigneeEmail && !assigneeId) return res.status(400).json({ msg: 'assigneeUsername, assigneeEmail or assigneeId is required' });
 
       const project = await Project.findById(req.params.id);
       if (!project) return res.status(404).json({ msg: 'Project not found' });
@@ -329,14 +330,27 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
       // Only creator can assign tasks
       if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
 
-      // Find the user by username
-      const memberUser = await userModel.findOne({ username: assigneeUsername }).select('_id username');
+      // Find the user by the provided identifier
+      let memberUser = null;
+      if (assigneeId) memberUser = await userModel.findById(assigneeId).select('_id username email name');
+      else if (assigneeEmail) memberUser = await userModel.findOne({ email: assigneeEmail }).select('_id username email name');
+      else if (assigneeUsername) memberUser = await userModel.findOne({ username: assigneeUsername }).select('_id username email name');
+
       if (!memberUser) return res.status(404).json({ msg: 'Assignee user not found' });
 
       const memberId = memberUser._id.toString();
 
-      // Ensure assignee is a member of project
-      if (!project.members.some(m => m.toString() === memberId)) return res.status(400).json({ msg: 'User is not a project member' });
+      // Normalize project members into strings (id, username, email) and check inclusion
+      const normalizedSet = new Set((project.members || []).flatMap((m) => {
+        if (!m) return [];
+        if (typeof m === 'object') {
+          return [m._id && m._id.toString(), m.username, m.email].filter(Boolean).map(String);
+        }
+        return [String(m)];
+      }));
+
+      const memberPresent = normalizedSet.has(memberId) || (memberUser.username && normalizedSet.has(memberUser.username)) || (memberUser.email && normalizedSet.has(memberUser.email));
+      if (!memberPresent) return res.status(400).json({ msg: 'User is not a project member' });
 
       // Find the task
       const task = project.tasks.id(req.params.taskId);
@@ -345,7 +359,10 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
       task.assignee = memberId;
       await project.save();
 
-      const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name').populate('tasks.assignee', 'username name');
+      const populated = await Project.findById(project._id)
+        .populate('createdBy', 'username name')
+        .populate('members', 'username name email')
+        .populate('tasks.assignee', 'username name email');
       res.json(populated);
     } catch (err) {
       console.error(err);

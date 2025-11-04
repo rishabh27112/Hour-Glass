@@ -216,15 +216,17 @@ const ProjectPage = () => {
     }
   }
 
-  // If we couldn't find a project locally, and id looks like an ObjectId, fetch the single project from server
+  // If we couldn't find a project locally, or it is server-backed but missing tasks, fetch the single project from server
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (project) return; // already have it
       if (!id) return;
+      // only attempt for ObjectId-like ids
       if (!/^[0-9a-fA-F]{24}$/.test(String(id))) return;
+      // if we already have a project with tasks, no need to fetch
+      if (project && Array.isArray(project.tasks) && project.tasks.length > 0) return;
       try {
-        const res = await fetch(`http://localhost:4000/api/projects/${id}`, { credentials: 'include' });
+        const res = await fetch(`/api/projects/${id}`, { credentials: 'include' });
         if (!mounted) return;
         if (res.ok) {
           const p = await res.json();
