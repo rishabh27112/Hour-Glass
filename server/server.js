@@ -11,7 +11,8 @@ import authRouter from './routes/authRoutes.js';
 import userRouter from "./routes/userRoutes.js";
 import projectRouter from './routes/ProjectRoutes.js';
 import timeEntryRouter from './routes/TImeEntryRoutes.js';
-
+import "./cron/notificationJob.js"; 
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 const app = express();
 const port = process.env.PORT || process.env.port || 4000;
@@ -83,5 +84,7 @@ app.get('/api/auth/google/success', (req, res) => {
     }
     return res.json({ success: false, message: 'No user in session' });
 });
+
+app.use("/api/notifications", notificationRoutes);
 
 app.listen(port, ()=> console.log(`Server started on PORT: ${port} `));

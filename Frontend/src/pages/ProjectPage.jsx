@@ -221,12 +221,17 @@ const ProjectPage = () => {
     let mounted = true;
     (async () => {
       if (!id) return;
-      // only attempt for ObjectId-like ids
-      if (!/^[0-9a-fA-F]{24}$/.test(String(id))) return;
       // if we already have a project with tasks, no need to fetch
       if (project && Array.isArray(project.tasks) && project.tasks.length > 0) return;
+      // Determine which id to fetch: prefer the server-backed project's _id (if present),
+      // otherwise fall back to the route `id` only when it looks like an ObjectId.
+      let fetchId = null;
+      if (project && project._id) fetchId = project._id;
+      else if (/^[0-9a-fA-F]{24}$/.test(String(id))) fetchId = id;
+      // Nothing to fetch from the server for non-server-backed client projects
+      if (!fetchId) return;
       try {
-        const res = await fetch(`/api/projects/${id}`, { credentials: 'include' });
+        const res = await fetch(`/api/projects/${fetchId}`, { credentials: 'include' });
         if (!mounted) return;
         if (res.ok) {
           const p = await res.json();
@@ -650,6 +655,7 @@ const ProjectPage = () => {
             filterStatus={filterStatus}
             setFilterStatus={setFilterStatus}
             cleanedEmployees={cleanedEmployees}
+            projectId={project && (project._id || project._clientId) }
             setShowAddTaskDialog={setShowAddTaskDialog}
             showAddTaskDialog={showAddTaskDialog}
             taskTitle={taskTitle}

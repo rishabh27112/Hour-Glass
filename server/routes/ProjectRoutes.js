@@ -92,8 +92,12 @@ router.get('/:id', userAuth, async (req, res) => {
 router.patch('/:id/archive', userAuth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ msg: 'Project not found' });
-  if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+    if (project.createdBy.toString() !== req.userId) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
     project.status = 'archived';
     await project.save();
     res.json(project);
@@ -108,8 +112,12 @@ router.patch('/:id/archive', userAuth, async (req, res) => {
 router.patch('/:id/restore', userAuth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ msg: 'Project not found' });
-  if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+    if (project.createdBy.toString() !== req.userId) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
     project.status = 'active';
     await project.save();
     res.json(project);
@@ -124,8 +132,12 @@ router.patch('/:id/restore', userAuth, async (req, res) => {
 router.delete('/:id', userAuth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ msg: 'Project not found' });
-  if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+    if (project.createdBy.toString() !== req.userId) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
     // Soft-delete: mark status = 'deleted' so frontend can show Bin and allow restore
     project.status = 'deleted';
     await project.save();
@@ -252,7 +264,9 @@ router.delete('/:id/members/:username', userAuth, async (req, res) => {
       const task = { title, description: description || '' };
       if (dueDate) {
         const parsed = new Date(dueDate);
-        if (isNaN(parsed.getTime())) return res.status(400).json({ msg: 'Invalid dueDate' });
+        if (Number.isNaN(parsed.getTime())) {
+          return res.status(400).json({ msg: 'Invalid dueDate' });
+        }
         task.dueDate = parsed;
         task.isDelayed = parsed.getTime() < Date.now();
       }
@@ -340,17 +354,8 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
 
       const memberId = memberUser._id.toString();
 
-      // Normalize project members into strings (id, username, email) and check inclusion
-      const normalizedSet = new Set((project.members || []).flatMap((m) => {
-        if (!m) return [];
-        if (typeof m === 'object') {
-          return [m._id && m._id.toString(), m.username, m.email].filter(Boolean).map(String);
-        }
-        return [String(m)];
-      }));
-
-      const memberPresent = normalizedSet.has(memberId) || (memberUser.username && normalizedSet.has(memberUser.username)) || (memberUser.email && normalizedSet.has(memberUser.email));
-      if (!memberPresent) return res.status(400).json({ msg: 'User is not a project member' });
+      // Ensure assignee is a member of project
+      if (!project.members.some(m => m.toString() === memberId)) return res.status(400).json({ msg: 'User is not a project member' });
 
       // Find the task
       const task = project.tasks.id(req.params.taskId);
