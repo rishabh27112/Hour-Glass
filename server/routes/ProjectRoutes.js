@@ -248,20 +248,59 @@ router.delete('/:id/members/:username', userAuth, async (req, res) => {
 });
 
 
-  // POST /api/projects/:id/tasks - Create a task inside a project (creator or members)
+  // POST /api/projects/:id/tasks - Create a task inside a project (only creator)
   router.post('/:id/tasks', userAuth, async (req, res) => {
     try {
-      const { title, description, dueDate } = req.body;
+      const { title, description, dueDate, assignee } = req.body;
       if (!title) return res.status(400).json({ msg: 'title is required' });
 
       const project = await Project.findById(req.params.id);
       if (!project) return res.status(404).json({ msg: 'Project not found' });
 
-      // Only project creator or members can create tasks
-      const isMemberOrCreator = project.createdBy.toString() === req.userId || project.members.some(m => m.toString() === req.userId);
-      if (!isMemberOrCreator) return res.status(403).json({ msg: 'Not authorized to create tasks in this project' });
+      // Only project creator can create tasks
+      const creatorId = project.createdBy ? project.createdBy.toString() : null;
+      const currentUserId = req.userId ? req.userId.toString() : null;
+      
+      if (!creatorId || !currentUserId || creatorId !== currentUserId) {
+        return res.status(403).json({ msg: 'Not authorized. Only the project creator can add tasks.' });
+      }
 
       const task = { title, description: description || '' };
+      
+      // Handle assignee if provided
+      if (assignee && assignee.trim() !== '') {
+        // assignee can be username, email, or userId
+        let assigneeUser = null;
+        
+        // Try to find by ObjectId first
+        if (typeof assignee === 'string' && assignee.match(/^[0-9a-fA-F]{24}$/)) {
+          try {
+            assigneeUser = await userModel.findById(assignee).select('_id username');
+          } catch (err) {
+            // Invalid ObjectId format, continue to username/email lookup
+          }
+        }
+        
+        // If not found, try by username or email
+        if (!assigneeUser) {
+          assigneeUser = await userModel.findOne({
+            $or: [{ username: assignee }, { email: assignee }]
+          }).select('_id username');
+        }
+        
+        if (!assigneeUser) {
+          return res.status(404).json({ msg: `Assignee user '${assignee}' not found` });
+        }
+        
+        // Ensure assignee is a member of the project
+        const assigneeId = assigneeUser._id.toString();
+        if (!project.members.some(m => m.toString() === assigneeId)) {
+          return res.status(400).json({ msg: 'Assignee must be a member of this project' });
+        }
+        
+        task.assignee = assigneeUser._id;
+      }
+      
       if (dueDate) {
         const parsed = new Date(dueDate);
         if (Number.isNaN(parsed.getTime())) {
@@ -289,8 +328,6 @@ router.get('/:id/tasks/overdue', userAuth, async (req, res) => {
     if (!project) return res.status(404).json({ msg: 'Project not found' });
 
     // Only creator can fetch overdue list (sensible: manager triggers alerts)
-    console.log(project.createdBy.toString() );
-    console.log(req.userId);
     if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
     
     const now = new Date();

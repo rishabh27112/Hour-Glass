@@ -87,7 +87,15 @@ export default function TasksPanel(props) {
             tasksToShow.map((task, idx) => {
               const tid = getTaskKey(task, idx);
               const isActive = activeTimer && activeTimer.taskId === tid;
-                  const displayedAssigned = task.assignedTo || task.assignee || task.assigneeName || '-';
+              
+              // Handle assignee - could be object or string
+              const assigneeData = task.assignedTo || task.assignee || task.assigneeName;
+              const displayedAssigned = assigneeData 
+                ? (typeof assigneeData === 'object' 
+                  ? (assigneeData.username || assigneeData.name || assigneeData._id || '-')
+                  : String(assigneeData))
+                : '-';
+              
               return (
                 <tr key={tid}>
                   <td>

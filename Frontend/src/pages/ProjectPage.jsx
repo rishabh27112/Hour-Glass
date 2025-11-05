@@ -221,8 +221,6 @@ const ProjectPage = () => {
     let mounted = true;
     (async () => {
       if (!id) return;
-      // if we already have a project with tasks, no need to fetch
-      if (project && Array.isArray(project.tasks) && project.tasks.length > 0) return;
       // Determine which id to fetch: prefer the server-backed project's _id (if present),
       // otherwise fall back to the route `id` only when it looks like an ObjectId.
       let fetchId = null;
@@ -256,7 +254,7 @@ const ProjectPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [id, project]);
+  }, [id]);
 
   // determine whether the current user is the creator of this project
   const isCreator = (() => {
