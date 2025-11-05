@@ -18,7 +18,7 @@ const Hero = () => {
                 <p className="mt-6 text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
                     Track, manage, and optimize your team's time with our intuitive platform.
                 </p>
-                <Link to='signin'>
+                <Link to='signup'>
                 <div className="mt-12">
                     <button
                     
