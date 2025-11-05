@@ -76,9 +76,16 @@ router.get('/:id', userAuth, async (req, res) => {
     if (!project) return res.status(404).json({ msg: 'Project not found' });
 
     // Only creator or members can view
-    const isMemberOrCreator = project.createdBy && project.createdBy._id && project.createdBy._id.toString() === req.userId
-      || (project.members && project.members.some(m => m.toString() === req.userId));
-    if (!isMemberOrCreator) return res.status(403).json({ msg: 'Not authorized' });
+    const creatorId = project.createdBy && (project.createdBy._id || project.createdBy);
+    const isCreator = creatorId && creatorId.toString() === req.userId;
+    const isMember = project.members && project.members.some(m => {
+      const memberId = m._id || m;
+      return memberId.toString() === req.userId;
+    });
+    
+    if (!isCreator && !isMember) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
 
     res.json(project);
   } catch (err) {
