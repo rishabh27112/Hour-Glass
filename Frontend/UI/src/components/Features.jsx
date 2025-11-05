@@ -19,16 +19,16 @@ function Features() {
           <p className="mt-4 text-lg text-gray-300">One tool to track, manage, and report on your team's time.</p>
         </div>
 
-        <div className="mt-12 flex justify-center border-b border-[#3a3a3a] space-x-4">
+        {/* --- CHANGE IS ON THIS LINE --- */}
+        <div className="mt-12 flex flex-wrap justify-center border-b border-[#3a3a3a] space-x-4 pb-2">
           {featuresData.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center space-x-2 py-4 px-1 font-semibold text-lg
-                ${
-                  activeTab === tab.id
-                    ? 'text-[#18d4d1] border-b-2 border-[#18d4d1]'
-                    : 'text-gray-400 hover:text-gray-200'
+                ${activeTab === tab.id
+                  ? 'text-[#18d4d1] border-b-2 border-[#18d4d1]'
+                  : 'text-gray-400 hover:text-gray-200'
                 }
               `}
             >
@@ -46,7 +46,7 @@ function Features() {
               Learn more &rarr;
             </a>
           </div>
-          
+
           <div className="bg-[#2c2c2c] p-4 rounded-lg shadow-2xl border border-[#3a3a3a]">
             <div className="w-full h-80 bg-[#3a3a3a] rounded flex items-center justify-center">
               <p className="text-gray-400">Image for: {activeFeature.title}</p>

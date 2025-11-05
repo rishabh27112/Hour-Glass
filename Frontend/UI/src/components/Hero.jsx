@@ -22,7 +22,7 @@ const Hero = () => {
                 <div className="mt-12">
                     <button
                     
-                        className="group w-full sm:w-auto bg-[#18d4d1] text-[#131212] font-bold py-3 px-5 rounded-xl tracking-light
+                        className="cursor-pointer group w-full sm:w-auto bg-[#18d4d1] text-[#131212] font-bold py-3 px-5 rounded-xl tracking-light
                         transition-all duration-300 ease-in-out
                         hover:bg-white
                         hover:translate-y-0.5
