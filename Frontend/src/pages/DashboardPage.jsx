@@ -131,6 +131,7 @@ const DashboardPage = () => {
               <span className={styles.profileText}>{user ? (user.name || user.fullName || 'Profile') : 'Profile'}</span>
               {dropdownOpen && (
                 <div className={styles.profileDropdownMenu}>
+                  <button className={styles.profileDropdownItem} onClick={() => navigate('/profile')}>View Profile</button>
                   <button className={styles.profileDropdownItem} onClick={handleLogout}>Logout</button>
                 <button className={styles.profileDropdownItem} disabled>Settings</button>
               </div>

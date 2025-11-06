@@ -124,6 +124,28 @@ const ProjectPage = () => {
   const [activeTimer, setActiveTimer] = useState(initialActiveTimer);
   const [timerNow, setTimerNow] = useState(Date.now());
 
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  // Manual trigger for notification job (calls server test route)
+  const handleNotifyDeadlines = async () => {
+    try {
+      setNotifLoading(true);
+      const res = await fetch('http://localhost:4000/api/notifications/test/run-reminders-now', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+      });
+      const json = await res.json();
+      if (res.ok) {
+        alert(json.msg || 'Notification job executed successfully');
+      } else {
+        alert(json.error || 'Failed to run notification job');
+      }
+    } catch (err) {
+      alert('Error triggering notifications: ' + (err.message || err));
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
   const getTaskKey = (task, idx) => (task && (task._id || task._clientId)) || `task-${idx}`;
 
   const formatDuration = (ms) => {
@@ -761,21 +783,22 @@ const ProjectPage = () => {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <button onClick={() => navigate(-1)} className={styles.back}>← Back</button>
-        <h2 style={{ marginRight: 'auto' }}>{project.name}</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => startNativeTrackerForTask(project, null, `project-${project._id || project._clientId || 'local'}`, currentUser)}
-            title="Start project timer"
-          >Start</button>
-          <button
-            type="button"
-            onClick={() => stopNativeTrackerAndFlush()}
-            title="Stop project timer"
-          >Stop</button>
+      <div className={styles.header} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => navigate(-1)} className={styles.back}>← Back</button>
+          {currentUser && (
+            <button
+              type="button"
+              onClick={handleNotifyDeadlines}
+              disabled={notifLoading}
+              className={styles.filterButton}
+              title="Notify me of upcoming task deadlines"
+            >
+              {notifLoading ? 'Notifying...' : 'Notify Deadlines'}
+            </button>
+          )}
         </div>
+        <h2 style={{ margin: 0 }}>{project.name}</h2>
       </div>
       {/* Active timer bar: only visible to the starter, a manager, or the project owner */}
       {activeTimer && (() => {

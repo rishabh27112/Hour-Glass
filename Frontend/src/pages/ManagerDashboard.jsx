@@ -274,27 +274,11 @@ const ManagerDashboard = () => {
           <button
             className="rounded-full h-9 w-9 overflow-hidden focus:outline-none 
                        hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
-            onClick={async () => {
-              const newVal = !profileOpen;
-              setProfileOpen(newVal);
-              if (newVal) {
-                try {
-                  const res = await fetch('http://localhost:4000/api/user/data', {
-                    method: 'GET',
-                    credentials: 'include',
-                  });
-                  const json = await res.json();
-                  if (json && json.success && json.userData) {
-                    setProfileUser(json.userData);
-                    try {
-                      const storage = sessionStorage.getItem('user') ? sessionStorage : localStorage;
-                      storage.setItem('user', JSON.stringify(json.userData));
-                    } catch (err) { }
-                  }
-                } catch (err) { }
-              }
+            onClick={() => {
+              // Navigate directly to profile page when the user clicks the avatar
+              navigate('/profile');
             }}
-            aria-label="Open profile menu"
+            aria-label="Open profile page"
           >
             <div className="h-9 w-9 bg-surface-light flex items-center justify-center text-cyan text-lg font-bold">
               {profileUser?.username ? profileUser.username.charAt(0).toUpperCase() : 'U'}
