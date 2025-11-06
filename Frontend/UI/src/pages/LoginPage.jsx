@@ -12,23 +12,22 @@ const LoginPage = () => {
 
       <div
         className="
-          w-100 max-w-md 
+          w-full max-w-md 
           p-6 space-y-4 
           relative z-10
-          border-none shadow-xl border border-[#3a3a3a]
           backdrop-blur-xs
         "
       >
         {/* Header */}
         <div className="text-center">
-          <Logo/>
+          <Logo />
           <h2 className="mt-3 text-2xl font-bold text-white">
             Sign in to Hour Glass
           </h2>
         </div>
 
         {/* Social Login */}
-        <GoogleButton/>
+        <GoogleButton />
 
         {/* Divider */}
         <div className="flex items-center justify-center my-3">
@@ -68,7 +67,7 @@ const LoginPage = () => {
           </div>
 
           {/* Forgot Password Link */}
-          <div className="text-sm text-right">
+          <div className="text-right">
             <Link to="/forgot-password" className="font-medium underline decoration-[#18d4d1] text-gray-200 hover:text-[#18d4d1] hover:decoration-gray-200">
               Forgot your password ?
             </Link>

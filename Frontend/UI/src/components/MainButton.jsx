@@ -5,7 +5,7 @@ const MainButton = (props) => {
         <button
             type="submit"
             className="
-    group
+    group cursor-pointer
     relative overflow-hidden 
     w-full bg-[#18d4d1] text-[#131212] font-bold py-2 px-5 rounded-lg
     tracking-light transition-all duration-300 ease-in-out 

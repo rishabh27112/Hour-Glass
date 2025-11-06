@@ -216,15 +216,20 @@ const ProjectPage = () => {
     }
   }
 
-  // If we couldn't find a project locally, and id looks like an ObjectId, fetch the single project from server
+  // If we couldn't find a project locally, or it is server-backed but missing tasks, fetch the single project from server
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (project) return; // already have it
       if (!id) return;
-      if (!/^[0-9a-fA-F]{24}$/.test(String(id))) return;
+      // Determine which id to fetch: prefer the server-backed project's _id (if present),
+      // otherwise fall back to the route `id` only when it looks like an ObjectId.
+      let fetchId = null;
+      if (project && project._id) fetchId = project._id;
+      else if (/^[0-9a-fA-F]{24}$/.test(String(id))) fetchId = id;
+      // Nothing to fetch from the server for non-server-backed client projects
+      if (!fetchId) return;
       try {
-        const res = await fetch(`http://localhost:4000/api/projects/${id}`, { credentials: 'include' });
+        const res = await fetch(`/api/projects/${fetchId}`, { credentials: 'include' });
         if (!mounted) return;
         if (res.ok) {
           const p = await res.json();
@@ -249,7 +254,7 @@ const ProjectPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [id, project]);
+  }, [id]);
 
   // determine whether the current user is the creator of this project
   const isCreator = (() => {

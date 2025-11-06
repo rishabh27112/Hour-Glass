@@ -133,6 +133,17 @@ export default function TaskPage() {
   if (loading) return <div className={styles.container}><p>Loading...</p></div>;
   if (!project) return <div className={styles.container}><p>Project not found</p><button onClick={() => navigate(-1)}>Go back</button></div>;
   if (!task) return <div className={styles.container}><p>Task not found</p><button onClick={() => navigate(-1)}>Go back</button></div>;
+  // prepare safe display strings for possibly-object fields to avoid rendering objects directly
+  const assigneeDisplay = (() => {
+    const a = task.assignee || task.assignedTo || task.assigneeName;
+    if (!a) return null;
+    // if it's an object, prefer username, then name, then _id
+    if (typeof a === 'object') {
+      return a.username || a.name || (a._id ? String(a._id) : String(a));
+    }
+    // primitive (string/number)
+    return String(a);
+  })();
 
   return (
     <div className={styles.container}>
@@ -143,7 +154,7 @@ export default function TaskPage() {
       <div className={styles.body}>
         <p><strong>Project:</strong> {project.ProjectName || project.name}</p>
         <p><strong>Status:</strong> {task.status || 'todo'}</p>
-        <p><strong>Assignee:</strong> {(task.assignee && (task.assignee.username || task.assignee)) || task.assignedTo || task.assigneeName || 'Unassigned'}</p>
+  <p><strong>Assignee:</strong> {assigneeDisplay || 'Unassigned'}</p>
         <p><strong>Due:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleString() : '—'}</p>
         <p>
           <strong>Time spent:</strong> {formatMs(displayMs)}

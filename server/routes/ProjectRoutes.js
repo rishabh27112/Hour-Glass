@@ -76,9 +76,16 @@ router.get('/:id', userAuth, async (req, res) => {
     if (!project) return res.status(404).json({ msg: 'Project not found' });
 
     // Only creator or members can view
-    const isMemberOrCreator = project.createdBy && project.createdBy._id && project.createdBy._id.toString() === req.userId
-      || (project.members && project.members.some(m => m.toString() === req.userId));
-    if (!isMemberOrCreator) return res.status(403).json({ msg: 'Not authorized' });
+    const creatorId = project.createdBy && (project.createdBy._id || project.createdBy);
+    const isCreator = creatorId && creatorId.toString() === req.userId;
+    const isMember = project.members && project.members.some(m => {
+      const memberId = m._id || m;
+      return memberId.toString() === req.userId;
+    });
+    
+    if (!isCreator && !isMember) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
 
     res.json(project);
   } catch (err) {
@@ -92,8 +99,12 @@ router.get('/:id', userAuth, async (req, res) => {
 router.patch('/:id/archive', userAuth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ msg: 'Project not found' });
-  if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+    if (project.createdBy.toString() !== req.userId) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
     project.status = 'archived';
     await project.save();
     res.json(project);
@@ -108,8 +119,12 @@ router.patch('/:id/archive', userAuth, async (req, res) => {
 router.patch('/:id/restore', userAuth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ msg: 'Project not found' });
-  if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+    if (project.createdBy.toString() !== req.userId) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
     project.status = 'active';
     await project.save();
     res.json(project);
@@ -124,8 +139,12 @@ router.patch('/:id/restore', userAuth, async (req, res) => {
 router.delete('/:id', userAuth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ msg: 'Project not found' });
-  if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+    if (project.createdBy.toString() !== req.userId) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
     // Soft-delete: mark status = 'deleted' so frontend can show Bin and allow restore
     project.status = 'deleted';
     await project.save();
@@ -236,23 +255,64 @@ router.delete('/:id/members/:username', userAuth, async (req, res) => {
 });
 
 
-  // POST /api/projects/:id/tasks - Create a task inside a project (creator or members)
+  // POST /api/projects/:id/tasks - Create a task inside a project (only creator)
   router.post('/:id/tasks', userAuth, async (req, res) => {
     try {
-      const { title, description, dueDate } = req.body;
+      const { title, description, dueDate, assignee } = req.body;
       if (!title) return res.status(400).json({ msg: 'title is required' });
 
       const project = await Project.findById(req.params.id);
       if (!project) return res.status(404).json({ msg: 'Project not found' });
 
-      // Only project creator or members can create tasks
-      const isMemberOrCreator = project.createdBy.toString() === req.userId || project.members.some(m => m.toString() === req.userId);
-      if (!isMemberOrCreator) return res.status(403).json({ msg: 'Not authorized to create tasks in this project' });
+      // Only project creator can create tasks
+      const creatorId = project.createdBy ? project.createdBy.toString() : null;
+      const currentUserId = req.userId ? req.userId.toString() : null;
+      
+      if (!creatorId || !currentUserId || creatorId !== currentUserId) {
+        return res.status(403).json({ msg: 'Not authorized. Only the project creator can add tasks.' });
+      }
 
       const task = { title, description: description || '' };
+      
+      // Handle assignee if provided
+      if (assignee && assignee.trim() !== '') {
+        // assignee can be username, email, or userId
+        let assigneeUser = null;
+        
+        // Try to find by ObjectId first
+        if (typeof assignee === 'string' && assignee.match(/^[0-9a-fA-F]{24}$/)) {
+          try {
+            assigneeUser = await userModel.findById(assignee).select('_id username');
+          } catch (err) {
+            // Invalid ObjectId format, continue to username/email lookup
+          }
+        }
+        
+        // If not found, try by username or email
+        if (!assigneeUser) {
+          assigneeUser = await userModel.findOne({
+            $or: [{ username: assignee }, { email: assignee }]
+          }).select('_id username');
+        }
+        
+        if (!assigneeUser) {
+          return res.status(404).json({ msg: `Assignee user '${assignee}' not found` });
+        }
+        
+        // Ensure assignee is a member of the project
+        const assigneeId = assigneeUser._id.toString();
+        if (!project.members.some(m => m.toString() === assigneeId)) {
+          return res.status(400).json({ msg: 'Assignee must be a member of this project' });
+        }
+        
+        task.assignee = assigneeUser._id;
+      }
+      
       if (dueDate) {
         const parsed = new Date(dueDate);
-        if (isNaN(parsed.getTime())) return res.status(400).json({ msg: 'Invalid dueDate' });
+        if (Number.isNaN(parsed.getTime())) {
+          return res.status(400).json({ msg: 'Invalid dueDate' });
+        }
         task.dueDate = parsed;
         task.isDelayed = parsed.getTime() < Date.now();
       }
@@ -275,8 +335,6 @@ router.get('/:id/tasks/overdue', userAuth, async (req, res) => {
     if (!project) return res.status(404).json({ msg: 'Project not found' });
 
     // Only creator can fetch overdue list (sensible: manager triggers alerts)
-    console.log(project.createdBy.toString() );
-    console.log(req.userId);
     if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
     
     const now = new Date();
@@ -320,8 +378,9 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
   // PATCH /api/projects/:id/tasks/:taskId/assign - Assign a task to a member (only creator)
   router.patch('/:id/tasks/:taskId/assign', userAuth, async (req, res) => {
     try {
-      const { assigneeUsername } = req.body;
-      if (!assigneeUsername) return res.status(400).json({ msg: 'assigneeUsername is required' });
+      // Accept assignee identification by username, email or id for flexibility
+      const { assigneeUsername, assigneeEmail, assigneeId } = req.body;
+      if (!assigneeUsername && !assigneeEmail && !assigneeId) return res.status(400).json({ msg: 'assigneeUsername, assigneeEmail or assigneeId is required' });
 
       const project = await Project.findById(req.params.id);
       if (!project) return res.status(404).json({ msg: 'Project not found' });
@@ -329,21 +388,18 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
       // Only creator can assign tasks
       if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
 
-      // Find the user by username
-      const memberUser = await userModel.findOne({ username: assigneeUsername }).select('_id username');
+      // Find the user by the provided identifier
+      let memberUser = null;
+      if (assigneeId) memberUser = await userModel.findById(assigneeId).select('_id username email name');
+      else if (assigneeEmail) memberUser = await userModel.findOne({ email: assigneeEmail }).select('_id username email name');
+      else if (assigneeUsername) memberUser = await userModel.findOne({ username: assigneeUsername }).select('_id username email name');
+
       if (!memberUser) return res.status(404).json({ msg: 'Assignee user not found' });
 
-      // Normalize member id and check membership robustly. project.members may
-      // contain ObjectIds, strings, or populated user objects ({ _id, username })
-      const memberObjId = memberUser._id;
-      // Normalize all project member ids to strings (handles populated docs, ObjectIds, strings)
-      const memberIdStrings = (project.members || []).map(m => {
-        if (m == null) return '';
-        if (typeof m === 'object' && m._id) return m._id.toString();
-        return m.toString();
-      });
+      const memberId = memberUser._id.toString();
 
-      if (!memberExists) return res.status(400).json({ msg: 'User is not a project member' });
+      // Ensure assignee is a member of project
+      if (!project.members.some(m => m.toString() === memberId)) return res.status(400).json({ msg: 'User is not a project member' });
 
       // Find the task
       const task = project.tasks.id(req.params.taskId);
@@ -352,7 +408,10 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
       task.assignee = memberId;
       await project.save();
 
-      const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name').populate('tasks.assignee', 'username name');
+      const populated = await Project.findById(project._id)
+        .populate('createdBy', 'username name')
+        .populate('members', 'username name email')
+        .populate('tasks.assignee', 'username name email');
       res.json(populated);
     } catch (err) {
       console.error(err);
