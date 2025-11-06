@@ -198,22 +198,48 @@ const ProjectPage = () => {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload)
         });
         const json = await res.json();
-        if (res.ok) {
+          if (res.ok) {
           // API returns updated project; normalize to the UI shape before setting state
-          const normalized = {
-            _id: json._id || json.id,
-            name: json.ProjectName || json.name || '',
-            description: json.Description || json.description || '',
-            members: json.members || [],
-            tasks: json.tasks || [],
-            status: json.status || 'active',
-            archived: json.status === 'archived',
-            deleted: json.status === 'deleted',
+          // But the API may not include members/createdBy in its response for this endpoint.
+          // Merge the returned project into the existing project in state so we don't lose the
+          // injected owner/manager entry that may have been added locally.
+          const returned = json || {};
+          const existingMembers = Array.isArray(project && project.members) ? project.members.slice() : [];
+          const returnedMembers = Array.isArray(returned.members) ? returned.members.slice() : null;
+          let members = returnedMembers !== null ? returnedMembers : existingMembers;
+
+          // ensure owner/creator is present in members (robust extraction)
+          const extractOwnerId = (owner) => {
+            if (!owner) return null;
+            if (typeof owner === 'object') return owner.username || owner.email || owner._id || null;
+            return String(owner);
           };
+          const ownerId = extractOwnerId(returned.createdBy) || extractOwnerId(project && project.createdBy) || extractOwnerId(project && (project.createdByUsername || project.owner || project.ownerUsername)) || (currentUser && (currentUser.username || currentUser.email || currentUser._id)) || null;
+          if (ownerId) {
+            const present = members.some((m) => {
+              if (!m) return false;
+              if (typeof m === 'object') return String(m.username || m.email || m._id || '').toLowerCase() === String(ownerId).toLowerCase();
+              return String(m).toLowerCase() === String(ownerId).toLowerCase();
+            });
+            if (!present) members.unshift(ownerId);
+          }
+
+          const normalized = {
+            _id: returned._id || returned.id || project._id,
+            name: returned.ProjectName || returned.name || project.name || '',
+            description: returned.Description || returned.description || project.description || '',
+            members,
+            createdBy: returned.createdBy || project.createdBy || null,
+            tasks: Array.isArray(returned.tasks) ? returned.tasks.slice() : (Array.isArray(project && project.tasks) ? project.tasks.slice() : []),
+            status: returned.status || project.status || 'active',
+            archived: (returned.status || project.status) === 'archived',
+            deleted: (returned.status || project.status) === 'deleted',
+          };
+
           setProjects((prev) => {
             const clone = [...prev];
             const idx = clone.findIndex(p => String(p._id) === String(project._id));
-            if (idx !== -1) clone[idx] = normalized;
+            if (idx !== -1) clone[idx] = { ...clone[idx], ...normalized };
             try { saveProjects(clone); } catch (e) { console.error('saveProjects failed', e); }
             return clone;
           });
@@ -279,18 +305,38 @@ const ProjectPage = () => {
         const res = await fetch(`/api/projects/${fetchId}`, { credentials: 'include' });
         if (!mounted) return;
         if (res.ok) {
-          const p = await res.json();
-          const normalized = [{
-            _id: p._id,
-            name: p.ProjectName || p.name || '',
-            description: p.Description || p.description || '',
-            members: p.members || [],
-            createdBy: p.createdBy || null,
-            tasks: p.tasks || [],
-            status: p.status || 'active',
-            archived: p.status === 'archived',
-            deleted: p.status === 'deleted',
-          }];
+            const p = await res.json();
+            // ensure the project creator (manager) is present in the members list
+            const rawMembers = Array.isArray(p.members) ? p.members.slice() : [];
+            // helper to extract candidate id from createdBy-like value
+            const extractOwnerId = (owner) => {
+              if (!owner) return null;
+              if (typeof owner === 'object') return owner.username || owner.email || owner._id || null;
+              return String(owner);
+            };
+            const ownerId = extractOwnerId(p.createdBy) || extractOwnerId(p.createdByUsername) || extractOwnerId(p.owner) || extractOwnerId(p.ownerUsername) || extractOwnerId(p.createdById) || null;
+            if (ownerId) {
+              const present = rawMembers.some((m) => {
+                if (!m) return false;
+                if (typeof m === 'object') {
+                  return String(m.username || m.email || m._id || '').toLowerCase() === String(ownerId).toLowerCase();
+                }
+                return String(m).toLowerCase() === String(ownerId).toLowerCase();
+              });
+              if (!present) rawMembers.unshift(ownerId);
+            }
+
+            const normalized = [{
+              _id: p._id,
+              name: p.ProjectName || p.name || '',
+              description: p.Description || p.description || '',
+              members: rawMembers,
+              createdBy: p.createdBy || null,
+              tasks: p.tasks || [],
+              status: p.status || 'active',
+              archived: p.status === 'archived',
+              deleted: p.status === 'deleted',
+            }];
           setProjects(normalized);
           try { sessionStorage.setItem('hg_projects', JSON.stringify(normalized)); } catch (e) { console.warn('sessionStorage set failed', e); }
         } else {
@@ -339,7 +385,16 @@ const ProjectPage = () => {
   // open handlers: manager (project creator) can add members/tasks; employees cannot
   const openAddMember = (open = true) => {
     if (open === false) { setShowAddDialog(false); return; }
-    if (!isCreator) { alert('You are not permitted to add members'); return; }
+    // allow if creator OR currentUser has manager flag OR project owner matches currentUser
+    const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+    const ownerCandidate = project && (project.createdBy || project.createdByUsername || project.owner || project.ownerUsername || project.createdByName || project.createdByEmail || project.createdById);
+    const ownerMatch = ownerCandidate && currentUser && (
+      String(ownerCandidate).toLowerCase() === String(currentUser.username || currentUser.email || currentUser._id || currentUser.id).toLowerCase()
+    );
+    if (!(isCreator || isManagerFlag || ownerMatch)) {
+      alert('You are not permitted to add members');
+      return;
+    }
     setShowAddDialog(true);
   };
 

@@ -246,15 +246,34 @@ const ManagerDashboard = () => {
   const membersArr = (employees || '').split(',').map(s => s.trim()).filter(Boolean);
   const ownerId = (profileUser && (profileUser.username || profileUser.email || profileUser._id)) || (currentUser && (currentUser.username || currentUser.email || currentUser._id)) || null;
 
+        // Build members list and ensure the project owner (manager) is included by default
+        let membersList = [];
+        if (Array.isArray(created && created.members) && created.members.length > 0) {
+          membersList = created.members.map((m) => (m && (m.username || m.name) ? (m.username || m.name) : (m._id || ''))).filter(Boolean);
+        } else {
+          membersList = [...membersArr, ...addedMembers.map((u) => (u.username || u.email || u._id || ''))].filter(Boolean);
+        }
+        // Normalize and ensure owner present
+        const normalizedSet = new Set(membersList.map((s) => String(s).trim().toLowerCase()));
+        if (ownerId) {
+          const ownerKey = String(ownerId).trim().toLowerCase();
+          if (!normalizedSet.has(ownerKey)) {
+            membersList.unshift(ownerId);
+            normalizedSet.add(ownerKey);
+          }
+        }
+
         const localProject = {
           _id: (created && created._id) || `local-${Date.now()}`,
           name: (created && (created.ProjectName || created.name)) || projectName,
           description: (created && (created.Description || created.description)) || projectDescription,
-          employees: Array.isArray(created && created.members) ? (created.members.map(m => (m && (m.username || m.name) ? (m.username || m.name) : (m._id || '')))) : [...membersArr, ...addedMembers.map(u => (u.username || u.email || u._id || ''))],
+          employees: membersList,
           archived: false,
           deleted: false,
           owner: ownerId,
-          raw: created || { ProjectName: projectName, Description: projectDescription, members: membersArr, createdBy: ownerId },
+          // include a populated createdBy object when possible so downstream pages can match the creator reliably
+          createdBy: (created && created.createdBy) || (profileUser || currentUser) || ownerId,
+          raw: created || { ProjectName: projectName, Description: projectDescription, members: membersList, createdBy: (profileUser || currentUser || ownerId) },
         };
 
         // prepend to projects list for immediate feedback
