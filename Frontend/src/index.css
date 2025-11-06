@@ -1,3 +1,35 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* src/index.css */
+
+/* ... your @tailwind base/components/utilities lines ... */
+
+/* --- Custom Scrollbar for WebKit (Chrome, Safari, Edge) --- */
+
+/* Sets the width of the scrollbar */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+
+/* This is the "thumb" (the part you drag) */
+::-webkit-scrollbar-thumb {
+  background: #635c5c; /* Your 'bg-surface-light' color */
+  border-radius: 10px;
+  border: 2px solid #2c2c2c; /* Creates a small border */
+}
+
+/* The thumb on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #18d4d1; /* Your 'text-cyan' color */
+}
+
+
+/* --- Custom Scrollbar for Firefox --- */
+html {
+  scrollbar-width: thin; /* Can be 'auto', 'thin', or 'none' */
+  scrollbar-color: #635c5c #2c2c2c; /* thumb track */
+}
