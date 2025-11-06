@@ -218,7 +218,7 @@ const ProjectPage = () => {
             return clone;
           });
           setShowAddTaskDialog(false);
-          setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
+          setTaskTitle(''); setTaskAssigned(''); setTaskAssignee(''); setTaskStatus('todo');
         } else {
           console.error('add task failed', res.status, json);
           setTaskError((json && json.message) || 'Failed to add task');
@@ -244,7 +244,7 @@ const ProjectPage = () => {
           return newProjects;
         });
         setShowAddTaskDialog(false);
-        setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
+        setTaskTitle(''); setTaskAssigned(''); setTaskAssignee(''); setTaskStatus('todo');
       }
     } catch (err) {
       console.error('add task error', err);
@@ -770,6 +770,7 @@ const ProjectPage = () => {
                         <div style={{ marginTop: 8, color: '#666' }}>No results</div>
                       )}
                     </div>
+                      
                   </div>
                 </div>
               )}
@@ -812,6 +813,11 @@ const ProjectPage = () => {
             projectOwner={projectOwnerNormalized}
           />
         </div>
+      </div>
+      {/* Bottom-left action buttons (AI Summary, Generate Report) */}
+      <div style={{ position: 'fixed', left: 12, bottom: 12, display: 'flex', gap: 8, zIndex: 1100 }}>
+        <button type="button" className={styles.cta} onClick={() => { /* placeholder: AI Summary action */ }}>AI Summary</button>
+        <button type="button" className={styles.cta} onClick={() => { /* placeholder: Generate Report action */ }}>Generate Report</button>
       </div>
     </div>
   );

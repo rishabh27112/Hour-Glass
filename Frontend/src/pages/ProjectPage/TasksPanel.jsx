@@ -30,10 +30,19 @@ export default function TasksPanel(props) {
     taskError,
     taskLoading,
     handleAddTaskSubmit,
-    setTaskError,
-    currentUser,
-    projectOwner,
+  setTaskError,
+  setTaskAssigned,
+  setTaskStatus,
   } = props;
+
+  const handleCancel = () => {
+    setShowAddTaskDialog(false);
+    setTaskTitle('');
+    if (setTaskAssignee) setTaskAssignee('');
+    if (setTaskAssigned) setTaskAssigned('');
+    if (setTaskStatus) setTaskStatus('todo');
+    setTaskError('');
+  };
 
   return (
     <div className={styles.rightPanel}>
@@ -173,8 +182,8 @@ export default function TasksPanel(props) {
                   <span>Status: To do (default)</span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={() => { setShowAddTaskDialog(false); setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo'); setTaskError(''); }} >Cancel</button>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={handleCancel}>Cancel</button>
                 <button disabled={taskLoading} onClick={handleAddTaskSubmit}>
                   {taskLoading ? 'Adding...' : 'Add Task'}
                 </button>
@@ -215,7 +224,7 @@ TasksPanel.propTypes = {
   taskLoading: PropTypes.bool,
   handleAddTaskSubmit: PropTypes.func.isRequired,
   setTaskError: PropTypes.func.isRequired,
-  currentUser: PropTypes.object,
-  projectOwner: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  setTaskAssigned: PropTypes.func,
+  setTaskStatus: PropTypes.func,
   projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 };
