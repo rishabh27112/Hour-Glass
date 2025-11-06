@@ -31,7 +31,18 @@ export default function TasksPanel(props) {
     taskLoading,
     handleAddTaskSubmit,
   setTaskError,
+  setTaskAssigned,
+  setTaskStatus,
   } = props;
+
+  const handleCancel = () => {
+    setShowAddTaskDialog(false);
+    setTaskTitle('');
+    if (setTaskAssignee) setTaskAssignee('');
+    if (setTaskAssigned) setTaskAssigned('');
+    if (setTaskStatus) setTaskStatus('todo');
+    setTaskError('');
+  };
 
   return (
     <div className={styles.rightPanel}>
@@ -87,7 +98,14 @@ export default function TasksPanel(props) {
             tasksToShow.map((task, idx) => {
               const tid = getTaskKey(task, idx);
               const isActive = activeTimer && activeTimer.taskId === tid;
-                  const displayedAssigned = task.assignedTo || task.assignee || task.assigneeName || '-';
+                  // Normalize assignee display: support string or populated object
+                  const resolveAssignee = (a) => {
+                    if (!a) return '-';
+                    if (typeof a === 'string') return a;
+                    if (typeof a === 'object') return a.username || a.name || a._id || '-';
+                    return String(a);
+                  };
+                  const displayedAssigned = resolveAssignee(task.assignedTo || task.assignee || task.assigneeName);
               return (
                 <tr key={tid}>
                   <td>
@@ -150,8 +168,8 @@ export default function TasksPanel(props) {
                   <span>Status: To do (default)</span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={() => { setShowAddTaskDialog(false); setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo'); setTaskError(''); }} >Cancel</button>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={handleCancel}>Cancel</button>
                 <button disabled={taskLoading} onClick={handleAddTaskSubmit}>
                   {taskLoading ? 'Adding...' : 'Add Task'}
                 </button>
@@ -192,5 +210,7 @@ TasksPanel.propTypes = {
   taskLoading: PropTypes.bool,
   handleAddTaskSubmit: PropTypes.func.isRequired,
   setTaskError: PropTypes.func.isRequired,
+  setTaskAssigned: PropTypes.func,
+  setTaskStatus: PropTypes.func,
   projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
 };
