@@ -30,9 +30,11 @@ export default function TasksPanel(props) {
     taskError,
     taskLoading,
     handleAddTaskSubmit,
-  setTaskError,
-  setTaskAssigned,
-  setTaskStatus,
+    setTaskError,
+    setTaskAssigned,
+    setTaskStatus,
+    currentUser,
+    projectOwner,
   } = props;
 
   const handleCancel = () => {
@@ -227,4 +229,6 @@ TasksPanel.propTypes = {
   setTaskAssigned: PropTypes.func,
   setTaskStatus: PropTypes.func,
   projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  currentUser: PropTypes.object,
+  projectOwner: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
 };
