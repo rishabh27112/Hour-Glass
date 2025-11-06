@@ -1,13 +1,15 @@
+// src/pages/ForgotPasswordPage.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import styles from './ForgotPasswordPage.module.css';
+import MainButton from '../components/MainButton';
+import LoginBg from '../assets/login-bg.png';
 
 const ForgotPasswordPage = () => {
-  const [step, setStep] = useState(1); // 1: email/otp, 2: new password
+  // --- All backend logic is injected here ---
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -40,16 +42,13 @@ const ForgotPasswordPage = () => {
     setLoading(false);
   };
 
-  // Step 1: Verify OTP
-  const handleVerifyOtp = async (e) => {
+  // Step 1: Verify OTP (His logic just moves to step 2)
+  const handleVerifyOtp = (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
     if (!otp) { setError('OTP is required'); return; }
-    setLoading(true);
-    // No separate verify endpoint, just allow next step if OTP is correct in reset
-    setOtpVerified(true);
+    setSuccess('OTP entered. Proceed to reset password.');
     setStep(2);
-    setLoading(false);
   };
 
   // Step 2: Reset Password
@@ -72,7 +71,7 @@ const ForgotPasswordPage = () => {
       const data = await response.json();
       if (data.success) {
         setSuccess('Password reset successful! Redirecting to login...');
-        setTimeout(() => navigate('/login'), 1500);
+        setTimeout(() => navigate('/signin'), 1500); // Use /signin
       } else {
         setError(data.message || 'Reset failed');
       }
@@ -81,79 +80,144 @@ const ForgotPasswordPage = () => {
     }
     setLoading(false);
   };
+  // --- End of injected logic ---
 
   return (
-    <div className={styles.container}>
-      <div className={styles.card}>
-        <div className={styles.header}>
-          <h2>Forgot Password</h2>
-          <p>Reset your password in two steps.</p>
+    <div style={{ backgroundImage: `url(${LoginBg})` }} className=" tracking-wide flex items-center justify-center min-h-screen bg-cover bg-center relative px-4 py-8">
+      <div className="absolute inset-0 bg-black opacity-75"></div>
+
+      <div
+        className="
+          w-full max-w-md 
+          p-6 space-y-4 
+          relative z-10
+          backdrop-blur-sm
+        "
+      >
+        {/* Header (Dynamic based on step) */}
+        <div className="text-center">
+          <i className="ri-mail-send-line text-[#18d4d1] text-6xl"></i>
+          <h2 className="mt-3 text-2xl font-bold text-white">
+            {step === 1 ? 'Reset your password' : 'Set New Password'}
+          </h2>
+          <p className="mt-2 text-sm text-gray-300">
+            {step === 1
+              ? "Enter your email and we'll send you a link to reset your password."
+              : 'Please enter your new password below.'}
+          </p>
         </div>
+
+        {/* --- Step 1: Send/Verify OTP Form --- */}
         {step === 1 && (
-          <>
-            <form className={styles.form} onSubmit={otpSent ? handleVerifyOtp : handleSendOtp}>
-              <div className={styles.inputGroup}>
+          <form className="space-y-4 pt-2" onSubmit={otpSent ? handleVerifyOtp : handleSendOtp}>
+            <div>
+              <label className="block text-lg font-medium text-gray-200 tracking-wide">
+                Email address
+              </label>
+              <div className="mt-1">
                 <input
                   type="email"
-                  placeholder="Enter your email"
-                  className={styles.input}
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  disabled={otpSent}
+                  disabled={otpSent} // Disables email input after OTP is sent
                 />
               </div>
-              {otpSent && (
-                <div className={styles.inputGroup}>
+            </div>
+
+            {/* OTP Input (appears after OTP is sent) */}
+            {otpSent && (
+              <div>
+                <label className="block text-sm font-medium text-gray-200 tracking-wide">
+                  OTP
+                </label>
+                <div className="mt-1">
                   <input
                     type="text"
+                    required
+                    className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
                     placeholder="Enter OTP"
-                    className={styles.input}
                     value={otp}
                     onChange={e => setOtp(e.target.value)}
                   />
                 </div>
-              )}
-              <button type="submit" className={styles.primaryButton} disabled={loading}>
-                {loading ? 'Processing...' : otpSent ? 'Verify OTP' : 'Send OTP'}
-              </button>
-              {error && <div style={{ color: 'red', marginTop: 8 }}>{error}</div>}
-              {success && <div style={{ color: 'green', marginTop: 8 }}>{success}</div>}
-            </form>
-          </>
-        )}
-        {step === 2 && (
-          <form className={styles.form} onSubmit={handleResetPassword}>
-            <div className={styles.inputGroup}>
-              <input
-                type="password"
-                placeholder="New password"
-                className={styles.input}
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
+              </div>
+            )}
+
+            {/* Error & Success Messages */}
+            {error && <div className="text-red-400 text-sm text-center">{error}</div>}
+            {success && <div className="text-green-400 text-sm text-center">{success}</div>}
+
+            <div>
+              <MainButton
+                txt={loading ? 'Processing...' : otpSent ? 'Verify OTP' : 'Send OTP'}
+                disabled={loading}
+                type="submit"
               />
             </div>
-            <div className={styles.inputGroup}>
-              <input
-                type="password"
-                placeholder="Confirm new password"
-                className={styles.input}
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-              />
-            </div>
-            <button type="submit" className={styles.primaryButton} disabled={loading}>
-              {loading ? 'Resetting...' : 'Reset Password'}
-            </button>
-            {error && <div style={{ color: 'red', marginTop: 8 }}>{error}</div>}
-            {success && <div style={{ color: 'green', marginTop: 8 }}>{success}</div>}
           </form>
         )}
-        <div className={styles.footer}>
-          <Link to="/login" className={styles.loginLink}>Back to Login</Link>
+
+        {/* --- Step 2: Reset Password Form --- */}
+        {step === 2 && (
+          <form className="space-y-4 pt-2" onSubmit={handleResetPassword}>
+            <div>
+              <label className="block text-sm font-medium text-gray-200 tracking-wide">
+                New Password
+              </label>
+              <div className="mt-1">
+                <input
+                  type="password"
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-200 tracking-wide">
+                Confirm New Password
+              </label>
+              <div className="mt-1">
+                <input
+                  type="password"
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Error & Success Messages */}
+            {error && <div className="text-red-400 text-sm text-center">{error}</div>}
+            {success && <div className="text-green-400 text-sm text-center">{success}</div>}
+
+            <div>
+              <MainButton
+                txt={loading ? 'Resetting...' : 'Reset Password'}
+                disabled={loading}
+                type="submit"
+              />
+            </div>
+          </form>
+        )}
+
+        {/* Back to Sign In Link */}
+        <div className="text-center text-gray-400">
+          <Link to="/signin" className="font-medium underline decoration-[#18d4d1] text-gray-200 hover:text-[#18d4d1] hover:decoration-gray-200">
+            Back to Sign In
+          </Link>
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default ForgotPasswordPage;

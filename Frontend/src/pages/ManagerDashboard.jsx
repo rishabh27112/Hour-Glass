@@ -1,28 +1,101 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import styles from './ManagerDashboard.module.css';
+// src/pages/ManagerDashboard.jsx
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import {
+  RiSearchLine, RiCloseLine, RiAddLine, RiArchiveLine, RiDeleteBinLine,
+  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine
+} from 'react-icons/ri';
+import NavLogo from '../components/NavLogo';
 
 const ManagerDashboard = () => {
+  // --- All your state and logic remains 100% unchanged ---
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [employees, setEmployees] = useState('');
   const [error, setError] = useState('');
-  const [projects, setProjects] = useState(() => {
+  const [projects, setProjects] = useState([]);
+  const [showMemberPanel, setShowMemberPanel] = useState(false);
+  const [memberSearchBy, setMemberSearchBy] = useState('email');
+  const [memberQuery, setMemberQuery] = useState('');
+  const [memberResults, setMemberResults] = useState([]);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError, setMemberError] = useState('');
+  const [addedMembers, setAddedMembers] = useState([]);
+  const memberDebounceRef = useRef(null);
+  const doMemberSearch = async () => {
+    const q = (memberQuery || '').trim();
+    setMemberLoading(true);
+    setMemberError('');
     try {
-      const raw = sessionStorage.getItem('hg_projects');
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
+      let url = '';
+      if (!q) url = `/api/user/search?limit=10`;
+      else if (memberSearchBy === 'email') url = `/api/user/search?email=${encodeURIComponent(q)}`;
+      else url = `/api/user/search?username=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      console.log('member search response', json);
+      if (res.ok) setMemberResults(json.users || []);
+      else { setMemberError(json.message || 'Search failed'); setMemberResults([]); }
+    } catch (err) {
+      console.error('member search error', err);
+      setMemberError('Search failed');
+      setMemberResults([]);
+    } finally {
+      setMemberLoading(false);
     }
-  }); // State to store project details
+  };
+  const handleAddFromResult = (user) => {
+    setAddedMembers((prev) => {
+      const exists = prev.some(p => (user._id && p._id && p._id === user._id) || (user.username && p.username && p.username === user.username) || (user.email && p.email && p.email === user.email));
+      if (exists) return prev;
+      return [...prev, user];
+    });
+    setMemberResults((prev) => prev.filter(r => r._id !== user._id));
+  };
+  const removeAddedMember = (idx) => {
+    setAddedMembers((prev) => [...prev.slice(0, idx), ...prev.slice(idx + 1)]);
+  };
+  const onEmployeesChange = (val) => {
+    setEmployees(val);
+    const parts = val.split(',');
+    const last = parts[parts.length - 1].trim();
+    if (!last) {
+      setMemberResults([]);
+      setMemberQuery('');
+      return;
+    }
+    setMemberQuery(last);
+    setMemberSearchBy(last.includes('@') ? 'email' : 'username');
+    if (memberDebounceRef.current) clearTimeout(memberDebounceRef.current);
+    memberDebounceRef.current = setTimeout(() => {
+      doMemberSearch();
+    }, 300);
+  };
+  const selectSuggestionIntoInput = (user) => {
+    const display = user.username || user.email || user._id || '';
+    const parts = employees.split(',');
+    parts[parts.length - 1] = ' ' + display;
+    const newVal = parts.map(p => p.trim()).filter(Boolean).join(', ');
+    setEmployees(newVal);
+    handleAddFromResult(user);
+    setMemberResults([]);
+    setMemberQuery('');
+  };
   const [search, setSearch] = useState('');
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'archive' | 'delete'
-  const [selected, setSelected] = useState([]); // array of indexes
+  const [profileUser, setProfileUser] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('user') || localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [selectionMode, setSelectionMode] = useState('none');
+  const [selected, setSelected] = useState([]);
   const navigate = useNavigate();
-  // read current user from storage (login writes to sessionStorage or localStorage)
   const currentUser = React.useMemo(() => {
     try {
       const raw = sessionStorage.getItem('user') || localStorage.getItem('user');
@@ -31,383 +104,771 @@ const ManagerDashboard = () => {
       return null;
     }
   }, []);
-
-  const currentUserId = currentUser?.email || currentUser?.username || currentUser?._id || null;
-
+  const getUserIdentifiers = (u) => {
+    if (!u) return [];
+    return [u._id, u.username, u.email].filter(Boolean).map(String);
+  };
+  const currentUserIds = React.useMemo(() => getUserIdentifiers(profileUser || currentUser), [profileUser, currentUser]);
   useEffect(() => {
-    // persist projects to sessionStorage so ProjectPage can read them
+    let cancelled = false;
+    const verify = async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/user/data', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const json = await res.json();
+        if (!json || !json.success || !json.userData) {
+          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
+          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
+          if (!cancelled) navigate('/signin');
+        } else {
+          setProfileUser(json.userData);
+        }
+      } catch (err) {
+        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
+        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
+        if (!cancelled) navigate('/signin');
+      }
+    };
+    verify();
+    return () => { cancelled = true; };
+  }, [navigate]);
+  useEffect(() => {
     try {
       sessionStorage.setItem('hg_projects', JSON.stringify(projects));
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
   }, [projects]);
-
+  const normalizeProject = (p) => {
+    return {
+      _id: p._id,
+      name: p.ProjectName || p.name || '',
+      description: p.Description || p.description || '',
+      employees: Array.isArray(p.members) ? p.members.map(m => (m && (m.username || m.name) ? (m.username || m.name) : (m._id || ''))) : (p.employees || []),
+      archived: (p.status && p.status === 'archived') || false,
+      deleted: (p.status === 'deleted'),
+      createdById: p.createdBy && (p.createdBy._id || p.createdBy),
+      owner: (p.createdBy && (p.createdBy.username || p.createdBy._id)) || p.owner || null,
+      raw: p,
+    };
+  };
+  const fetchProjects = async () => {
+    try {
+      const res = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
+      if (!res.ok) {
+        throw new Error('Failed to load projects');
+      }
+      const arr = await res.json();
+      setProjects(Array.isArray(arr) ? arr.map(normalizeProject) : []);
+    } catch (err) {
+      console.error('fetchProjects error', err);
+      setProjects([]);
+      alert('Error loading projects from server. See console for details.');
+    }
+  };
+  useEffect(() => {
+    fetchProjects();
+  }, []);
   const handleAddProjectClick = () => {
     setIsAddingProject(!isAddingProject);
     setError('');
   };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const name = projectName.trim();
     if (!name) {
       setError('Project name is required.');
       return;
     }
-
-    // Must start with an alphabetic letter (A-Z or a-z)
     if (!/^[A-Za-z]/.test(name)) {
       setError('Project name must start with a letter.');
       return;
     }
-
-    // Check for duplicate (case-insensitive)
     const exists = projects.some((p) => p.name.toLowerCase() === name.toLowerCase());
     if (exists) {
       setError('A project with this name already exists. Please choose a different name.');
       return;
     }
-    const employeeList = employees
-      .split(',')
-      .map((emp) => emp.trim())
-      .filter(Boolean);
-
-    const newProject = {
-      name: projectName,
-      description: projectDescription,
-      employees: employeeList,
-      archived: false,
-      deleted: false,
-      // set current user as owner when creating a project
-      owner: currentUserId,
-    };
-    setProjects([...projects, newProject]); // Add new project to the list
-    setProjectName('');
-    setProjectDescription('');
-    setEmployees('');
-    setIsAddingProject(false);
+    try {
+      const payload = { ProjectName: projectName, Description: projectDescription };
+      const res = await fetch('http://localhost:4000/api/projects', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const created = await res.json().catch(() => null);
+        const membersArr = (employees || '').split(',').map(s => s.trim()).filter(Boolean);
+        const ownerId = (profileUser && (profileUser.username || profileUser.email || profileUser._id)) || (currentUser && (currentUser.username || currentUser.email || currentUser._id)) || null;
+        const localProject = {
+          _id: (created && created._id) || `local-${Date.now()}`,
+          name: (created && (created.ProjectName || created.name)) || projectName,
+          description: (created && (created.Description || created.description)) || projectDescription,
+          employees: membersList,
+          archived: false,
+          deleted: false,
+          owner: ownerId,
+          // include a populated createdBy object when possible so downstream pages can match the creator reliably
+          createdBy: (created && created.createdBy) || (profileUser || currentUser) || ownerId,
+          raw: created || { ProjectName: projectName, Description: projectDescription, members: membersList, createdBy: (profileUser || currentUser || ownerId) },
+        };
+        setProjects((prev) => {
+          const next = [localProject, ...prev];
+          try { sessionStorage.setItem('hg_projects', JSON.stringify(next)); } catch (e) { }
+          return next;
+        });
+        alert('Project created successfully');
+        setProjectName(''); setProjectDescription(''); setEmployees(''); setIsAddingProject(false);
+        (async () => {
+          try {
+            if (created && created._id && Array.isArray(addedMembers) && addedMembers.length > 0) {
+              for (const u of addedMembers) {
+                const payload = {};
+                if (u.email) payload.email = u.email;
+                else if (u._id) payload.userId = u._id;
+                else if (u.username) payload.username = u.username;
+                else continue;
+                try {
+                  await fetch(`http://localhost:4000/api/projects/${created._id}/members`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                  });
+                } catch (err) {
+                  console.error('add member during create failed for', u, err);
+                }
+              }
+            }
+          } finally {
+            fetchProjects();
+          }
+        })();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        const msg = json.msg || json.message || 'Failed to create project';
+        setError(msg);
+        alert('Error creating project: ' + msg);
+      }
+    } catch (err) {
+      console.error('create project error', err);
+      setError('Network error while creating project');
+      alert('Network error while creating project');
+    }
   };
+  // --- End of logic ---
 
+
+  // --- Start of Redesigned JSX ---
   return (
-    <div className={styles.pageContainer}>
-      <div className={styles.taskbarTop}>
-        <div className={styles.taskbarTopLeft}>Hour-Glass</div>
-        <div className={styles.taskbarTopRight}>
-          <div className={styles.profileWrapper}>
-            <button
-              className={styles.profileButton}
-              onClick={() => setProfileOpen(!profileOpen)}
-              aria-label="Open profile menu"
-            >
-              <img src="/Logo/logo.png" alt="profile" className={styles.profileAvatar} />
-            </button>
-            {profileOpen && (
-              <div className={styles.profileMenu} role="menu">
-                <button className={styles.profileMenuItem} role="menuitem">Profile</button>
-                <button className={styles.profileMenuItem} role="menuitem">Logout</button>
+    <div className="flex flex-col h-screen bg-brand-bg text-gray-200 tracking-wide">
+
+      {/* Top Navbar */}
+      <div className="flex items-center justify-between p-3 bg-brand-bg border-b border-surface-light shadow-md z-30">
+        <div className="flex items-center gap-2 text-lg font-bold text-white">
+          <NavLogo />
+          <Link to='/'> <span>Hour Glass</span></Link>
+        </div>
+        <div className="relative">
+          <button
+            className="rounded-full h-9 w-9 overflow-hidden focus:outline-none 
+                       hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
+            onClick={async () => {
+              const newVal = !profileOpen;
+              setProfileOpen(newVal);
+              if (newVal) {
+                try {
+                  const res = await fetch('http://localhost:4000/api/user/data', {
+                    method: 'GET',
+                    credentials: 'include',
+                  });
+                  const json = await res.json();
+                  if (json && json.success && json.userData) {
+                    setProfileUser(json.userData);
+                    try {
+                      const storage = sessionStorage.getItem('user') ? sessionStorage : localStorage;
+                      storage.setItem('user', JSON.stringify(json.userData));
+                    } catch (err) { }
+                  }
+                } catch (err) { }
+              }
+            }}
+            aria-label="Open profile menu"
+          >
+            <div className="h-9 w-9 bg-surface-light flex items-center justify-center text-cyan text-lg font-bold">
+              {profileUser?.username ? profileUser.username.charAt(0).toUpperCase() : 'U'}
+            </div>
+            {/* <img src="/Logo/logo.png" alt="profile" className="h-full w-full object-cover" /> */}
+          </button>
+
+          {profileOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-surface-light rounded-lg shadow-xl z-50 py-1" role="menu">
+              <div className="block px-4 py-2 text-sm text-gray-400" role="menuitem">
+                Signed in as <br />
+                <strong className="text-gray-200">{profileUser?.username || profileUser?.email || profileUser?.name || 'User'}</strong>
               </div>
-            )}
-          </div>
+              <button
+                className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white"
+                role="menuitem"
+                onClick={async () => {
+                  try {
+                    await fetch('http://localhost:4000/api/auth/logout', {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                    });
+                  } catch (err) { }
+                  try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
+                  try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
+                  navigate('/signin');
+                }}
+              >
+                <RiLogoutBoxRLine className="inline-block mr-2" />
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className={styles.dashboardContainerRow}>
-      <div className={`${styles.leftContainer} ${isLeftOpen ? styles.leftOpen : styles.leftClosed}`}>
-        <button
-          className={styles.leftToggle}
-          onClick={() => setIsLeftOpen(!isLeftOpen)}
-          aria-label={isLeftOpen ? 'Close left panel' : 'Open left panel'}
-        >
-          {isLeftOpen ? '◀' : '▶'}
-        </button>
-        {isLeftOpen ? (
-          <div className={styles.leftInner}>
-            <h3 className={styles.leftSectionHeader}>Projects you lead</h3>
-            {projects.filter((p) => !p.archived && !p.deleted && p.owner === currentUserId).length > 0 ? (
-              <ul className={styles.projectListSidebar}>
-                {projects
-                  .filter((p) => !p.archived && !p.deleted && p.owner === currentUserId)
-                  .map((project) => {
-                    const realIndex = projects.indexOf(project);
-                    return (
-                      <li key={realIndex} className={styles.projectItemSidebar}>
-                        <button
-                          className={styles.projectLinkSidebar}
-                          onClick={() => {
-                            setIsAddingProject(false);
-                            setProfileOpen(false);
-                            setSelectionMode('none');
-                            setSelected([]);
-                            navigate(`/projects/${realIndex}`);
-                          }}
-                        >
-                          {project.name}
-                        </button>
-                      </li>
-                    );
-                  })}
-              </ul>
-            ) : (
-              <p className={styles.noProjectsText}>You are not leading any projects yet.</p>
-            )}
+      {/* Main Content Area */}
+      <div className="flex flex-1 overflow-hidden">
 
-            <h3 className={styles.leftSectionHeader}>Projects you are part of</h3>
-            {projects.filter((p) => !p.archived && !p.deleted && p.employees && currentUserId && p.employees.includes(currentUserId) && p.owner !== currentUserId).length > 0 ? (
-              <ul className={styles.projectListSidebar}>
-                {projects
-                  .filter((p) => !p.archived && !p.deleted && p.employees && currentUserId && p.employees.includes(currentUserId) && p.owner !== currentUserId)
-                  .map((project) => {
-                    const realIndex = projects.indexOf(project);
-                    return (
-                      <li key={realIndex} className={styles.projectItemSidebar}>
-                        <button
-                          className={styles.projectLinkSidebar}
-                          onClick={() => {
-                            setIsAddingProject(false);
-                            setProfileOpen(false);
-                            setSelectionMode('none');
-                            setSelected([]);
-                            navigate(`/projects/${realIndex}`);
-                          }}
-                        >
-                          {project.name}
-                        </button>
-                      </li>
-                    );
-                  })}
-              </ul>
-            ) : (
-              <p className={styles.noProjectsText}>You are not part of any projects yet.</p>
-            )}
-            <div className={styles.leftActions}>
+        {/* Collapsible Left Sidebar */}
+        <div
+          className={`relative bg-surface transition-all duration-300 ease-in-out ${isLeftOpen ? 'w-60' : 'w-16'} z-10`} // w-64 to w-60
+          onMouseLeave={() => setIsLeftOpen(false)}
+        >
+
+          <div className="p-3 h-full flex flex-col">
+
+            {/* Hamburger Menu Toggle */}
+            <button
+              className="text-xl text-gray-300 hover:text-cyan mb-3"
+              onMouseEnter={() => setIsLeftOpen(true)}
+              onClick={() => setIsLeftOpen(!isLeftOpen)}
+              aria-label={isLeftOpen ? 'Close left panel' : 'Open left panel'}
+            >
+              {isLeftOpen ? <RiMenuFoldLine /> : <RiMenuUnfoldLine />}
+            </button>
+
+
+            <div className={`flex-1 flex flex-col min-h-0 ${!isLeftOpen && 'hidden'}`}>
+
+              {/* --- Projects You Lead (Scrollable) --- */}
+              <div className="flex-shrink-0">
+                <h3 className="mt-3 mb-2 text-sm font-semibold uppercase text-cyan-light">
+                  Projects you lead
+                </h3>
+                <div className="w-full max-h-40 overflow-y-auto">
+                  {projects.filter((p) => !p.archived && !p.deleted && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById))).length > 0 ? (
+                    <ul className="space-y-1">
+                      {projects
+                        .filter((p) => !p.archived && !p.deleted && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))
+                        .map((project) => {
+                          const realIndex = projects.indexOf(project);
+                          return (
+                            <li key={realIndex}>
+                              <button
+                                className="block w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-cyan transition-colors text-sm"
+                                onClick={() => {
+                                  setIsAddingProject(false);
+                                  setProfileOpen(false);
+                                  setSelectionMode('none');
+                                  setSelected([]);
+                                  navigate(`/projects/${project._id || realIndex}`);
+                                }}
+                              >
+                                {project.name}
+                              </button>
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  ) : (
+                    <p className="px-3 py-1.5 text-xs text-gray-500">You are not leading any projects.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* --- Projects You Are Part Of (Scrollable) --- */}
+              <div className="flex-shrink-0 mt-3">
+                <h3 className="mb-2 text-sm font-semibold uppercase text-cyan-light">
+                  Projects you are part of
+                </h3>
+                <div className="w-full max-h-40 overflow-y-auto">
+                  {projects.filter((p) => !p.archived && !p.deleted && p.employees && currentUserIds.length > 0 && p.employees.some(e => currentUserIds.includes(String(e))) && !((p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))).length > 0 ? (
+                    <ul className="space-y-1">
+                      {projects
+                        .filter((p) => !p.archived && !p.deleted && p.employees && currentUserIds.length > 0 && p.employees.some(e => currentUserIds.includes(String(e))) && !((p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById))))
+                        .map((project) => {
+                          const realIndex = projects.indexOf(project);
+                          return (
+                            <li key={realIndex}>
+                              <button
+                                className="block w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-cyan transition-colors text-sm"
+                                onClick={() => {
+                                  setIsAddingProject(false);
+                                  setProfileOpen(false);
+                                  setSelectionMode('none');
+                                  setSelected([]);
+                                  navigate(`/projects/${project._id || realIndex}`);
+                                }}
+                              >
+                                {project.name}
+                              </button>
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  ) : (
+                    <p className="px-3 py-1.5 text-xs text-gray-500">You are not part of any projects.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* This 'spacer' div pushes the buttons to the bottom */}
+              <div className="flex-1"></div>
+
+              <div className="flex-shrink-0 mt-3 pt-3 border-t border-surface-light space-y-1">
+                <button
+                  className="flex items-center gap-2 w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-white text-sm"
+                  onClick={() => navigate('/archive')}
+                  aria-label="Open archived projects"
+                >
+                  <RiArchiveLine className="text-xl" />
+                  <span>Archive</span>
+                </button>
+                <button
+                  className="flex items-center gap-2 w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-red-500 text-sm"
+                  onClick={() => navigate('/bin')}
+                  aria-label="Open bin (deleted projects)"
+                >
+                  <RiDeleteBinLine className="text-xl" />
+                  <span>Bin</span>
+                </button>
+              </div>
+            </div>
+
+            {/* --- Icon-Only View (Visible when closed) --- */}
+            <div className={`flex flex-col items-center space-y-5 mt-6 ${isLeftOpen && 'hidden'}`}>
               <button
-                className={styles.leftButton}
+                className="relative group text-xl text-gray-300 hover:text-cyan"
+                aria-label="Projects"
+                onClick={() => setIsLeftOpen(true)}
+              >
+                <RiBriefcaseLine />
+                <span className="
+                  absolute left-full top-1/2 -translate-y-1/2 ml-3
+                  bg-cyan text-brand-bg text-xs font-semibold px-2 py-0.5 rounded
+                  scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100
+                  transition-all duration-200 origin-left
+                  whitespace-nowrap
+                ">
+                  Projects
+                </span>
+              </button>
+              <button
+                className="relative group text-xl text-gray-300 hover:text-gray-400"
                 onClick={() => navigate('/archive')}
                 aria-label="Open archived projects"
               >
-                Archive
+                <RiArchiveLine />
+                <span className="
+                  absolute left-full top-1/2 -translate-y-1/2 ml-3
+                  bg-gray-200 text-brand-bg text-xs font-semibold px-2 py-0.5 rounded
+                  scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100
+                  transition-all duration-200 origin-left
+                  whitespace-nowrap
+                ">
+                  Archive
+                </span>
               </button>
               <button
-                className={styles.leftButtonDanger}
+                className="relative group text-xl text-gray-300 hover:text-red-500"
                 onClick={() => navigate('/bin')}
                 aria-label="Open bin (deleted projects)"
               >
-                Bin
+                <RiDeleteBinLine />
+                <span className="
+                  absolute left-full top-1/2 -translate-y-1/2 ml-3
+                  bg-red-500 text-white text-xs font-semibold px-2 py-0.5 rounded
+                  scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100
+                  transition-all duration-200 origin-left
+                  whitespace-nowrap
+                ">
+                  Bin
+                </span>
               </button>
             </div>
-          </div>
-        ) : null}
-      </div>
 
-      <div className={styles.middleContainer}>
-        <header className={styles.header}>
-          <h1 className={styles.title}>Dashboard</h1>
-
-          <div className={styles.searchGroup}>
-            <input
-              type="text"
-              placeholder="Search projects by name..."
-              className={styles.searchInput}
-              value={search}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSearch(v);
-                if (isAddingProject) {
-                  setIsAddingProject(false);
-                  setError('');
-                  setProjectName('');
-                  setProjectDescription('');
-                  setEmployees('');
-                }
-              }}
-            />
-            <button
-              className={styles.clearSearch}
-              onClick={() => setSearch('')}
-              title="Clear search"
-            >
-              X
-            </button>
-          </div>
-
-          <div className={styles.actionGroup}>
-            <button className={styles.addProjectButton} onClick={handleAddProjectClick}>
-              + Add Project
-            </button>
-            <button
-              className={styles.secondaryButton}
-              onClick={() => {
-                setSelectionMode('archive');
-                setSelected([]);
-              }}
-            >
-              Archive
-            </button>
-            <button
-              className={styles.dangerButton}
-              onClick={() => {
-                setSelectionMode('delete');
-                setSelected([]);
-              }}
-            >
-              Delete
-            </button>
-          </div>
-
-          {/* profile moved to taskbar in right container */}
-        </header>
-
-        {isAddingProject && (
-          <div className={styles.projectFormContainer}>
-            <form className={styles.projectForm} onSubmit={handleSubmit}>
-              <button
-                type="button"
-                className={styles.closeFormButton}
-                onClick={() => {
-                  setIsAddingProject(false);
-                  setError('');
-                  setProjectName('');
-                  setProjectDescription('');
-                  setEmployees('');
-                }}
-                aria-label="Close add project form"
-              >
-                ✕
-              </button>
-              <label className={styles.label}>
-                Project Name <span className={styles.required}>*</span>
-                <input
-                  type="text"
-                  className={styles.input}
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  required
-                />
-              </label>
-
-              <label className={styles.label}>
-                Project Description
-                <textarea
-                  className={styles.textarea}
-                  value={projectDescription}
-                  onChange={(e) => setProjectDescription(e.target.value)}
-                />
-              </label>
-
-              <label className={styles.label}>
-                Employees (comma-separated)
-                <input
-                  type="text"
-                  className={styles.input}
-                  value={employees}
-                  onChange={(e) => setEmployees(e.target.value)}
-                />
-              </label>
-
-              {error && <p className={styles.error}>{error}</p>}
-
-              <button type="submit" className={styles.submitButton}>
-                Add Project
-              </button>
-            </form>
-          </div>
-        )}
-
-          <div className={styles.middleScroll}>
-          <div className={styles.content}>
-          <h2>Projects</h2>
-          {selectionMode !== 'none' && (
-            <div className={styles.selectionBar}>
-              <span>{selectionMode === 'delete' ? 'Delete' : 'Archive'} mode</span>
-              <div>
-                <button
-                  className={styles.confirmButton}
-                  onClick={() => {
-                    if (selected.length === 0) return;
-                    // instead of removing, mark items with archived/deleted flags
-                    setProjects((prev) =>
-                      prev.map((p, idx) => {
-                        if (!selected.includes(idx)) return p;
-                        if (selectionMode === 'delete') {
-                          return { ...p, deleted: true };
-                        }
-                        return { ...p, archived: true };
-                      })
-                    );
-                    setSelectionMode('none');
-                    setSelected([]);
-                  }}
-                >
-                  Confirm
-                </button>
-                <button
-                  className={styles.cancelButton}
-                  onClick={() => {
-                    setSelectionMode('none');
-                    setSelected([]);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-          {projects.length > 0 ? (
-            (() => {
-              const filtered = projects
-                .filter((p) => !p.archived && !p.deleted)
-                .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
-              return filtered.length > 0 ? (
-                <ul className={styles.projectList}>
-                  {filtered.map((project, index) => {
-                    const realIndex = projects.indexOf(project);
-                    const checked = selected.includes(realIndex);
-                    return (
-                      <li key={realIndex} className={styles.projectItem}>
-                        {selectionMode !== 'none' && (
-                          <input
-                            type="checkbox"
-                            className={styles.projectCheckbox}
-                            checked={checked}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelected([...selected, realIndex]);
-                              else setSelected(selected.filter((i) => i !== realIndex));
-                            }}
-                          />
-                        )}
-                        <div className={styles.projectInfo}>
-                          <h3>
-                            <button
-                              className={styles.projectLink}
-                              onClick={() => {
-                                // Close any open overlays before navigating to the project page
-                                setIsAddingProject(false);
-                                setProfileOpen(false);
-                                setSelectionMode('none');
-                                setSelected([]);
-                                navigate(`/projects/${realIndex}`);
-                              }}
-                            >
-                              {project.name}
-                            </button>
-                          </h3>
-                          <p>{project.description}</p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p>No projects match your search.</p>
-              );
-            })()
-          ) : (
-            <p>No projects added yet.</p>
-          )}
           </div>
         </div>
-      </div>
+
+        {/* Middle Content Panel */}
+        <div className="flex-1 flex flex-col overflow-hidden relative z-0">
+
+          {/* Middle Header */}
+          <header className="flex flex-col md:flex-row items-center justify-between p-3 border-b border-surface-light gap-3">
+            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+
+            <div className="relative w-full md:w-auto">
+              <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search projects"
+                className="w-full md:w-60 bg-surface text-gray-200 placeholder-gray-400 py-1.5 pl-10 pr-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light text-sm"
+                value={search}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSearch(v);
+                  if (isAddingProject) {
+                    setIsAddingProject(false);
+                    setError('');
+                    setProjectName('');
+                    setProjectDescription('');
+                    setEmployees('');
+                  }
+                }}
+              />
+              {search && (
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                  onClick={() => setSearch('')}
+                  title="Clear search"
+                >
+                  <RiCloseLine />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                className="
+                  group cursor-pointer relative overflow-hidden 
+                  bg-cyan text-brand-bg font-bold py-1.5 px-4 rounded-lg
+                  hover:bg-cyan-dark flex items-center gap-2 text-sm
+                "
+                onClick={handleAddProjectClick}
+              >
+                <RiAddLine className="text-lg" />
+                Add Project
+              </button>
+              <button
+                className="bg-surface-light text-gray-300 font-semibold py-1.5 px-4 rounded-lg hover:bg-surface flex items-center gap-2 text-sm"
+                onClick={() => {
+                  setSelectionMode('archive');
+                  setSelected([]);
+                }}
+              >
+                <RiArchiveLine />
+                Archive
+              </button>
+              <button
+                className="bg-red-600 text-white font-semibold py-1.5 px-4 rounded-lg hover:bg-red-700 flex items-center gap-2 text-sm"
+                onClick={() => {
+                  setSelectionMode('delete');
+                  setSelected([]);
+                }}
+              >
+                <RiDeleteBinLine />
+                Delete
+              </button>
+            </div>
+          </header>
+
+
+          <div className="flex-1 p-3 overflow-y-auto">
+
+
+            {isAddingProject && (
+              <div className="mb-4 p-4 bg-surface rounded-lg shadow-lg relative">
+                <button
+                  type="button"
+                  className="absolute top-3 right-4 text-gray-500 hover:text-white text-2xl"
+                  onClick={() => {
+                    setIsAddingProject(false);
+                    setError('');
+                    setProjectName('');
+                    setProjectDescription('');
+                    setEmployees('');
+                  }}
+                  aria-label="Close add project form"
+                >
+                  <RiCloseLine />
+                </button>
+                <form className="space-y-3" onSubmit={handleSubmit}>
+                  <label className="block">
+                    <span className="block text-sm font-medium text-gray-300 mb-1">
+                      Project Name <span className="text-red-500">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      className="w-full bg-surface-light text-gray-200 placeholder-gray-400 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="block text-sm font-medium text-gray-300 mb-1">
+                      Project Description
+                    </span>
+                    <textarea
+                      className="w-full bg-surface-light text-gray-200 placeholder-gray-400 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
+                      rows="3"
+                      value={projectDescription}
+                      onChange={(e) => setProjectDescription(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="block text-sm font-medium text-gray-300 mb-1">
+                      Employees (comma-separated)
+                    </span>
+                    <input
+                      type="text"
+                      className="w-full bg-surface-light text-gray-200 placeholder-gray-400 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
+                      value={employees}
+                      onChange={(e) => onEmployeesChange(e.target.value)}
+                    />
+                  </label>
+
+                  {/* Inline suggestions */}
+                  {memberResults && memberResults.length > 0 && (
+                    <div className="border border-surface-light p-3 rounded-lg mt-2">
+                      <h4 className="text-xs text-gray-400 mb-2">Suggestions</h4>
+                      <ul className="space-y-2">
+                        {memberResults.map((u) => (
+                          <li key={u._id || u.email || u.username} className="flex justify-between items-center">
+                            <div>
+                              <strong className="text-sm text-gray-200">{u.username || u.name || '-'}</strong>
+                              <p className="text-xs text-gray-400">{u.email || ''}</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="bg-cyan text-brand-bg font-semibold py-1 px-3 rounded-md text-sm"
+                              onClick={() => selectSuggestionIntoInput(u)}
+                            >
+                              Use
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div>
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-cyan hover:text-cyan-light"
+                      onClick={() => setShowMemberPanel((s) => !s)}
+                    >
+                      {showMemberPanel ? 'Close member panel' : 'Add members by search'}
+                    </button>
+                    <span className="ml-4 text-sm text-gray-500">Or enter comma-separated usernames/emails above.</span>
+                  </div>
+
+                  {/* Full Member Search Panel */}
+                  {showMemberPanel && (
+                    <div className="border border-surface-light p-4 rounded-lg mt-2">
+                      <div className="flex flex-col md:flex-row gap-4 items-center mb-4">
+                        <div className="flex gap-4">
+                          <label className="text-sm text-gray-300 flex items-center gap-1">
+                            <input type="radio" checked={memberSearchBy === 'email'} onChange={() => setMemberSearchBy('email')} className="bg-surface-light border-gray-500 text-cyan focus:ring-cyan" /> Email
+                          </label>
+                          <label className="text-sm text-gray-300 flex items-center gap-1">
+                            <input type="radio" checked={memberSearchBy === 'username'} onChange={() => setMemberSearchBy('username')} className="bg-surface-light border-gray-500 text-cyan focus:ring-cyan" /> Username
+                          </label>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder={memberSearchBy === 'email' ? 'Search by email' : 'Search by username'}
+                          value={memberQuery}
+                          onChange={(e) => setMemberQuery(e.target.value)}
+                          className="flex-1 w-full bg-surface-light text-gray-200 placeholder-gray-400 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
+                        />
+                        <button
+                          type="button"
+                          className="bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-md text-sm w-full md:w-auto"
+                          onClick={doMemberSearch}
+                          disabled={memberLoading}
+                        >
+                          {memberLoading ? 'Searching...' : 'Search'}
+                        </button>
+                      </div>
+                      {memberError && <div className="text-red-500 mb-4">{memberError}</div>}
+
+                      <div>
+                        {memberResults && memberResults.length > 0 ? (
+                          <table className="w-full text-left text-sm mb-4 text-gray-300">
+                            <thead className="border-b border-surface-light">
+                              <tr>
+                                <th className="py-2 text-gray-400 font-semibold">Name</th>
+                                <th className="py-2 text-gray-400 font-semibold">Username</th>
+                                <th className="py-2 text-gray-400 font-semibold">Email</th>
+                                <th></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {memberResults.map((u) => (
+                                <tr key={u._id || u.email || u.username} className="border-b border-surface-light">
+                                  <td className="py-2">{u.name || '-'}</td>
+                                  <td className="py-2">{u.username || '-'}</td>
+                                  <td className="py-2">{u.email || '-'}</td>
+                                  <td>
+                                    <button type="button" className="bg-cyan text-brand-bg font-semibold py-1 px-3 rounded-md text-sm" onClick={() => handleAddFromResult(u)}>Add</button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="text-gray-500 mb-4">No results</div>
+                        )}
+                      </div>
+
+                      <div className="text-gray-300">
+                        <strong className="text-gray-200">Selected members:</strong>
+                        {addedMembers && addedMembers.length > 0 ? (
+                          <ul className="mt-2 space-y-2">
+                            {addedMembers.map((m, i) => (
+                              <li key={m._id || m.username || m.email} className="flex justify-between items-center text-sm">
+                                {m.name || m.username || m.email}
+                                <button typeF="button" className="bg-red-600 text-white font-semibold py-1 px-2 rounded-md text-xs" onClick={() => removeAddedMember(i)}>Remove</button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-gray-500 mt-2 text-sm">No members selected</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {error && <p className="text-red-500 text-center">{error}</p>}
+
+                  <button
+                    type="submit"
+                    className="
+                      group cursor-pointer relative overflow-hidden 
+                      w-full bg-cyan text-brand-bg font-bold py-2 px-5 rounded-lg
+                      tracking-light transition-all duration-300 ease-in-out 
+                      hover:translate-y-0.5
+                    "
+                  >
+                    <span className="relative z-10">Add Project</span>
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Selection Bar */}
+            {selectionMode !== 'none' && (
+              <div className="bg-surface-light p-3 rounded-lg flex flex-col md:flex-row justify-between items-center mb-4 gap-2">
+                <span className="font-semibold text-white text-sm"> {/* Added text-sm */}
+                  {selected.length} item(s) selected for {selectionMode}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    className="bg-cyan text-brand-bg font-semibold py-1.5 px-3 rounded-md text-sm flex items-center gap-2"
+                    onClick={() => {
+                      if (selected.length === 0) return;
+                      (async () => {
+                        const toProcess = selected.slice();
+                        let successCount = 0;
+                        let failCount = 0;
+                        for (const idx of toProcess) {
+                          const p = projects[idx];
+                          if (!p || !p._id) continue;
+                          try {
+                            if (selectionMode === 'delete') {
+                              const r = await fetch(`http://localhost:4000/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include' });
+                              if (r.ok) successCount++; else failCount++;
+                            } else {
+                              const r = await fetch(`http://localhost:4000/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include' });
+                              if (r.ok) successCount++; else failCount++;
+                            }
+                          } catch (err) { console.error('project action error', err); failCount++; }
+                        }
+                        await fetchProjects();
+                        setSelectionMode('none');
+                        setSelected([]);
+                        alert(`Operation complete. Success: ${successCount}, Failed: ${failCount}`);
+                      })();
+                    }}
+                  >
+                    <RiCheckLine />
+                    Confirm
+                  </button>
+                  <button
+                    className="bg-gray-500 text-white font-semibold py-1.5 px-3 rounded-md text-sm flex items-center gap-2"
+                    onClick={() => {
+                      setSelectionMode('none');
+                      setSelected([]);
+                    }}
+                  >
+                    <RiCloseLine />
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Project List */}
+            <h2 className="text-xl font-bold text-white mb-3">Projects</h2>
+
+            {projects.length > 0 ? (
+              (() => {
+                const filtered = projects
+                  .filter((p) => !p.archived && !p.deleted)
+                  .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
+                return filtered.length > 0 ? (
+                  <ul className="space-y-3">
+                    {filtered.map((project, index) => {
+                      const realIndex = projects.indexOf(project);
+                      const checked = selected.includes(realIndex);
+                      return (
+                        <li key={realIndex} className="bg-surface rounded-lg shadow-md flex items-center p-3 transition-all hover:shadow-lg hover:border-surface-light border border-transparent">
+                          {selectionMode !== 'none' && (
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded bg-surface-light border-gray-500 text-cyan focus:ring-cyan mr-3"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <h3>
+                              <button
+                                className="text-lg font-semibold text-white hover:text-cyan transition-colors"
+                                onClick={() => {
+                                  setIsAddingProject(false);
+                                  setProfileOpen(false);
+                                  setSelectionMode('none');
+                                  setSelected([]);
+                                  navigate(`/projects/${project._id || realIndex}`);
+                                }}
+                              >
+                                {project.name}
+                              </button>
+                            </h3>
+                            <p className="text-gray-400 mt-1 text-xs">{project.description}</p>
+                            <p className="text-xs text-gray-500 mt-2">Owner: {project.owner || 'N/A'}</p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-gray-400 text-sm">No projects match your search.</p>
+                );
+              })()
+            ) : (
+              <p className="text-gray-400 text-sm">No projects added yet.</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

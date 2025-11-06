@@ -1,7 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './EmployeeDashboard.module.css';
 
 const EmployeeDashboard = () => {
+  const navigate = useNavigate();
+
+  // Auth check: redirect to login if not authenticated
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/user/data', { method: 'GET', credentials: 'include' });
+        const json = await res.json();
+        if (!mounted) return;
+        if (!json || !json.success || !json.userData) {
+          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+          navigate('/login');
+        }
+      } catch (err) {
+        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+        navigate('/login');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [navigate]);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timer, setTimer] = useState(0);
   const [intervalId, setIntervalId] = useState(null);

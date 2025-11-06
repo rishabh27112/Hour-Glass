@@ -1,6 +1,6 @@
 import React from 'react';
 import 'remixicon/fonts/remixicon.css'
-
+import { Link } from 'react-router-dom';
 const Hero = () => {
     return (
         <div className="relative overflow-hidden pt-12 pb-24 md:pt-24 md:pb-48 bg-[#1b1b1b]">
@@ -18,16 +18,17 @@ const Hero = () => {
                 <p className="mt-6 text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
                     Track, manage, and optimize your team's time with our intuitive platform.
                 </p>
-
+                <Link to='signin'>
                 <div className="mt-12">
                     <button
-                        className="group w-full sm:w-auto bg-[#18d4d1] text-[#131212] font-bold py-3 px-5 rounded-xl tracking-light
+                    
+                        className="cursor-pointer group w-full sm:w-auto bg-[#18d4d1] text-[#131212] font-bold py-3 px-5 rounded-xl tracking-light
                         transition-all duration-300 ease-in-out
                         hover:bg-white
                         hover:translate-y-0.5
                         hover:shadow-lg hover:shadow-[#1b1b1b]/50"
                     >
-                        <div className='flex items-center gap-2'>
+                        <div className='flex items-center gap-2 '>
                             <span className='text-xl font-semibold tracking-wide'> Start tracking for free</span>
                             <span className=''>
                                 <i class="ri-arrow-right-line text-xl bg-white rounded-2xl p-1.5 group-hover:bg-[#18d4d1]
@@ -37,6 +38,7 @@ const Hero = () => {
                         </div>
                     </button>
                 </div>
+                </Link>
 
                 {/* Dashboard Image Placeholder */}
                 <div className="mt-20 md:mt-32 relative">

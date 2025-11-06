@@ -1,11 +1,14 @@
+// src/pages/SignUpPage.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import styles from './SignUpPage.module.css';
+import { Link, useNavigate } from 'react-router-dom';
+import MainButton from '../components/MainButton';
+import Logo from '../components/Logo';
+import GoogleButton from '../components/GoogleButton';
+import LoginBg from '../assets/login-bg.png';
 
 const SignUpPage = () => {
-  const navigate = useNavigate();
-  // Two-step registration state
-  const [step, setStep] = useState(1); // 1: email/otp, 2: registration
+  // --- All backend logic is injected here ---
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -17,6 +20,7 @@ const SignUpPage = () => {
   const [form, setForm] = useState({ fullName: '', username: '', password: '', confirmPassword: '' });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const navigate = useNavigate();
 
   // Step 1: Send OTP
   const handleSendOtp = async () => {
@@ -91,7 +95,6 @@ const SignUpPage = () => {
       setFormError('All fields are required');
       return;
     }
-    // Very basic username check (lowercase letters, numbers, underscores, 3-20 chars)
     const usernameOk = /^[a-z0-9_]{3,20}$/.test(form.username.trim().toLowerCase());
     if (!usernameOk) {
       setFormError('Username must be 3-20 chars, lowercase letters/numbers/underscore only');
@@ -116,7 +119,7 @@ const SignUpPage = () => {
       if (data.success) {
         setFormSuccess('Registration successful! Redirecting to login...');
         setTimeout(() => {
-          navigate('/login');
+          navigate('/signin'); // Changed from /login to /signin
         }, 1500);
       } else {
         setFormError(data.message || 'Registration failed');
@@ -125,132 +128,187 @@ const SignUpPage = () => {
       setFormError('Registration error');
     }
   };
+  // --- End of injected logic ---
 
   return (
-    <div className={styles.container}>
-      <div className={styles.content}>
-        <div className={styles.logoSection}>
-          <div className={styles.logo}>⏰</div>
-          <h1 className={styles.title}>Time Tracker</h1>
-          <p className={styles.subtitle}>Start tracking your productivity today </p>
+    <div style={{ backgroundImage: `url(${LoginBg})` }} className="tracking-wide flex items-center justify-center min-h-screen bg-cover bg-center relative px-4 py-8">
+      <div className="absolute inset-0 bg-black opacity-70"></div>
+
+      <div
+        className="
+          w-full max-w-md 
+          p-6 space-y-4 
+          relative z-10
+          backdrop-blur-sm
+        "
+      >
+        {/* Header */}
+        <div className="text-center">
+          <Logo />
+          <h2 className="mt-3 text-2xl font-bold text-white">
+            {step === 1 ? 'Verify Your Email' : 'Create Your Account'}
+          </h2>
         </div>
-        <div className={styles.card}>
-          <div className={styles.header}>
-            <h2>Create your account</h2>
-            <p>Join thousands of users tracking their time efficiently </p>
-          </div>
-          {step === 1 && (
-            <>
-              <div className={styles.inputGroup}>
+
+        {/* --- Step 1: Email & OTP Verification --- */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <GoogleButton />
+
+            <div className="flex items-center justify-center my-2">
+              <span className="w-full border-t border-[#3a3a3a]"></span>
+              <span className="px-4 text-gray-400 bg-transparent text-sm z-10 relative">or</span>
+              <span className="w-full border-t border-[#3a3a3a]"></span>
+            </div>
+
+            {/* Email Input */}
+            <div>
+              <label className="block text-lg font-medium text-gray-300">Email address</label>
+              <div className="mt-1">
                 <input
                   type="email"
-                  name="email"
-                  placeholder="Email address"
-                  className={styles.input}
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   disabled={otpSent}
                 />
               </div>
-              <button
-                type="button"
-                className={styles.primaryButton}
+            </div>
+
+            {/* Send OTP Button */}
+            {!otpSent && (
+              <MainButton
+                txt={otpLoading ? 'Sending OTP...' : 'Send OTP'}
                 onClick={handleSendOtp}
-                disabled={otpLoading || !email || otpSent}
-                style={{ marginBottom: 12 }}
-              >
-                {otpLoading ? 'Sending OTP...' : 'Send OTP'}
-              </button>
-              {otpSent && (
-                <>
-                  <div className={styles.inputGroup}>
+                disabled={otpLoading || !email}
+                type="button"
+              />
+            )}
+
+            {/* OTP Verification Section */}
+            {otpSent && (
+              <div className="space-y-4 pt-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300">Enter OTP</label>
+                  <div className="mt-1">
                     <input
                       type="text"
-                      name="otp"
-                      placeholder="Enter OTP"
-                      className={styles.input}
+                      required
+                      className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                      placeholder="••••••"
+                      maxLength={6}
                       value={otp}
                       onChange={e => setOtp(e.target.value)}
-                      maxLength={6}
                     />
                   </div>
-                  <button
-                    type="button"
-                    className={styles.primaryButton}
-                    onClick={handleVerifyOtp}
-                    disabled={!otp}
-                  >Verify OTP</button>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={handleResendOtp}
-                    disabled={resendLoading}
-                    style={{ marginLeft: 8 }}
-                  >{resendLoading ? 'Resending...' : 'Resend OTP'}</button>
-                  {resendMsg && <div style={{ color: 'green', marginTop: 8 }}>{resendMsg}</div>}
-                </>
-              )}
-              {otpError && <div style={{ color: 'red', marginTop: 8 }}>{otpError}</div>}
-              {otpSuccess && <div style={{ color: 'green', marginTop: 8 }}>{otpSuccess}</div>}
-            </>
-          )}
-          {step === 2 && (
-            <form className={styles.form} onSubmit={handleRegister}>
-              <div className={styles.inputGroup}>
+                </div>
+                <MainButton
+                  txt="Verify OTP"
+                  onClick={handleVerifyOtp}
+                  disabled={!otp}
+                  type="button"
+                />
+                <button
+                  type="button"
+                  className="text-sm font-medium underline decoration-[#18d4d1] text-gray-200 hover:text-[#18d4d1] hover:decoration-gray-200 w-full"
+                  onClick={handleResendOtp}
+                  disabled={resendLoading}
+                >
+                  {resendLoading ? 'Resending...' : 'Resend OTP'}
+                </button>
+                {resendMsg && <div className="text-sm text-green-400 text-center">{resendMsg}</div>}
+              </div>
+            )}
+
+            {otpError && <div className="text-red-400 text-sm text-center">{otpError}</div>}
+            {otpSuccess && <div className="text-green-400 text-sm text-center">{otpSuccess}</div>}
+          </div>
+        )}
+
+        {/* --- Step 2: Registration Form --- */}
+        {step === 2 && (
+          <form className="space-y-4" onSubmit={handleRegister}>
+            <div>
+              <label className="block text-sm font-medium text-gray-300">Full Name</label>
+              <div className="mt-1">
                 <input
                   type="text"
                   name="fullName"
-                  placeholder="Full name"
-                  className={styles.input}
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="Your full name"
                   value={form.fullName}
                   onChange={handleFormChange}
                 />
               </div>
-              <div className={styles.inputGroup}>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300">Username</label>
+              <div className="mt-1">
                 <input
                   type="text"
                   name="username"
-                  placeholder="Username (unique)"
-                  className={styles.input}
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="e.g., john_doe_123"
                   value={form.username}
                   onChange={handleFormChange}
                 />
               </div>
-              <div className={styles.inputGroup}>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300">Password</label>
+              <div className="mt-1">
                 <input
                   type="password"
                   name="password"
-                  placeholder="Password"
-                  className={styles.input}
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="••••••••"
                   value={form.password}
                   onChange={handleFormChange}
                 />
               </div>
-              <div className={styles.inputGroup}>
+            </div>
+
+            <div>
+              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-300">Confirm Password</label>
+              <div className="mt-1">
                 <input
                   type="password"
                   name="confirmPassword"
-                  placeholder="Confirm password"
-                  className={styles.input}
+                  required
+                  className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
+                  placeholder="••••••••"
                   value={form.confirmPassword}
                   onChange={handleFormChange}
                 />
               </div>
-              <button type="submit" className={styles.primaryButton}>Register</button>
-              {formError && <div style={{ color: 'red', marginTop: 8 }}>{formError}</div>}
-              {formSuccess && <div style={{ color: 'green', marginTop: 8 }}>{formSuccess}</div>}
-            </form>
-          )}
-          <div className={styles.terms}>
-            <span>By signing up, you agree to our </span>
-            <a href="#" className={styles.link}>Terms of Service</a>
-            <span> and </span>
-            <a href="#" className={styles.link}>Privacy Policy</a>
-          </div>
+            </div>
+
+            {formError && <div className="text-red-400 text-sm text-center">{formError}</div>}
+            {formSuccess && <div className="text-green-400 text-sm text-center">{formSuccess}</div>}
+
+            <div>
+              <MainButton txt='Create Account' type="submit" />
+            </div>
+          </form>
+        )}
+
+        {/* Sign In Link */}
+        <div className="text-center text-lg text-gray-400">
+          Already have an account?{' '}
+          <Link to="/login" className="font-medium underline decoration-[#18d4d1] text-gray-200 hover:text-[#18d4d1] hover:decoration-gray-200">
+            Sign in
+          </Link>
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default SignUpPage;

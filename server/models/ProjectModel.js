@@ -6,9 +6,10 @@ const projectSchema = new mongoose.Schema({
   Description: { type: String, trim: true, default: '' },
   status: {
     type: String,
-    enum: ['active', 'archived'],
+    enum: ['active', 'archived', 'deleted'],
     default: 'active',
   },
+  // NOTE: moved deleted into `status: 'deleted'` instead of a boolean flag
   members: [
     {
       type: mongoose.Schema.Types.ObjectId,
