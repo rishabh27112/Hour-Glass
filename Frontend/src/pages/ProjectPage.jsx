@@ -91,9 +91,22 @@ const ProjectPage = () => {
     if (timer) sessionStorage.setItem('hg_activeTimer', JSON.stringify(timer));
     else sessionStorage.removeItem('hg_activeTimer');
   };
-
+  
   const pauseTimer = (taskId) => {
     if (!activeTimer || !activeTimer.taskId) return;
+    // permission: only the user who started the timer can pause it, unless currentUser is manager or project owner
+    const starter = activeTimer.startedBy || null;
+    const isManager = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+    const projectOwner = projectOwnerNormalized;
+    const isProjectOwner = projectOwner && currentUser && (
+      String(projectOwner).toLowerCase() === String(currentUser.username || currentUser.email || currentUser._id).toLowerCase()
+    );
+    if (starter && !(isManager || isProjectOwner || (currentUser && currentUser.username && starter.toLowerCase() === currentUser.username.toLowerCase()))) {
+      // not allowed
+      console.debug('pauseTimer blocked', { starter, currentUser, projectOwner, isManager, isProjectOwner });
+      alert(`Only ${starter} can stop this timer`);
+      return;
+    }
     const elapsed = Date.now() - activeTimer.startedAt;
     // add elapsed to the task's timeSpent
     setProjects((prev) => {
@@ -117,11 +130,42 @@ const ProjectPage = () => {
   };
 
   const startTimer = (taskId) => {
+    // find task and check permission: only assigned member can start
+    const p = projects[projectIndex] ? { ...projects[projectIndex] } : null;
+    if (!p) return;
+    const tasks = Array.isArray(p.tasks) ? p.tasks : [];
+    const idx = tasks.findIndex((t, i) => getTaskKey(t, i) === taskId);
+    if (idx === -1) return;
+    const task = tasks[idx];
+    // normalize assignee value (handle object or string)
+    let assignee = '';
+    const pickFromObj = (obj) => (obj && (obj.username || obj.email || obj.name || obj._id)) || '';
+    if (task.assignedTo) {
+      assignee = typeof task.assignedTo === 'object' ? pickFromObj(task.assignedTo) : String(task.assignedTo);
+    } else if (task.assignee) {
+      assignee = typeof task.assignee === 'object' ? pickFromObj(task.assignee) : String(task.assignee);
+    } else if (task.assigneeName) {
+      assignee = String(task.assigneeName);
+    }
+    assignee = (assignee || '').trim();
+    // allow start if current user is the assignee OR is manager OR is project owner
+    const isManagerStart = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+    const projectOwnerStart = projectOwnerNormalized;
+    const isProjectOwnerStart = projectOwnerStart && currentUser && (
+      String(projectOwnerStart).toLowerCase() === String(currentUser.username || currentUser.email || currentUser._id).toLowerCase()
+    );
+    if (assignee) {
+      console.debug('startTimer check', { assignee, currentUser, isManagerStart, isProjectOwnerStart });
+      if (!(currentUser && ((currentUser.username && currentUser.username.toLowerCase() === assignee.toLowerCase()) || (currentUser.email && currentUser.email.toLowerCase() === assignee.toLowerCase()))) && !isManagerStart && !isProjectOwnerStart) {
+        alert('Only the assigned member or manager/project owner can start this task timer');
+        return;
+      }
+    }
     // if another timer is active, pause it first
     if (activeTimer && activeTimer.taskId && activeTimer.taskId !== taskId) {
       pauseTimer(activeTimer.taskId);
     }
-    const timer = { taskId, startedAt: Date.now() };
+    const timer = { taskId, startedAt: Date.now(), startedBy: (currentUser && currentUser.username) || null };
     setActiveTimer(timer);
     persistActiveTimer(timer);
   };
@@ -133,7 +177,10 @@ const ProjectPage = () => {
     setTaskLoading(true); setTaskError('');
     try {
       // validate assignee must be a project member (if provided)
-      if (taskAssignee && (!cleanedEmployees || !cleanedEmployees.includes(taskAssignee))) {
+      // use case-insensitive trimmed comparison to avoid mismatches
+      const normalizedEmployees = (cleanedEmployees || []).map((s) => String(s).trim().toLowerCase());
+      const normalizedAssignee = taskAssignee ? String(taskAssignee).trim().toLowerCase() : '';
+      if (taskAssignee && (!normalizedEmployees.length || !normalizedEmployees.includes(normalizedAssignee))) {
         setTaskError('Assignee must be a member of this project');
         return;
       }
@@ -171,7 +218,7 @@ const ProjectPage = () => {
             return clone;
           });
           setShowAddTaskDialog(false);
-          setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
+          setTaskTitle(''); setTaskAssigned(''); setTaskAssignee(''); setTaskStatus('todo');
         } else {
           console.error('add task failed', res.status, json);
           setTaskError((json && json.message) || 'Failed to add task');
@@ -197,7 +244,7 @@ const ProjectPage = () => {
           return newProjects;
         });
         setShowAddTaskDialog(false);
-        setTaskTitle(''); setTaskAssigned(''); setTaskStatus('todo');
+        setTaskTitle(''); setTaskAssigned(''); setTaskAssignee(''); setTaskStatus('todo');
       }
     } catch (err) {
       console.error('add task error', err);
@@ -221,8 +268,6 @@ const ProjectPage = () => {
     let mounted = true;
     (async () => {
       if (!id) return;
-      // if we already have a project with tasks, no need to fetch
-      if (project && Array.isArray(project.tasks) && project.tasks.length > 0) return;
       // Determine which id to fetch: prefer the server-backed project's _id (if present),
       // otherwise fall back to the route `id` only when it looks like an ObjectId.
       let fetchId = null;
@@ -256,14 +301,86 @@ const ProjectPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [id, project]);
+  }, [id]);
 
-  // determine whether the current user is the creator of this project
+  // determine whether the current user is the creator of this project (robust match)
   const isCreator = (() => {
     if (!project || !currentUser) return false;
-    const creatorId = (project.createdBy && (project.createdBy._id || project.createdBy)) || project.createdById || project.owner || null;
-    const currentId = currentUser._id || currentUser.id || null;
-    return creatorId && currentId && String(creatorId) === String(currentId);
+
+  let projectCreators = [];
+    // createdBy may be populated object or primitive
+    if (project.createdBy) {
+      if (typeof project.createdBy === 'object') {
+        projectCreators = projectCreators.concat([
+          String(project.createdBy._id || ''),
+          String(project.createdBy.username || ''),
+          String(project.createdBy.email || ''),
+          String(project.createdBy.name || ''),
+        ]);
+      } else {
+        projectCreators.push(String(project.createdBy));
+      }
+    }
+    // other possible owner fields
+    for (const k of ['createdById', 'createdByUsername', 'createdByEmail', 'owner', 'ownerUsername', 'ownerEmail']) {
+      if (project[k]) projectCreators.push(String(project[k]));
+    }
+
+    const userIds = [currentUser._id, currentUser.id, currentUser.username, currentUser.email, currentUser.name]
+      .filter(Boolean)
+      .map(String);
+
+    if (projectCreators.length === 0 || userIds.length === 0) return false;
+
+    const loweredCreators = new Set(projectCreators.map((s) => String(s).toLowerCase()));
+    return userIds.some((u) => loweredCreators.has(String(u).toLowerCase()));
+  })();
+
+  // open handlers: manager (project creator) can add members/tasks; employees cannot
+  const openAddMember = (open = true) => {
+    if (open === false) { setShowAddDialog(false); return; }
+    if (!isCreator) { alert('You are not permitted to add members'); return; }
+    setShowAddDialog(true);
+  };
+
+  const openAddTask = (open = true) => {
+    if (open === false) { setShowAddTaskDialog(false); return; }
+    if (!isCreator) { alert('You are not permitted to add tasks'); return; }
+    // default assignee is the manager (project creator / currentUser)
+    // Prefer an identifier that exists in cleanedEmployees (username/email/_id) to avoid validation errors
+    const candidates = [];
+    if (currentUser) {
+      if (currentUser.username) candidates.push(String(currentUser.username));
+      if (currentUser.email) candidates.push(String(currentUser.email));
+      if (currentUser._id) candidates.push(String(currentUser._id));
+      if (currentUser.name) candidates.push(String(currentUser.name));
+    }
+    // find a candidate that matches an existing cleanedEmployee (case-insensitive)
+    const normalizedEmployees = (cleanedEmployees || []).map((s) => String(s).trim());
+    let chosen = '';
+    for (const c of candidates) {
+      if (!c) continue;
+      const match = normalizedEmployees.find((e) => e && String(e).toLowerCase() === String(c).toLowerCase());
+      if (match) { chosen = match; break; }
+    }
+    // fallback to first candidate (username/email/_id) if no exact match; otherwise leave empty
+    if (!chosen && candidates.length > 0) chosen = String(candidates[0]);
+    setTaskAssignee(chosen || '');
+    setTaskAssigned(chosen || '');
+    setShowAddTaskDialog(true);
+  };
+  
+
+  // normalize project owner/creator into a single string identifier for robust comparisons
+  const projectOwnerNormalized = (() => {
+    if (!project) return null;
+    if (project.createdBy) {
+      if (typeof project.createdBy === 'object') {
+        return project.createdBy.username || project.createdBy.email || project.createdBy._id || null;
+      }
+      return String(project.createdBy);
+    }
+    return project.createdByUsername || project.createdByEmail || project.owner || project.ownerUsername || project.createdByName || null;
   })();
 
   const saveProjects = (updatedProjects) => {
@@ -509,12 +626,29 @@ const ProjectPage = () => {
         <button onClick={() => navigate(-1)} className={styles.back}>← Back</button>
         <h2>{project.name}</h2>
       </div>
-      {/* Active timer bar */}
+      {/* Active timer bar: only visible to the starter, a manager, or the project owner */}
       {activeTimer && (() => {
         // find task object
         const t = (project.tasks || []).find((task, i) => getTaskKey(task, i) === activeTimer.taskId);
         const base = (t && (t.timeSpent || 0)) || 0;
         const elapsed = base + (Date.now() - activeTimer.startedAt);
+
+        // determine who can view/control this active timer
+        const starter = (activeTimer && activeTimer.startedBy) || null;
+        const isManager = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+        const projectOwner = projectOwnerNormalized || (project && (project.createdBy || project.createdByUsername || project.owner || project.ownerUsername || project.createdByName || project.createdByEmail));
+        const isProjectOwner = projectOwner && currentUser && (
+          String(projectOwner).toLowerCase() === String(currentUser.username || currentUser.email || currentUser._id).toLowerCase()
+        );
+        const isStarter = starter && currentUser && (
+          (currentUser.username && String(starter).toLowerCase() === String(currentUser.username).toLowerCase())
+          || (currentUser.email && String(starter).toLowerCase() === String(currentUser.email).toLowerCase())
+          || (currentUser._id && String(starter).toLowerCase() === String(currentUser._id).toLowerCase())
+        );
+
+        // hide the active timer bar completely for users who aren't allowed to control it
+        if (!(isStarter || isManager || isProjectOwner)) return null;
+
         return (
           <div style={{ background: '#222', color: '#fff', padding: '8px 12px', borderRadius: 6, margin: '12px 0' }}>
             <strong>Timer</strong>: {t ? t.title : '(task)'} — {formatDuration(elapsed)}
@@ -533,7 +667,7 @@ const ProjectPage = () => {
                 <h3>Team Members</h3>
                 <button
                   type="button"
-                  onClick={() => setShowAddDialog(true)}
+                  onClick={() => openAddMember(true)}
                   className={styles.addMemberVisible}
                 >
                   + Add Member
@@ -563,7 +697,7 @@ const ProjectPage = () => {
                 onAdd={handleAddMember}
                 currentMode={currentMode}
                 setCurrentMode={setCurrentMode}
-                onOpenAddDialog={() => setShowAddDialog(true)}
+                onOpenAddDialog={() => openAddMember(true)}
                 currentUser={currentUser}
                 isCreator={isCreator}
               />
@@ -636,6 +770,7 @@ const ProjectPage = () => {
                         <div style={{ marginTop: 8, color: '#666' }}>No results</div>
                       )}
                     </div>
+                      
                   </div>
                 </div>
               )}
@@ -656,7 +791,7 @@ const ProjectPage = () => {
             setFilterStatus={setFilterStatus}
             cleanedEmployees={cleanedEmployees}
             projectId={project && (project._id || project._clientId) }
-            setShowAddTaskDialog={setShowAddTaskDialog}
+            setShowAddTaskDialog={openAddTask}
             showAddTaskDialog={showAddTaskDialog}
             taskTitle={taskTitle}
             setTaskTitle={setTaskTitle}
@@ -674,9 +809,15 @@ const ProjectPage = () => {
             setTaskAssigned={setTaskAssigned}
             setTaskStatus={setTaskStatus}
             taskStatus={taskStatus}
-          >
-          </TasksPanel>
+            currentUser={currentUser}
+            projectOwner={projectOwnerNormalized}
+          />
         </div>
+      </div>
+      {/* Bottom-left action buttons (AI Summary, Generate Report) */}
+      <div style={{ position: 'fixed', left: 12, bottom: 12, display: 'flex', gap: 8, zIndex: 1100 }}>
+        <button type="button" className={styles.cta} onClick={() => { /* placeholder: AI Summary action */ }}>AI Summary</button>
+        <button type="button" className={styles.cta} onClick={() => { /* placeholder: Generate Report action */ }}>Generate Report</button>
       </div>
     </div>
   );

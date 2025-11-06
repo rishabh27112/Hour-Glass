@@ -44,6 +44,19 @@ export default function TaskPage() {
     if (!task) return;
     const initial = Number(task.timeSpent) || 0;
     setBaseMs(initial);
+    // set assignee to current logged-in user if not assigned
+    try {
+      const rawUser = sessionStorage.getItem('user') || localStorage.getItem('user');
+      if (rawUser) {
+        const parsedUser = JSON.parse(rawUser);
+        const userDisplay = parsedUser?.username || parsedUser?.name || parsedUser?.email || parsedUser?._id || null;
+        if (userDisplay && (!task.assignee || task.assignee === '')) {
+          setTask(prev => prev ? { ...prev, assignee: userDisplay } : prev);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not parse current user from storage', err);
+    }
     // try to load persisted running state for this task
     try {
       const raw = sessionStorage.getItem(storageKey);
@@ -58,7 +71,7 @@ export default function TaskPage() {
         }
       }
     } catch (e) {
-      // ignore parse errors
+      console.warn('Could not parse persisted timer state', e);
     }
   }, [task]);
 
@@ -90,7 +103,7 @@ export default function TaskPage() {
     // persist
     try {
       sessionStorage.setItem(storageKey, JSON.stringify({ runningSince: now, accumulated: baseMs }));
-    } catch (e) {}
+  } catch (e) { console.warn('Failed to persist running state', e); }
   };
 
   const stopTimer = () => {
@@ -105,7 +118,7 @@ export default function TaskPage() {
     // cleanup persisted running state but keep accumulated value
     try {
       sessionStorage.setItem(storageKey, JSON.stringify({ accumulated: newBase }));
-    } catch (e) {}
+  } catch (e) { console.warn('Failed to persist accumulated time', e); }
   };
 
   const formatMs = ms => {
