@@ -81,10 +81,15 @@ const ArchivePage = () => {
   };
 
   const canRestore = (project) => {
-    if (!profileUser || !project) return false;
+    if (!profileUser || !project) {
+      console.log('canRestore: No user or project', { profileUser, project });
+      return false;
+    }
     const userIds = [profileUser._id, profileUser.username, profileUser.email].filter(Boolean).map(String);
     const owners = Array.from(getProjectOwners(project));
-    return userIds.some((u) => owners.includes(u));
+    const result = userIds.some((u) => owners.includes(u));
+    console.log('canRestore check:', { userIds, owners, result, project: project.name });
+    return result;
   };
 
   // helper kept for legacy but not used since app fetches from server
@@ -121,11 +126,14 @@ const ArchivePage = () => {
                     </h3>
                     <p>{project.description}</p>
                   </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 1 }}>
                       {canRestore(project) ? (
                         <button
                           className={styles.secondaryButton}
-                          onClick={async () => {
+                          style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             // restore archive via server (robust: handle missing id, log body on error)
                             try {
                               const id = project._id;

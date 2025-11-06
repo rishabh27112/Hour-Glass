@@ -103,7 +103,30 @@ export default function TaskPage() {
     // persist
     try {
       sessionStorage.setItem(storageKey, JSON.stringify({ runningSince: now, accumulated: baseMs }));
-  } catch (e) { console.warn('Failed to persist running state', e); }
+    } catch (e) { console.warn('Failed to persist running state', e); }
+
+    // Start native tracker if available
+    console.log('[TaskPage] Starting native tracker...');
+    try {
+      const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+      console.log('[TaskPage] TimeTracker available:', !!tt);
+      if (tt && typeof tt.start === 'function') {
+        const token = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
+        if (token && typeof tt.setAuthToken === 'function') {
+          console.log('[TaskPage] Setting auth token');
+          tt.setAuthToken(token);
+        }
+        const pId = project && project._id ? String(project._id) : String(projectId || '');
+        const title = (task && (task.title || task.name)) || 'Task';
+        console.log('[TaskPage] Calling TimeTracker.start with:', { project: pId, task: `${title} (${taskId})` });
+        tt.start('', pId, `${title} (${taskId})`, 200);
+        console.log('[TaskPage] TimeTracker.start called successfully');
+      } else {
+        console.warn('[TaskPage] TimeTracker.start not available');
+      }
+    } catch (err) { 
+      console.error('[TaskPage] Native tracker start failed:', err); 
+    }
   };
 
   const stopTimer = () => {
@@ -118,7 +141,27 @@ export default function TaskPage() {
     // cleanup persisted running state but keep accumulated value
     try {
       sessionStorage.setItem(storageKey, JSON.stringify({ accumulated: newBase }));
-  } catch (e) { console.warn('Failed to persist accumulated time', e); }
+    } catch (e) { console.warn('Failed to persist accumulated time', e); }
+
+    // Stop native tracker and flush
+    console.log('[TaskPage] Stopping native tracker...');
+    try {
+      const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+      console.log('[TaskPage] TimeTracker available for stop:', !!tt);
+      if (tt && typeof tt.stop === 'function') {
+        console.log('[TaskPage] Calling TimeTracker.stop');
+        tt.stop();
+        if (typeof tt.sendData === 'function') {
+          console.log('[TaskPage] Calling TimeTracker.sendData');
+          tt.sendData();
+        }
+        console.log('[TaskPage] TimeTracker stopped and data sent');
+      } else {
+        console.warn('[TaskPage] TimeTracker.stop not available');
+      }
+    } catch (err) { 
+      console.error('[TaskPage] Native tracker stop failed:', err); 
+    }
   };
 
   const formatMs = ms => {
