@@ -93,6 +93,27 @@ const ManagerDashboard = () => {
       return null;
     }
   });
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  // Manual trigger for notification job (calls server test route)
+  const handleNotifyDeadlines = async () => {
+    try {
+      setNotifLoading(true);
+      const res = await fetch('http://localhost:4000/api/notifications/test/run-reminders-now', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        alert(json.msg || 'Notification job executed successfully');
+      } else {
+        alert(json.error || json.message || 'Failed to run notification job');
+      }
+    } catch (err) {
+      alert('Error triggering notifications: ' + (err && err.message ? err.message : err));
+    } finally {
+      setNotifLoading(false);
+    }
+  };
   const [selectionMode, setSelectionMode] = useState('none');
   const [selected, setSelected] = useState([]);
   const navigate = useNavigate();
@@ -271,6 +292,16 @@ const ManagerDashboard = () => {
           <Link to='/'> <span>Hour Glass</span></Link>
         </div>
         <div className="relative">
+          <div className="hidden md:inline-block mr-3">
+            <button
+              className="bg-yellow-400 text-black font-semibold py-1 px-3 rounded-md hover:bg-yellow-500 text-sm"
+              onClick={handleNotifyDeadlines}
+              disabled={notifLoading}
+              title="Notify me of upcoming task deadlines"
+            >
+              {notifLoading ? 'Notifying...' : 'Notify Deadlines'}
+            </button>
+          </div>
           <button
             className="rounded-full h-9 w-9 overflow-hidden focus:outline-none 
                        hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
