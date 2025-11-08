@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ProfilePage from './pages/ProfilePage';
 import Dashboard from './pages/Dashboard';
 import ArchivePage from './pages/ArchivePage';
 import BinPage from './pages/BinPage';
@@ -22,6 +23,7 @@ const App = () => {
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/archive" element={<ArchivePage />} />
           <Route path="/bin" element={<BinPage />} />
           <Route path="/projects/:id" element={<ProjectPage />} />

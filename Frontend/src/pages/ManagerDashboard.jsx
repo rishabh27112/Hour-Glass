@@ -85,6 +85,8 @@ const ManagerDashboard = () => {
   const [search, setSearch] = useState('');
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+  const avatarButtonRef = useRef(null);
   const [profileUser, setProfileUser] = useState(() => {
     try {
       const raw = sessionStorage.getItem('user') || localStorage.getItem('user');
@@ -93,6 +95,68 @@ const ManagerDashboard = () => {
       return null;
     }
   });
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifPollRef = useRef(null);
+
+  // Manual trigger for notification job (calls server test route)
+  const handleNotifyDeadlines = async () => {
+    try {
+      setNotifLoading(true);
+      const res = await fetch('http://localhost:4000/api/notifications/test/run-reminders-now', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        alert(json.msg || 'Notification job executed successfully');
+        // after triggering server job, refresh notifications
+        fetchNotifications();
+        // server job runs asynchronously; refresh a couple more times to pick up created notifications
+        setTimeout(fetchNotifications, 1500);
+        setTimeout(fetchNotifications, 3500);
+      } else {
+        alert(json.error || json.message || 'Failed to run notification job');
+      }
+    } catch (err) {
+      alert('Error triggering notifications: ' + (err && err.message ? err.message : err));
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const getCurrentUserId = () => {
+    try {
+      const raw = sessionStorage.getItem('user') || localStorage.getItem('user');
+      const u = raw ? JSON.parse(raw) : null;
+      return (profileUser && (profileUser._id || profileUser.id)) || (u && (u._id || u.id)) || null;
+    } catch (e) {
+      console.warn('getCurrentUserId parse error', e && e.message);
+      return (profileUser && (profileUser._id || profileUser.id)) || null;
+    }
+  };
+
+  const fetchNotifications = async () => {
+    const uid = profileUser && (profileUser._id || profileUser.id) ? (profileUser._id || profileUser.id) : getCurrentUserId();
+    if (!uid) return;
+    try {
+      const res = await fetch(`http://localhost:4000/api/notifications/${uid}`, { credentials: 'include' });
+      if (!res.ok) return setNotifications([]);
+      const arr = await res.json().catch(() => []);
+      setNotifications(Array.isArray(arr) ? arr : []);
+    } catch (err) {
+      console.error('fetchNotifications error', err);
+      setNotifications([]);
+    }
+  };
+
+  // start polling notifications when profileUser is available
+  useEffect(() => {
+    if (!profileUser) return undefined;
+    fetchNotifications();
+    notifPollRef.current = setInterval(fetchNotifications, 60 * 1000);
+    return () => { if (notifPollRef.current) clearInterval(notifPollRef.current); };
+  }, [profileUser]);
   const [selectionMode, setSelectionMode] = useState('none');
   const [selected, setSelected] = useState([]);
   const navigate = useNavigate();
@@ -134,6 +198,25 @@ const ManagerDashboard = () => {
     verify();
     return () => { cancelled = true; };
   }, [navigate]);
+
+  // Close profile menu on outside click or Escape key
+  useEffect(() => {
+    function handleOutside(e) {
+      if (!profileOpen) return;
+      if (profileMenuRef.current && profileMenuRef.current.contains(e.target)) return;
+      if (avatarButtonRef.current && avatarButtonRef.current.contains(e.target)) return;
+      setProfileOpen(false);
+    }
+    function handleKey(e) {
+      if (e.key === 'Escape') setProfileOpen(false);
+    }
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [profileOpen]);
   useEffect(() => {
     try {
       sessionStorage.setItem('hg_projects', JSON.stringify(projects));
@@ -271,30 +354,54 @@ const ManagerDashboard = () => {
           <Link to='/'> <span>Hour Glass</span></Link>
         </div>
         <div className="relative">
+          <div className="hidden md:inline-block mr-3">
+            <button
+              className="bg-yellow-400 text-black font-semibold py-1 px-3 rounded-md hover:bg-yellow-500 text-sm"
+              onClick={handleNotifyDeadlines}
+              disabled={notifLoading}
+              title="Notify me of upcoming task deadlines"
+            >
+              {notifLoading ? 'Notifying...' : 'Notify Deadlines'}
+            </button>
+          </div>
+            {/* Notifications bell */}
+            <div className="inline-block mr-3 relative">
+              <button
+                className="rounded-full h-9 w-9 flex items-center justify-center focus:outline-none hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
+                onClick={() => { setNotifOpen((v) => !v); if (!notifOpen) fetchNotifications(); }}
+                aria-label="Notifications"
+              >
+                <span style={{ fontSize: 18 }}>🔔</span>
+                {notifications && notifications.length > 0 && (
+                  <span style={{ position: 'absolute', top: -6, right: -6, background: '#e11', color: '#fff', borderRadius: 12, padding: '2px 6px', fontSize: 12 }}>{notifications.length}</span>
+                )}
+              </button>
+              {notifOpen && (
+                <div className="absolute right-0 mt-2 w-80 max-h-80 overflow-auto bg-white text-black rounded shadow-lg z-50">
+                  <div className="px-3 py-2 border-b font-semibold">Notifications</div>
+                  <div>
+                    {notifications && notifications.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-600">No notifications</div>
+                    )}
+                    {notifications && notifications.map((n) => (
+                      <div key={n._id} className="px-3 py-2 border-b text-sm">
+                        <div className="font-medium">{n.taskTitle || n.message}</div>
+                        <div className="text-xs text-gray-500">{(n.sentAt || n.createdAt) ? new Date(n.sentAt || n.createdAt).toLocaleString() : ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           <button
             className="rounded-full h-9 w-9 overflow-hidden focus:outline-none 
                        hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
-            onClick={async () => {
-              const newVal = !profileOpen;
-              setProfileOpen(newVal);
-              if (newVal) {
-                try {
-                  const res = await fetch('http://localhost:4000/api/user/data', {
-                    method: 'GET',
-                    credentials: 'include',
-                  });
-                  const json = await res.json();
-                  if (json && json.success && json.userData) {
-                    setProfileUser(json.userData);
-                    try {
-                      const storage = sessionStorage.getItem('user') ? sessionStorage : localStorage;
-                      storage.setItem('user', JSON.stringify(json.userData));
-                    } catch (err) { }
-                  }
-                } catch (err) { }
-              }
+            ref={avatarButtonRef}
+            onClick={() => {
+              // Toggle profile menu instead of navigating directly
+              setProfileOpen((v) => !v);
             }}
-            aria-label="Open profile menu"
+            aria-label="Open profile page"
           >
             <div className="h-9 w-9 bg-surface-light flex items-center justify-center text-cyan text-lg font-bold">
               {profileUser?.username ? profileUser.username.charAt(0).toUpperCase() : 'U'}
@@ -303,11 +410,18 @@ const ManagerDashboard = () => {
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-surface-light rounded-lg shadow-xl z-50 py-1" role="menu">
+            <div ref={profileMenuRef} className="absolute right-0 mt-2 w-56 bg-surface-light rounded-lg shadow-xl z-50 py-1" role="menu">
               <div className="block px-4 py-2 text-sm text-gray-400" role="menuitem">
                 Signed in as <br />
                 <strong className="text-gray-200">{profileUser?.username || profileUser?.email || profileUser?.name || 'User'}</strong>
               </div>
+              <button
+                className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white"
+                role="menuitem"
+                onClick={() => { setProfileOpen(false); navigate('/profile'); }}
+              >
+                Profile
+              </button>
               <button
                 className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white"
                 role="menuitem"
@@ -318,9 +432,10 @@ const ManagerDashboard = () => {
                       credentials: 'include',
                       headers: { 'Content-Type': 'application/json' },
                     });
-                  } catch (err) { }
+                  } catch (err) { console.warn('logout failed', err); }
                   try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
                   try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
+                  setProfileOpen(false);
                   navigate('/signin');
                 }}
               >

@@ -4,6 +4,59 @@ import styles from './ProjectPage.module.css';
 import EditMembers from './ProjectPage/EditMembers.jsx';
 import TasksPanel from './ProjectPage/TasksPanel.jsx';
 
+// --- Native time tracker helpers (Electron preload exposes window.TimeTracker) ---
+const getTimeTracker = () => (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+
+function startNativeTrackerForTask(project, task, taskId, currentUser) {
+  console.log('[ProjectPage] startNativeTrackerForTask called:', { project: project?._id, taskId });
+  const tt = getTimeTracker();
+  console.log('[ProjectPage] TimeTracker available:', !!tt);
+  if (!tt || typeof tt.start !== 'function') {
+    console.warn('[ProjectPage] TimeTracker.start not available');
+    return;
+  }
+  try {
+    try {
+      const webToken = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
+      if (webToken && typeof tt.setAuthToken === 'function') {
+        console.log('[ProjectPage] Setting auth token');
+        tt.setAuthToken(webToken);
+      }
+    } catch {}
+    const projId = (project && project._id) ? String(project._id) : '';
+    const taskTitle = (task && (task.title || task.name)) || 'Task';
+    const userStr = (currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
+    console.log('[ProjectPage] Calling TimeTracker.start with:', { user: userStr, project: projId, task: `${taskTitle} (${taskId})` });
+    tt.start(String(userStr), String(projId), `${taskTitle} (${taskId})`, 200);
+    console.log('[ProjectPage] TimeTracker.start completed');
+  } catch (e) {
+    console.error('[ProjectPage] TimeTracker.start failed:', e);
+  }
+}
+
+function stopNativeTrackerAndFlush() {
+  console.log('[ProjectPage] stopNativeTrackerAndFlush called');
+  const tt = getTimeTracker();
+  console.log('[ProjectPage] TimeTracker available for stop:', !!tt);
+  if (!tt) {
+    console.warn('[ProjectPage] TimeTracker not available');
+    return;
+  }
+  try {
+    if (typeof tt.stop === 'function') {
+      console.log('[ProjectPage] Calling TimeTracker.stop');
+      tt.stop();
+    }
+    if (typeof tt.sendData === 'function') {
+      console.log('[ProjectPage] Calling TimeTracker.sendData');
+      tt.sendData();
+    }
+    console.log('[ProjectPage] TimeTracker stopped and flushed');
+  } catch (e) {
+    console.error('[ProjectPage] TimeTracker.stop/sendData failed:', e);
+  }
+}
+
 const ProjectPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -71,6 +124,8 @@ const ProjectPage = () => {
   const [activeTimer, setActiveTimer] = useState(initialActiveTimer);
   const [timerNow, setTimerNow] = useState(Date.now());
 
+  // NOTE: notify button/handler was moved to the Dashboard top bar.
+
   const getTaskKey = (task, idx) => (task && (task._id || task._clientId)) || `task-${idx}`;
 
   const formatDuration = (ms) => {
@@ -125,6 +180,19 @@ const ProjectPage = () => {
       }
       return copy;
     });
+
+    // Stop native tracker and flush data to server/local file
+    const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+    if (tt && typeof tt.stop === 'function') {
+      try {
+        tt.stop();
+        // Optional immediate sync
+        if (typeof tt.sendData === 'function') {
+          tt.sendData();
+        }
+      } catch (e) { console.warn('TimeTracker.stop/sendData failed', e); }
+    }
+
     setActiveTimer(null);
     persistActiveTimer(null);
   };
@@ -168,6 +236,24 @@ const ProjectPage = () => {
     const timer = { taskId, startedAt: Date.now(), startedBy: (currentUser && currentUser.username) || null };
     setActiveTimer(timer);
     persistActiveTimer(timer);
+
+    // Start native tracker in Electron (if available)
+    const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+    if (tt && typeof tt.start === 'function') {
+      try {
+        // Try to pass token if stored in web storage (non-httpOnly). Main also reads httpOnly cookie automatically.
+        try {
+          const webToken = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
+          if (webToken && typeof tt.setAuthToken === 'function') tt.setAuthToken(webToken);
+        } catch {}
+        const projId = (p && p._id) ? String(p._id) : '';
+        const taskTitle = task.title || task.name || 'Task';
+        const userStr = (currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
+        tt.start(String(userStr), String(projId), `${taskTitle} (${taskId})`, 200);
+      } catch (e) {
+        console.warn('TimeTracker.start failed', e);
+      }
+    }
   };
   
   // Handler to submit Add Task (extracted from inline handler)
@@ -677,9 +763,11 @@ const ProjectPage = () => {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <button onClick={() => navigate(-1)} className={styles.back}>← Back</button>
-        <h2>{project.name}</h2>
+      <div className={styles.header} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => navigate(-1)} className={styles.back}>← Back</button>
+        </div>
+        <h2 style={{ margin: 0 }}>{project.name}</h2>
       </div>
       {/* Active timer bar: only visible to the starter, a manager, or the project owner */}
       {activeTimer && (() => {

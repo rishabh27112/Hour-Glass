@@ -37,6 +37,7 @@ export default function TasksPanel(props) {
     projectOwner,
   } = props;
 
+
   const handleCancel = () => {
     setShowAddTaskDialog(false);
     setTaskTitle('');

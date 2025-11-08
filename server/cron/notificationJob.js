@@ -50,16 +50,23 @@ export default async function runNotificationJob() {
           await notification.save();
 
           // Send email if enabled
+          let emailOk = false;
           if (notification.channels.email) {
-            await sendEmail(task.assignee.email, "Task Due Reminder", message);
+            try {
+              emailOk = await sendEmail(task.assignee.email, "Task Due Reminder", message);
+            } catch (e) {
+              console.error('sendEmail threw error:', e && (e.message || e));
+              emailOk = false;
+            }
           }
 
-          // Mark as sent
-          notification.isSent = true;
-          notification.sentAt = new Date();
+          // Mark notification status depending on email result
+          notification.isSent = notification.channels.email ? !!emailOk : true;
+          notification.sentAt = notification.isSent ? new Date() : null;
+          if (!notification.isSent) notification.message = `EMAIL_FAILED: ${notification.message}`;
           await notification.save();
 
-          console.log(`📧 Sent reminder for task "${task.title}"`);
+          console.log(notification.isSent ? `📧 Sent reminder for task "${task.title}"` : `⚠️ Failed to send email for task "${task.title}"`);
         }
       }
     }
