@@ -46,6 +46,7 @@ export class FileStorageManager {
     
     return key;
   }
+  
   private ensureFileExists(): void {
     try {
       if (!fs.existsSync(this.filePath)) {

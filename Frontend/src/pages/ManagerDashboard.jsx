@@ -205,13 +205,14 @@ const ManagerDashboard = () => {
           _id: (created && created._id) || `local-${Date.now()}`,
           name: (created && (created.ProjectName || created.name)) || projectName,
           description: (created && (created.Description || created.description)) || projectDescription,
-          employees: membersList,
+          employees: membersArr,
+          members: (created && created.members) || addedMembers || [],
           archived: false,
           deleted: false,
           owner: ownerId,
           // include a populated createdBy object when possible so downstream pages can match the creator reliably
           createdBy: (created && created.createdBy) || (profileUser || currentUser) || ownerId,
-          raw: created || { ProjectName: projectName, Description: projectDescription, members: membersList, createdBy: (profileUser || currentUser || ownerId) },
+          raw: created || { ProjectName: projectName, Description: projectDescription, members: addedMembers, createdBy: (profileUser || currentUser || ownerId) },
         };
         setProjects((prev) => {
           const next = [localProject, ...prev];
@@ -220,29 +221,28 @@ const ManagerDashboard = () => {
         });
         alert('Project created successfully');
         setProjectName(''); setProjectDescription(''); setEmployees(''); setIsAddingProject(false);
+        setAddedMembers([]); // Clear added members
+        
+        // Add members in the background without refetching
         (async () => {
-          try {
-            if (created && created._id && Array.isArray(addedMembers) && addedMembers.length > 0) {
-              for (const u of addedMembers) {
-                const payload = {};
-                if (u.email) payload.email = u.email;
-                else if (u._id) payload.userId = u._id;
-                else if (u.username) payload.username = u.username;
-                else continue;
-                try {
-                  await fetch(`http://localhost:4000/api/projects/${created._id}/members`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                  });
-                } catch (err) {
-                  console.error('add member during create failed for', u, err);
-                }
+          if (created && created._id && Array.isArray(addedMembers) && addedMembers.length > 0) {
+            for (const u of addedMembers) {
+              const payload = {};
+              if (u.email) payload.email = u.email;
+              else if (u._id) payload.userId = u._id;
+              else if (u.username) payload.username = u.username;
+              else continue;
+              try {
+                await fetch(`http://localhost:4000/api/projects/${created._id}/members`, {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                });
+              } catch (err) {
+                console.error('add member during create failed for', u, err);
               }
             }
-          } finally {
-            fetchProjects();
           }
         })();
       } else {
@@ -773,7 +773,8 @@ const ManagerDashboard = () => {
                 </span>
                 <div className="flex gap-2">
                   <button
-                    className="bg-cyan text-brand-bg font-semibold py-1.5 px-3 rounded-md text-sm flex items-center gap-2"
+                    className="bg-cyan text-brand-bg font-semibold py-1.5 px-3 rounded-md text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={selected.length === 0}
                     onClick={() => {
                       if (selected.length === 0) return;
                       (async () => {
@@ -835,6 +836,14 @@ const ManagerDashboard = () => {
                           {selectionMode !== 'none' && (
                             <input
                               type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelected([...selected, realIndex]);
+                                } else {
+                                  setSelected(selected.filter(i => i !== realIndex));
+                                }
+                              }}
                               className="h-4 w-4 rounded bg-surface-light border-gray-500 text-cyan focus:ring-cyan mr-3"
                             />
                           )}

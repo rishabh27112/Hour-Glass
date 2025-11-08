@@ -1,7 +1,7 @@
 {
     "appId": "com.hourglass.app",
     "productName": "Hour Glass",
-    "icon": "../Logo/logo.png",
+    "icon": "../Frontend/piblic/logo.svg",
     "directories": {
         "output": "build"
     },
