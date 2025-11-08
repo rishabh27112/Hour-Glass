@@ -7,6 +7,22 @@ import * as https from 'node:https';
 
 let mainWindow: BrowserWindow | null = null;
 
+// Helper to emit a log message to renderer (and console). Renderer can subscribe via IPC.
+function emitRendererLog(message: string, data?: any) {
+	try {
+		console.log(message, data ?? '');
+	} catch (e) {
+		// ignore
+	}
+	try {
+		if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+			mainWindow.webContents.send('TimeTracker:log', { message, data, ts: new Date().toISOString() });
+		}
+	} catch (err) {
+		// ignore
+	}
+}
+
 function createWindow() {
 	mainWindow = new BrowserWindow({
 		width: 1000,
@@ -35,7 +51,7 @@ class SystemResourceMonitor {
   private monitorInterval: NodeJS.Timeout | null = null;
 
   public startMonitoring(intervalMs: number = 100) {
-	console.log('Started Monitoring');	
+	emitRendererLog('[TimeTracker] SystemResourceMonitor started');
 
 		this.monitorInterval = setInterval(async () => {
 			this.currentWindow = await this.setActiveWindowInfo();
@@ -87,13 +103,16 @@ class TimeTracker {
 	private project_id: string | null;
 	private task_id: string | null;
 
+	// running state
+	private _running: boolean = false;
+
 	constructor(sys:SystemResourceMonitor) {
 		this.sm = sys;
 		this.storage = new FileStorageManager();
 		this.user_id = null;
 		this.project_id = null;
 		this.task_id = null;
-		console.log(`TimeTracker initialized with storage at: ${this.storage.getFilePath()}`);
+		emitRendererLog('[TimeTracker] TimeTracker initialized', { path: this.storage.getFilePath() });
 	}
 
 	public setAuthToken(token: string) {
@@ -126,7 +145,7 @@ class TimeTracker {
 			await this.autoSync();
 		}, 30000);
 		
-		console.log('Auto-sync started (30 second interval)');
+		emitRendererLog('[TimeTracker] Auto-sync started (30 second interval)');
 	}
 
 	//Check if we have internet connectivity
@@ -160,7 +179,7 @@ class TimeTracker {
 	//Auto-sync: save to local file and send to server if online
 	private async autoSync(): Promise<void> {
 		if (this.isSyncing) {
-			console.log('Sync already in progress, skipping...');
+			emitRendererLog('[TimeTracker] Sync already in progress, skipping');
 			return;
 		}
 
@@ -170,14 +189,14 @@ class TimeTracker {
 			// Save current in-memory entries to local file
 			if (this.entries.length > 0) {
 				await this.storage.appendEntries(this.entries);
-				console.log(`Saved ${this.entries.length} entries to local storage`);
+				emitRendererLog('[TimeTracker] Saved entries to local storage', { count: this.entries.length });
 				this.entries = []; // Clear in-memory entries after saving
 			}
 
 			const isOnline = await this.checkOnlineStatus();
 			
 			if (isOnline) {
-				console.log('Online - attempting to sync with server');
+				emitRendererLog('[TimeTracker] Online - attempting to sync with server');
 				
 				const isEmpty = await this.storage.isEmpty();
 				
@@ -185,23 +204,23 @@ class TimeTracker {
 					const allEntries = await this.storage.readEntries();
 					
 					if (allEntries.length > 0) {
-						console.log(`Found ${allEntries.length} entries to sync to server`);
+						emitRendererLog('[TimeTracker] Found entries to sync to server', { count: allEntries.length });
 						
 						const success = await this.sendToServer(allEntries);
 						
 						if (success) {
 							await this.storage.clearFile();
-							console.log('Successfully synced to server and cleared local storage');
+							emitRendererLog('[TimeTracker] Successfully synced to server and cleared local storage');
 						} else {
-							console.log('Failed to sync to server, keeping local data');
+							emitRendererLog('[TimeTracker] Failed to sync to server, keeping local data');
 						}
 					}
 				}
 			} else {
-				console.log('Offline - data saved to local storage only');
+				emitRendererLog('[TimeTracker] Offline - data saved to local storage only');
 			}
 		} catch (error) {
-			console.error('Error during auto-sync:', error);
+			emitRendererLog('[TimeTracker] Error during auto-sync', { error: String(error) });
 		} finally {
 			this.isSyncing = false;
 		}
@@ -210,7 +229,7 @@ class TimeTracker {
 	// Send entries to server (POST /api/time-entries one-by-one)
 	private async sendToServer(entries: TimeEntry[]): Promise<boolean> {
 		console.log("ok");
-		console.log(`Sending ${entries.length} entries to server (/api/time-entries)`);
+			emitRendererLog('[TimeTracker] Preparing to send entries to server', { count: entries.length });
 		let allOk = true;
 		try {
 			// Ensure we have an auth token from the app session, if possible
@@ -246,25 +265,25 @@ class TimeTracker {
 						const data = await res.json().catch(() => ({} as any));
 						// Require created status and an object resembling a saved entry
 						if (res.status === 201 && (data?._id || data?.appointment)) {
-							console.log("Server stored entry:", data._id ?? 'ok');
+							emitRendererLog('[TimeTracker] Server stored entry', { id: data._id ?? 'ok' });
 						} else {
 							allOk = false;
-							console.error(`Unexpected success response for entry ${i + 1}/${entries.length}:`, res.status, data);
+							emitRendererLog('[TimeTracker] Unexpected success response for entry', { index: i + 1, total: entries.length, status: res.status, data });
 						}
 					} else {
 						allOk = false;
 						const text = await res.text();
-						console.error(`Failed to sync entry ${i + 1}/${entries.length}:`, res.status, text);
+						emitRendererLog('[TimeTracker] Failed to sync entry', { index: i + 1, total: entries.length, status: res.status, text });
 					}
 				} catch (err) {
 					allOk = false;
-					console.error(`Error sending entry ${i + 1}/${entries.length}:`, err);
+					emitRendererLog('[TimeTracker] Error sending entry', { index: i + 1, total: entries.length, error: String(err) });
 				}
 			}
 
 			return allOk;
 		} catch (error) {
-			console.error('Error sending to server:', error);
+			emitRendererLog('[TimeTracker] Error sending to server', { error: String(error) });
 			return false;
 		}
 	}
@@ -273,24 +292,26 @@ class TimeTracker {
 		this.user_id = usr;
 		this.project_id = proj;
 		this.task_id = task;
-		
-		console.log(`[TimeTracker] Starting tracking:`, { user: usr, project: proj, task, intervalMs });
-		console.log(`[TimeTracker] Storage path:`, this.storage.getFilePath());
+
+		// mark running
+		this._running = true;
+
+		emitRendererLog('[TimeTracker] Starting tracking', { user: usr, project: proj, task, intervalMs });
+		emitRendererLog('[TimeTracker] Storage path', { path: this.storage.getFilePath() });
 		
 		// Start the system resource monitor to track active windows
 		this.sm.startMonitoring();
-		console.log(`[TimeTracker] System resource monitor started`);
+		emitRendererLog('[TimeTracker] System resource monitor started');
 		
 		// Start auto-sync when tracking starts
 		this.startAutoSync();
 		
 		this.trackingInterval = setInterval(async () => {
 			const activeWindow = this.sm.getCurrentWindowInfo();
-			console.log(`[TimeTracker] Active window check:`, activeWindow?.title || 'null', activeWindow?.owner?.name || 'null');
 			const now = new Date();
 
 			if (!this.currentEntry){
-				console.log(`[TimeTracker] No current entry, initializing new entry for ${activeWindow?.title}`);
+				emitRendererLog('[TimeTracker] No current entry, initializing new entry', { title: activeWindow?.title });
 				if(activeWindow && activeWindow.title !== "Unknown"){
 					this.currentEntry = {
 						apptitle: activeWindow?.title || "Unknown",
@@ -299,7 +320,7 @@ class TimeTracker {
 						endTime: now,
 						duration: 0,
 					};
-					console.log(`[TimeTracker] Created new entry:`, this.currentEntry.apptitle);
+					emitRendererLog('[TimeTracker] Created new entry', { title: this.currentEntry.apptitle });
 				}
 				return;
 			}
@@ -311,9 +332,9 @@ class TimeTracker {
 				const ce = this.currentEntry;
 				if (ce?.startTime && ce?.endTime && (ce.endTime.getTime() - ce.startTime.getTime() > 2000)) {
 					ce.duration = (ce.endTime.getTime() - ce.startTime.getTime()) / 1000;
-					console.log(`[TimeTracker] Pushing entry: ${ce.appname} (${ce.apptitle})\n\t duration: ${ce.duration} seconds`);
-					this.entries.push(ce);
-					console.log(`[TimeTracker] Total entries in memory: ${this.entries.length}`);
+						emitRendererLog('[TimeTracker] Pushing entry', { app: ce.appname, title: ce.apptitle, duration: ce.duration });
+						this.entries.push(ce);
+						emitRendererLog('[TimeTracker] Total entries in memory', { count: this.entries.length });
 				
 
 
@@ -336,7 +357,7 @@ class TimeTracker {
 	public async saveTrackingData(): Promise<void> {
 		if (this.entries.length > 0) {
 			await this.storage.appendEntries(this.entries);
-			console.log(`Manually saved ${this.entries.length} entries to local storage`);
+			emitRendererLog('[TimeTracker] Manually saved entries to local storage', { count: this.entries.length });
 			this.entries = [];
 		}
 	}
@@ -354,7 +375,7 @@ class TimeTracker {
 	}
 
 	public async stopTracking(): Promise<void> {
-		console.log('[TimeTracker] Stopping tracking...');
+		emitRendererLog('[TimeTracker] Stopping tracking');
 		if (this.trackingInterval) {
 			clearInterval(this.trackingInterval);
 			this.trackingInterval = null;
@@ -365,22 +386,72 @@ class TimeTracker {
 		}
 		// Stop the system resource monitor
 		this.sm.stopMonitoring();
-		console.log('[TimeTracker] System resource monitor stopped');
+		emitRendererLog('[TimeTracker] System resource monitor stopped');
 		
 		if (this.currentEntry) {
 			this.entries.push(this.currentEntry);
 			this.currentEntry = null;
 		}
+		// Aggregate and emit a summary for UI instead of printing each entry
+		try {
+			this.aggregateSummary();
+			// summary already emitted inside aggregateSummary
+		} catch (err) {
+			emitRendererLog('[TimeTracker] Summary generation failed', { error: String(err) });
+		}
+
 		if (this.entries.length > 0) {
 			await this.saveTrackingData();
 		}
-		console.log('[TimeTracker] Tracking stopped');
+		// mark stopped
+		this._running = false;
+		emitRendererLog('[TimeTracker] Tracking stopped');
 	}
 
 	public printEntries() {
 		for (const entry of this.entries) {
-			console.log(`${entry.appname} - ${entry.apptitle}: ${entry.startTime.toISOString()} to ${entry.endTime.toISOString()} (${entry.duration} seconds)`);
+			emitRendererLog('[TimeTracker] Entry', { app: entry.appname, title: entry.apptitle, start: entry.startTime?.toISOString(), end: entry.endTime?.toISOString(), duration: entry.duration });
 		}
+	}
+
+	/**
+	 * Aggregate total time spent per unique app/title key and return an array
+	 * Each item: { key: string, seconds: number, pretty: string }
+	 */
+	public aggregateSummary() {
+		const map = new Map<string, number>();
+		// include persisted in-memory entries and any currentEntry
+		const allEntries: TimeEntry[] = [];
+		if (this.entries?.length) allEntries.push(...this.entries);
+		if (this.currentEntry) {
+			// ensure currentEntry has computed duration
+			const ce = this.currentEntry;
+			if (ce.startTime && ce.endTime) {
+				ce.duration = (ce.endTime.getTime() - ce.startTime.getTime()) / 1000;
+			}
+			allEntries.push(ce);
+		}
+
+		for (const e of allEntries) {
+			const app = e.appname || 'Unknown App';
+			const title = e.apptitle || 'Unknown Title';
+			const key = `${app} :: ${title}`;
+			const seconds = typeof e.duration === 'number' ? e.duration : 0;
+			map.set(key, (map.get(key) || 0) + seconds);
+		}
+
+		const out = Array.from(map.entries()).map(([key, seconds]) => ({ key, seconds, pretty: TimeTracker.formatSeconds(seconds) }));
+		emitRendererLog('[TimeTracker] Summary', { summary: out });
+		return out;
+	}
+
+	private static formatSeconds(sec: number) {
+		const s = Math.max(0, Math.floor(sec));
+		const hh = Math.floor(s / 3600);
+		const mm = Math.floor((s % 3600) / 60);
+		const ss = s % 60;
+		const pad = (v: number) => String(v).padStart(2, '0');
+		return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
 	}
 }
 
@@ -402,32 +473,58 @@ ipcMain.handle("getCurrentWindow:stop", () => {
 
 
 
-ipcMain.handle('TimeTracker:start', (event, usr: string, proj: string, task: string, intervalMs?: number) => {
+ipcMain.handle('TimeTracker:start', async (event, usr: string, proj: string, task: string, intervalMs?: number) => {
 	console.log('[IPC] TimeTracker:start called with:', { usr, proj, task, intervalMs });
+	emitRendererLog('[IPC] TimeTracker:start called', { usr, proj, task, intervalMs });
 	// Normalize IDs to primitive strings
 	const userId = usr?.toString();
 	const projectId = proj?.toString();
 	const taskId = task?.toString();
-	tracker.startTracking(userId, projectId, taskId, intervalMs ?? 200);
-	console.log('[IPC] TimeTracker:start completed');
+	try {
+		tracker.startTracking(userId, projectId, taskId, intervalMs ?? 200);
+		console.log('[IPC] TimeTracker:start completed');
+		emitRendererLog('[IPC] TimeTracker:start completed');
+		return { ok: true };
+	} catch (err) {
+		console.error('[IPC] TimeTracker:start failed', err);
+		emitRendererLog('[IPC] TimeTracker:start failed', { error: String(err) });
+		return { ok: false, error: String(err) };
+	}
 });
 
 
 ipcMain.handle('TimeTracker:stop', async () => {
 	console.log('[IPC] TimeTracker:stop called');
+	emitRendererLog('[IPC] TimeTracker:stop called');
 	await tracker.stopTracking();
 	console.log('[IPC] TimeTracker:stop completed');
+	emitRendererLog('[IPC] TimeTracker:stop completed');
 });
 ipcMain.handle('TimeTracker:sendData', async () => {
 	console.log('[IPC] TimeTracker:sendData called');
+	emitRendererLog('[IPC] TimeTracker:sendData called');
 	await tracker.sendTrackingData();
 	console.log('[IPC] TimeTracker:sendData completed');
+	emitRendererLog('[IPC] TimeTracker:sendData completed');
+});
+// Provide a simple status endpoint for debugging
+ipcMain.handle('TimeTracker:status', async () => {
+	try {
+		return {
+			running: !!(tracker as any)?._running,
+			entriesInMemory: (tracker as any)?.entries?.length ?? 0,
+		};
+	} catch (err) {
+		return { running: false, error: String(err) };
+	}
 });
 ipcMain.handle('TimeTracker:saveData', async () => {
 	await tracker.saveTrackingData();
+	emitRendererLog('[IPC] TimeTracker:saveData called');
 });
 ipcMain.handle('TimeTracker:printEntries', () => {
 	tracker.printEntries();
+	emitRendererLog('[IPC] TimeTracker:printEntries called');
 });
 ipcMain.handle('TimeTracker:isStorageEmpty', async () => {
 	return await tracker.isStorageEmpty();

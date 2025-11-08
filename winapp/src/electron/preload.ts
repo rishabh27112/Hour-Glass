@@ -17,4 +17,11 @@ contextBridge.exposeInMainWorld('TimeTracker', {
   readStoredEntries: () => ipcRenderer.invoke('TimeTracker:readStoredEntries'),
   clearStorage: () => ipcRenderer.invoke('TimeTracker:clearStorage'),
   setAuthToken: (token: string) => ipcRenderer.invoke('TimeTracker:setAuthToken', token),
+  status: () => ipcRenderer.invoke('TimeTracker:status'),
+  onLog: (cb: (msg: any) => void) => {
+    // register a listener for log events from main
+    ipcRenderer.on('TimeTracker:log', (event, data) => {
+      try { cb(data); } catch (err) { console.error('TimeTracker.onLog callback error', err); }
+    });
+  }
 });

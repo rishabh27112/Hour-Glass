@@ -85,6 +85,8 @@ const ManagerDashboard = () => {
   const [search, setSearch] = useState('');
   const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+  const avatarButtonRef = useRef(null);
   const [profileUser, setProfileUser] = useState(() => {
     try {
       const raw = sessionStorage.getItem('user') || localStorage.getItem('user');
@@ -196,6 +198,25 @@ const ManagerDashboard = () => {
     verify();
     return () => { cancelled = true; };
   }, [navigate]);
+
+  // Close profile menu on outside click or Escape key
+  useEffect(() => {
+    function handleOutside(e) {
+      if (!profileOpen) return;
+      if (profileMenuRef.current && profileMenuRef.current.contains(e.target)) return;
+      if (avatarButtonRef.current && avatarButtonRef.current.contains(e.target)) return;
+      setProfileOpen(false);
+    }
+    function handleKey(e) {
+      if (e.key === 'Escape') setProfileOpen(false);
+    }
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [profileOpen]);
   useEffect(() => {
     try {
       sessionStorage.setItem('hg_projects', JSON.stringify(projects));
@@ -375,9 +396,10 @@ const ManagerDashboard = () => {
           <button
             className="rounded-full h-9 w-9 overflow-hidden focus:outline-none 
                        hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
+            ref={avatarButtonRef}
             onClick={() => {
-              // Navigate directly to profile page when the user clicks the avatar
-              navigate('/profile');
+              // Toggle profile menu instead of navigating directly
+              setProfileOpen((v) => !v);
             }}
             aria-label="Open profile page"
           >
@@ -388,11 +410,18 @@ const ManagerDashboard = () => {
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-surface-light rounded-lg shadow-xl z-50 py-1" role="menu">
+            <div ref={profileMenuRef} className="absolute right-0 mt-2 w-56 bg-surface-light rounded-lg shadow-xl z-50 py-1" role="menu">
               <div className="block px-4 py-2 text-sm text-gray-400" role="menuitem">
                 Signed in as <br />
                 <strong className="text-gray-200">{profileUser?.username || profileUser?.email || profileUser?.name || 'User'}</strong>
               </div>
+              <button
+                className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white"
+                role="menuitem"
+                onClick={() => { setProfileOpen(false); navigate('/profile'); }}
+              >
+                Profile
+              </button>
               <button
                 className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-surface hover:text-white"
                 role="menuitem"
@@ -403,9 +432,10 @@ const ManagerDashboard = () => {
                       credentials: 'include',
                       headers: { 'Content-Type': 'application/json' },
                     });
-                  } catch (err) { }
+                  } catch (err) { console.warn('logout failed', err); }
                   try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
                   try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
+                  setProfileOpen(false);
                   navigate('/signin');
                 }}
               >

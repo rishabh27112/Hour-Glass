@@ -1,9 +1,8 @@
-
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './DashboardPage.module.css';
 
-const stats = [
+const stats=[
   {
     icon: <span className={styles.statIconBg} style={{background: 'linear-gradient(135deg,#ffecd2 0%,#fcb69f 100%)'}}>⏰</span>,
     title: 'Total Hours',
@@ -22,17 +21,17 @@ const stats = [
 ];
 
 
-const DashboardPage = () => {
-  const [dropdownOpen, setDropdownOpen] = React.useState(false);
-  const dropdownRef = React.useRef(null);
-  const [user, setUser] = React.useState(null);
+const DashboardPage=()=>{
+  const [dropdownOpen, setDropdownOpen]=useState(false);
+  const dropdownRef =useRef(null);
+  const [user, setUser] =useState(null);
   const navigate = useNavigate();
 
   // Check authentication on mount
   // Check authentication on mount using cookie-based session on the server
-    React.useEffect(() => {
+    useEffect(()=>{
     let mounted = true;
-    const checkAuth = async () => {
+    const checkAuth = async()=>{
       try {
         const res = await fetch('http://localhost:4000/api/auth/is-auth', {
           method: 'POST',
@@ -40,7 +39,8 @@ const DashboardPage = () => {
           headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
-        if (!mounted) return;
+        if (!mounted) 
+          return;
         if (!data.success) {
           navigate('/login');
           return;
@@ -62,21 +62,28 @@ const DashboardPage = () => {
           const token = storage.getItem('token');
           const storedUser = storage.getItem('user');
           if (token && storedUser) {
-            try { setUser(JSON.parse(storedUser)); } catch (err) { navigate('/'); }
-          } else {
+            try { setUser(JSON.parse(storedUser)); } 
+            catch (err) { 
+              navigate('/'); 
+            }
+          } 
+          else {
             navigate('/login');
           }
         }
-      } catch (err) {
+      } catch (err) 
+      {
         navigate('/login');
       }
     };
     checkAuth();
-    return () => { mounted = false; };
+    return () => { 
+      mounted = false; 
+    };
   }, [navigate]);
 
   // Close dropdown on outside click
-  React.useEffect(() => {
+  useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
@@ -89,7 +96,13 @@ const DashboardPage = () => {
   }, []);
 
   // Logout handler
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // attempt server logout to clear httpOnly cookies
+      await fetch('http://localhost:4000/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (err) {
+      console.warn('Server logout failed', err);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     sessionStorage.removeItem('token');
@@ -118,25 +131,24 @@ const DashboardPage = () => {
             <a href="#report" className={styles.navLink}>Report</a>
             <a href="#calendar" className={styles.navLink}>Calendar</a>
             <a href="#projects" className={styles.navLink}>Projects</a>
-            <div
-              className={styles.profileDropdownWrapper}
-              ref={dropdownRef}
-              tabIndex={0}
-              onMouseEnter={() => setDropdownOpen(true)}
-              onMouseLeave={() => setDropdownOpen(false)}
-              onClick={() => setDropdownOpen((open) => !open)}
-              aria-haspopup="true"
-              aria-expanded={dropdownOpen}
-            >
-              <span className={styles.profileText}>{user ? (user.name || user.fullName || 'Profile') : 'Profile'}</span>
+            <div className={styles.profileDropdownWrapper} ref={dropdownRef}>
+              <button
+                type="button"
+                className={styles.profileToggle}
+                onClick={() => setDropdownOpen((open) => !open)}
+                aria-haspopup="true"
+                aria-expanded={dropdownOpen}
+              >
+                <span className={styles.profileText}>{user ? (user.name || user.fullName || 'Profile') : 'Profile'}</span>
+              </button>
               {dropdownOpen && (
-                <div className={styles.profileDropdownMenu}>
-                  <button className={styles.profileDropdownItem} onClick={() => navigate('/profile')}>View Profile</button>
-                  <button className={styles.profileDropdownItem} onClick={handleLogout}>Logout</button>
-                <button className={styles.profileDropdownItem} disabled>Settings</button>
-              </div>
-            )}
-          </div>
+                <div className={styles.profileDropdownMenu} role="menu">
+                  <button role="menuitem" className={styles.profileDropdownItem} onClick={() => { setDropdownOpen(false); navigate('/profile'); }}>Profile</button>
+                  <button role="menuitem" className={styles.profileDropdownItem} onClick={async () => { setDropdownOpen(false); await handleLogout(); }}>Logout</button>
+                  <button role="menuitem" className={styles.profileDropdownItem} disabled>Settings</button>
+                </div>
+              )}
+            </div>
           </nav>
           
         </div>

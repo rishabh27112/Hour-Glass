@@ -56,10 +56,25 @@ router.get('/', userAuth, async (req, res) => {
   if (!currentUser) return res.status(401).json({ msg: 'User not found' });
   const username = currentUser.username;
 
-  const entries = await TimeEntry.find({ userId: username })
-    .populate('project', 'ProjectName Description status') // Adds project brief info
-    .sort({ 'appointment.startTime': -1 });
-   res.json(entries);
+  // optional query filters: projectId, task (task id or task title substring)
+  const { projectId, task } = req.query;
+
+  const query = { userId: username };
+  if (projectId) query.project = projectId;
+
+  // base query
+  let entriesQuery = TimeEntry.find(query).populate('project', 'ProjectName Description status').sort({ 'appointment.startTime': -1 });
+
+  let entries = await entriesQuery.exec();
+
+  // additional in-memory filtering for task (matches appointment.apptitle case-insensitive)
+  if (task) {
+    const safe = String(task).trim();
+    const regex = new RegExp(safe.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+    entries = entries.filter(e => (e.appointment && e.appointment.apptitle && regex.test(e.appointment.apptitle)));
+  }
+
+  res.json(entries);
  } catch (err) {
    console.error(err);
    res.status(500).send('Server Error');
