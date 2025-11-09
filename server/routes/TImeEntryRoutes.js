@@ -2,14 +2,12 @@ import express from 'express';
 import userAuth from '../middleware/userAuth.js';
 import TimeEntry from '../models/TimeEntry.js';
 import userModel from '../models/userModel.js';
-
+import Project from '../models/ProjectModel.js'; // <-- IMPORT PROJECT MODEL
+import { classifyActivity } from '../services/classificationService.js'; // <-- IMPORT OUR NEW SERVICE
 
 const router = express.Router();
 
-
 // POST /api/time-entries - Store a complete appointment/time entry
-// The client (winapp / linuxapp) sends a single `appointment` object:
-// { apptitle, appname, startTime, endTime, duration }
 router.post('/', userAuth, async (req, res) => {
   try {
     const { appointment, projectId, description } = req.body;
@@ -17,10 +15,30 @@ router.post('/', userAuth, async (req, res) => {
       return res.status(400).json({ msg: 'Invalid appointment payload. Required: apptitle, appname, startTime, duration' });
     }
 
-    // resolve username
+    // 1. Resolve username
     const currentUser = await userModel.findById(req.userId).select('username');
     if (!currentUser) return res.status(401).json({ msg: 'User not found' });
     const username = currentUser.username;
+
+    // --- START NEW CLASSIFICATION LOGIC ---
+    
+    // 2. Classify the activity (using Rules DB + AI)
+    // This gives us 'billable' or 'non-billable'
+    const suggestedCategory = await classifyActivity(appointment);
+    
+    let finalIsBillable = false;
+    
+    // 3. Check the Project's billable status
+    if (projectId) {
+      const project = await Project.findById(projectId).select('isBillable');
+      if (project && project.isBillable && suggestedCategory === 'billable') {
+        // Only billable if BOTH the project is billable AND the activity is billable
+        finalIsBillable = true;
+      }
+    }
+    // If no project is assigned, it defaults to false (non-billable)
+
+    // --- END NEW CLASSIFICATION LOGIC ---
 
     const newEntry = new TimeEntry({
       userId: username,
@@ -32,7 +50,9 @@ router.post('/', userAuth, async (req, res) => {
         startTime: new Date(appointment.startTime),
         endTime: appointment.endTime ? new Date(appointment.endTime) : undefined,
         duration: Number(appointment.duration),
-      }
+      },
+      suggestedCategory: suggestedCategory, // <-- SAVE SUGGESTION
+      isBillable: finalIsBillable          // <-- SAVE FINAL STATUS
     });
 
     const savedEntry = await newEntry.save();
@@ -43,7 +63,6 @@ router.post('/', userAuth, async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
-
 
 // (start/stop endpoints removed) Clients should send a complete appointment
 // object to POST /api/time-entries and the server will store it as-is.

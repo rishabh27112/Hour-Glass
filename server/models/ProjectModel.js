@@ -4,11 +4,13 @@ import mongoose from 'mongoose';
 const projectSchema = new mongoose.Schema({
   ProjectName: { type: String, required: true, trim: true },
   Description: { type: String, trim: true, default: '' },
+  isBillable: { type: Boolean, default: true },
   status: {
     type: String,
     enum: ['active', 'archived', 'deleted'],
     default: 'active',
   },
+  
   // NOTE: moved deleted into `status: 'deleted'` instead of a boolean flag
   members: [
     {
