@@ -408,7 +408,7 @@ class TimeTracker {
 		emitRendererLog('[TimeTracker] Tracking stopped');
 	}
 
-	public printEntries() {
+	public async printEntries() {
 		for (const entry of this.entries) {
 			emitRendererLog('[TimeTracker] Entry', { app: entry.appname, title: entry.apptitle, start: entry.startTime?.toISOString(), end: entry.endTime?.toISOString(), duration: entry.duration });
 		}
@@ -452,6 +452,11 @@ class TimeTracker {
 		const ss = s % 60;
 		const pad = (v: number) => String(v).padStart(2, '0');
 		return `${pad(hh)}:${pad(mm)}:${pad(ss)}`;
+	}
+
+	public async manualAdd(entry: TimeEntry) {
+		// For future use: manually add an entry to storage
+		this.entries.push(entry);
 	}
 }
 
