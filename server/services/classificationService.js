@@ -38,28 +38,53 @@ async function getAIClassification(activity, normalizedName) {
   try {
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    let classification = response.text().trim().toLowerCase();
+    const raw = response.text().trim().toLowerCase();
+    // For debugging: log AI outputs for first-time apps (comment out in prod)
+    // console.debug('[AI] raw classification output for', normalizedName, ':', raw);
 
-    // Validate the response
-    if (classification !== 'billable' && classification !== 'non-billable') {
-      classification = 'non-billable'; // Default to non-billable on bad AI response
+    // Robust parsing: look for the word 'billable' or 'non-billable' in the AI output.
+    let classification = 'ambiguous';
+    if (/\bbillable\b/.test(raw) && !/non-?billable/.test(raw)) {
+      classification = 'billable';
+    } else if (/\bnon-?billable\b/.test(raw) && !/\bbillable\b/.test(raw)) {
+      classification = 'non-billable';
+    } else {
+      // If parsing fails, don't force a 'non-billable' conclusion. Mark ambiguous so callers can decide.
+      console.warn('[AI] Unexpected classification response, marking as ambiguous:', raw.slice(0,200));
+      classification = 'ambiguous';
     }
 
-    // --- THIS IS THE "UPDATE DICTIONARY" STEP ---
-    // The AI found a new rule, so we save it to the DB to prevent future API calls.
-    const newRule = new ClassificationRule({
-      appName: normalizedName,
-      classification: classification
-    });
-    await newRule.save();
-    console.log(`[AI] New rule saved: ${normalizedName} -> ${classification}`);
-    // ---------------------------------------------
-    
+    // Only persist clear rules (billable / non-billable). Save source:'ai' and optional confidence if model returns it.
+    if (classification === 'billable' || classification === 'non-billable') {
+      try {
+        const newRule = new ClassificationRule({
+          appName: normalizedName,
+          classification: classification,
+          source: 'ai'
+        });
+        await newRule.save();
+        console.log(`[AI] New rule saved: ${normalizedName} -> ${classification}`);
+      } catch (dbErr) {
+        // If duplicate key or other error, attempt to update existing rule's classification and source
+        if (dbErr && dbErr.code === 11000) {
+          try {
+            await ClassificationRule.findOneAndUpdate({ appName: normalizedName }, { classification: classification, source: 'ai' });
+            console.log(`[AI] Existing rule updated: ${normalizedName} -> ${classification}`);
+          } catch (updErr) {
+            console.error('[AI] Failed to update existing classification rule:', updErr);
+          }
+        } else {
+          console.error('[AI] Failed to save new classification rule:', dbErr);
+        }
+      }
+    }
+
     return classification;
 
   } catch (err) {
     console.error("Error calling Gemini API:", err);
-    return 'non-billable'; // Default to non-billable on API error
+    // Don't default to non-billable on error — mark ambiguous so higher-level logic can fall back or handle it.
+    return 'ambiguous';
   }
 }
 
@@ -69,9 +94,12 @@ async function getAIClassification(activity, normalizedName) {
  * @returns {string} - 'billable' or 'non-billable'
  */
 export const classifyActivity = async (activity) => {
-  if (!activity || !activity.appname) return 'non-billable';
+  // If no activity provided, return ambiguous rather than force non-billable.
+  if (!activity) return 'ambiguous';
 
-  const normalizedName = normalizeAppName(activity.appname);
+  // If appname is missing but apptitle present, we still want to try AI classification.
+  const appNameToNormalize = activity.appname || activity.apptitle || 'unknown';
+  const normalizedName = normalizeAppName(appNameToNormalize);
 
   // 1. Check our database for an existing rule
   const rule = await ClassificationRule.findOne({ appName: normalizedName });
@@ -79,13 +107,13 @@ export const classifyActivity = async (activity) => {
   if (rule) {
     // 2. Found a rule in the DB
     if (rule.classification === 'ambiguous') {
-      // It's ambiguous (like Chrome), so we MUST call the AI
+      // It's ambiguous (like Chrome), so call the AI to disambiguate at runtime.
       return await getAIClassification(activity, normalizedName);
     }
-    // Found a clear rule (e.g., 'billable' or 'non-billable'), so we're done.
+    // Found a clear rule (e.g., 'billable' or 'non-billable'), so return it.
     return rule.classification;
   }
-  
-  // 3. No rule found. This is a new app. Call the AI.
+
+  // 3. No rule found. Call the AI to classify. Caller should handle 'ambiguous' return value.
   return await getAIClassification(activity, normalizedName);
 };
