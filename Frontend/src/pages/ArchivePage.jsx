@@ -1,10 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import styles from './ManagerDashboard.module.css';
 import { useNavigate } from 'react-router-dom';
 
 const ArchivePage = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [headerSearching, setHeaderSearching] = useState(false);
+  const searchInputRef = useRef(null);
+
+  // auto-focus input when header search is opened
+  useEffect(() => {
+    if (headerSearching && searchInputRef.current) {
+      searchInputRef.current.focus && searchInputRef.current.focus();
+    }
+  }, [headerSearching]);
   const [profileUser, setProfileUser] = useState(null);
 
   // Auth check: redirect to login if unauthenticated
@@ -101,10 +111,59 @@ const ArchivePage = () => {
     .map((p, idx) => ({ ...p, _idx: idx }))
     .filter((p) => p.archived && !p.deleted);
 
+  // filtered view based on search input (name, description, owner)
+  const filteredArchived = (() => {
+    const q = (searchQuery || '').trim().toLowerCase();
+    if (!q) return archivedList;
+    return archivedList.filter((p) => {
+      const name = String(p.name || '').toLowerCase();
+      const desc = String(p.description || '').toLowerCase();
+      if (name.includes(q) || desc.includes(q)) return true;
+      // check owners using existing helper
+      const owners = Array.from(getProjectOwners(p)).map(String).map(s => s.toLowerCase());
+      if (owners.some(o => o.includes(q))) return true;
+      return false;
+    });
+  })();
+
   return (
     <div className={styles.pageContainer} style={{ padding: 24 }}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Archived Projects</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {headerSearching ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                ref={searchInputRef}
+                aria-label="Search archived projects"
+                placeholder="Search archived projects by name, description or owner..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ padding: '8px 10px', minWidth: 420, borderRadius: 9999, border: '1px solid #ccc' }}
+              />
+              <button
+                aria-label="Close search"
+                className={styles.secondaryButton}
+                onClick={() => setHeaderSearching(false)}
+                style={{ padding: '6px 8px' }}
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            // make the title itself clickable (like Google's search bar) to open search
+            <h1 className={styles.title} style={{ margin: 0 }}>
+              <button
+                type="button"
+                onClick={() => setHeaderSearching(true)}
+                className={styles.title}
+                style={{ all: 'unset', cursor: 'text', userSelect: 'none' }}
+                title="Click to search"
+              >
+                Archived Projects
+              </button>
+            </h1>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate(-1)} className={styles.secondaryButton}>Back</button>
         </div>
@@ -112,11 +171,11 @@ const ArchivePage = () => {
 
       <div className={styles.middleScroll}>
         <div className={styles.content}>
-          {archivedList.length === 0 ? (
-            <p>No archived projects.</p>
+          {filteredArchived.length === 0 ? (
+            <p>No archived projects match your search.</p>
           ) : (
             <ul className={styles.projectList}>
-              {archivedList.map((project) => (
+              {filteredArchived.map((project) => (
                 <li key={project._idx} className={styles.projectItem}>
                   <div className={styles.projectInfo} style={{ textAlign: 'left' }}>
                     <h3>
