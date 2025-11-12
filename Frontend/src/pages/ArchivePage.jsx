@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { RiSearchLine, RiCloseLine } from 'react-icons/ri';
 import styles from './ManagerDashboard.module.css';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,15 +7,7 @@ const ArchivePage = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [headerSearching, setHeaderSearching] = useState(false);
   const searchInputRef = useRef(null);
-
-  // auto-focus input when header search is opened
-  useEffect(() => {
-    if (headerSearching && searchInputRef.current) {
-      searchInputRef.current.focus && searchInputRef.current.focus();
-    }
-  }, [headerSearching]);
   const [profileUser, setProfileUser] = useState(null);
 
   // Auth check: redirect to login if unauthenticated
@@ -129,40 +122,29 @@ const ArchivePage = () => {
   return (
     <div className={styles.pageContainer} style={{ padding: 24 }}>
       <div className={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {headerSearching ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                ref={searchInputRef}
-                aria-label="Search archived projects"
-                placeholder="Search archived projects by name, description or owner..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ padding: '8px 10px', minWidth: 420, borderRadius: 9999, border: '1px solid #ccc' }}
-              />
-              <button
-                aria-label="Close search"
-                className={styles.secondaryButton}
-                onClick={() => setHeaderSearching(false)}
-                style={{ padding: '6px 8px' }}
-              >
-                Close
-              </button>
-            </div>
-          ) : (
-            // make the title itself clickable (like Google's search bar) to open search
-            <h1 className={styles.title} style={{ margin: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+          <div style={{ position: 'relative', flex: 1, maxWidth: 640 }}>
+            <RiSearchLine style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search archived projects"
+              aria-label="Search archived projects"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8, border: '1px solid #ccc', background: 'transparent', color: '#fff' }}
+            />
+            {searchQuery && (
               <button
                 type="button"
-                onClick={() => setHeaderSearching(true)}
-                className={styles.title}
-                style={{ all: 'unset', cursor: 'text', userSelect: 'none' }}
-                title="Click to search"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#9CA3AF' }}
               >
-                Archived Projects
+                <RiCloseLine />
               </button>
-            </h1>
-          )}
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate(-1)} className={styles.secondaryButton}>Back</button>
@@ -185,102 +167,74 @@ const ArchivePage = () => {
                     </h3>
                     <p>{project.description}</p>
                   </div>
-                    <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 1 }}>
-                      {canRestore(project) ? (
-                        <button
-                          className={styles.secondaryButton}
-                          style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            // restore archive via server (robust: handle missing id, log body on error)
-                            try {
-                              const id = project._id;
-                              if (!id) {
-                                alert('Cannot restore: missing project id');
-                                console.error('Restore called but project has no _id', project);
-                                return;
-                              }
-
-                              const r = await fetch(`http://localhost:4000/api/projects/${id}/restore`, {
-                                method: 'PATCH',
-                                credentials: 'include',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({}), // send empty JSON so some servers accept PATCH without preflight issues
-                              });
-
-                              if (r.ok) {
-                                // simple refresh: reload the page so the archived list updates
-                                alert('Project restored');
-                                try {
-                                  // use a full reload to ensure server data is re-fetched
-                                  window.location.reload();
-                                } catch (err) {
-                                  // fallback: update state by refetching projects
-                                  try {
-                                    const res2 = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
-                                    if (res2.ok) {
-                                      const arr = await res2.json();
-                                      setProjects(Array.isArray(arr) ? arr.map(p => ({
-                                        _id: p._id,
-                                        name: p.ProjectName || p.name,
-                                        description: p.Description || p.description,
-                                        archived: p.status === 'archived',
-                                        deleted: p.status === 'deleted',
-                                        createdById: p.createdBy && (p.createdBy._id || p.createdBy),
-                                      })) : []);
-                                    }
-                                  } catch (e) { /* ignore fallback errors */ }
-                                }
-                              } else {
-                                // attempt to read json then text for better error message
-                                let body = '';
-                                try { body = await r.json(); } catch (e) { body = await r.text().catch(() => ''); }
-                                console.error('Restore failed', r.status, body);
-                                alert('Restore failed: ' + r.status + ' ' + (typeof body === 'string' ? body : JSON.stringify(body)));
-                              }
-                            } catch (err) {
-                              console.error('Restore error', err);
-                              alert('Restore error - see console');
-                            }
-                          }}
-                        >
-                          Restore
-                        </button>
-                      ) : (
-                        <button className={styles.secondaryButton} disabled title="Only project owner or creator can restore">Restore</button>
-                      )}
+                  <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 1 }}>
+                    {canRestore(project) ? (
                       <button
-                        className={styles.leftButtonDanger}
-                        onClick={async () => {
+                        className={styles.secondaryButton}
+                        style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           try {
-                            const r = await fetch(`http://localhost:4000/api/projects/${project._id}`, { method: 'DELETE', credentials: 'include' });
-                            if (r.ok) {
-                              alert('Moved to Bin');
-                              // refresh
-                              const res2 = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
-                              if (res2.ok) {
-                                const arr = await res2.json();
-                                setProjects(Array.isArray(arr) ? arr.map(p => ({
-                                  _id: p._id,
-                                  name: p.ProjectName || p.name,
-                                  description: p.Description || p.description,
-                                  archived: p.status === 'archived',
-                                  deleted: p.status === 'deleted',
-                                  createdById: p.createdBy && (p.createdBy._id || p.createdBy),
-                                })) : []);
-                              }
-                            } else {
-                              const body = await r.text().catch(() => '');
-                              console.error('Move to bin failed', r.status, body);
-                              alert('Move to bin failed: ' + r.status + ' ' + body);
+                            const id = project._id;
+                            if (!id) {
+                              alert('Cannot restore: missing project id');
+                              console.error('Restore called but project has no _id', project);
+                              return;
                             }
-                          } catch (err) { console.error('Move to bin error', err); alert('Move to bin error'); }
+                            const r = await fetch(`http://localhost:4000/api/projects/${id}/restore`, {
+                              method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+                            });
+                            if (r.ok) {
+                              alert('Project restored');
+                              try { globalThis.location.reload(); } catch (err) { /* ignore */ }
+                            } else {
+                              let body = '';
+                              try { body = await r.json(); } catch (e) { body = await r.text().catch(() => ''); }
+                              console.error('Restore failed', r.status, body);
+                              alert('Restore failed: ' + r.status + ' ' + (typeof body === 'string' ? body : JSON.stringify(body)));
+                            }
+                          } catch (err) {
+                            console.error('Restore error', err);
+                            alert('Restore error - see console');
+                          }
                         }}
                       >
-                        Move to Bin
+                        Restore
                       </button>
-                    </div>
+                    ) : (
+                      <button className={styles.secondaryButton} disabled title="Only project owner or creator can restore">Restore</button>
+                    )}
+                    <button
+                      className={styles.leftButtonDanger}
+                      onClick={async () => {
+                        try {
+                          const r = await fetch(`http://localhost:4000/api/projects/${project._id}`, { method: 'DELETE', credentials: 'include' });
+                          if (r.ok) {
+                            alert('Moved to Bin');
+                            const res2 = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
+                            if (res2.ok) {
+                              const arr = await res2.json();
+                              setProjects(Array.isArray(arr) ? arr.map(p => ({
+                                _id: p._id,
+                                name: p.ProjectName || p.name,
+                                description: p.Description || p.description,
+                                archived: p.status === 'archived',
+                                deleted: p.status === 'deleted',
+                                createdById: p.createdBy && (p.createdBy._id || p.createdBy),
+                              })) : []);
+                            }
+                          } else {
+                            const body = await r.text().catch(() => '');
+                            console.error('Move to bin failed', r.status, body);
+                            alert('Move to bin failed: ' + r.status + ' ' + body);
+                          }
+                        } catch (err) { console.error('Move to bin error', err); alert('Move to bin error'); }
+                      }}
+                    >
+                      Move to Bin
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

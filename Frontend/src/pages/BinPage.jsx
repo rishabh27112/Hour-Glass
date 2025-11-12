@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { RiSearchLine, RiCloseLine } from 'react-icons/ri';
 import styles from './ManagerDashboard.module.css';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,7 +7,6 @@ const BinPage = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [headerSearching, setHeaderSearching] = useState(false);
   const searchInputRef = useRef(null);
 
   // Auth check: redirect to login if unauthenticated
@@ -67,12 +67,13 @@ const BinPage = () => {
     (p && p.raw && p.raw.status === 'deleted')
   ));
 
-  // auto-focus when header search opened
+  // (optional) autofocus when component mounts
   useEffect(() => {
-    if (headerSearching && searchInputRef.current && typeof searchInputRef.current.focus === 'function') {
-      searchInputRef.current.focus();
+    if (searchInputRef.current && typeof searchInputRef.current.focus === 'function') {
+      // do not force-focus by default; leave commented if needed
+      // searchInputRef.current.focus();
     }
-  }, [headerSearching]);
+  }, []);
 
   const getOwners = (p) => {
     const out = [];
@@ -108,40 +109,29 @@ const BinPage = () => {
   return (
     <div className={styles.pageContainer} style={{ padding: 24 }}>
       <div className={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {headerSearching ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                ref={searchInputRef}
-                aria-label="Search bin projects"
-                placeholder="Search bin by name, description or owner..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ padding: '8px 10px', minWidth: 420, borderRadius: 9999, border: '1px solid #ccc' }}
-              />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+          <div style={{ position: 'relative', flex: 1, maxWidth: 640 }}>
+            <RiSearchLine style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search bin projects"
+              aria-label="Search bin projects"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8, border: '1px solid #ccc', background: 'transparent', color: '#fff' }}
+            />
+            {searchQuery && (
               <button
                 type="button"
-                aria-label="Close search"
-                className={styles.secondaryButton}
-                onClick={() => setHeaderSearching(false)}
-                style={{ padding: '6px 8px' }}
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#9CA3AF' }}
               >
-                Close
+                <RiCloseLine />
               </button>
-            </div>
-          ) : (
-            <h1 className={styles.title} style={{ margin: 0 }}>
-              <button
-                type="button"
-                onClick={() => setHeaderSearching(true)}
-                className={styles.title}
-                style={{ all: 'unset', cursor: 'text', userSelect: 'none' }}
-                title="Click to search"
-              >
-                Bin (Deleted Projects)
-              </button>
-            </h1>
-          )}
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => navigate(-1)} className={styles.secondaryButton}>Back</button>
