@@ -234,18 +234,19 @@ class TimeTracker {
 		try {
 			// Ensure we have an auth token from the app session, if possible
 			await this.refreshAuthTokenFromSession();
+			emitRendererLog('[TimeTracker] Auth token present', { hasToken: !!this.authToken });
 			for (let i = 0; i < entries.length; i++) {
 				const appointment = entries[i];
 				const payload = {
 					appointment: {
 						apptitle: appointment.apptitle,
 						appname: appointment.appname,
-						startTime: appointment.startTime,
-						endTime: appointment.endTime,
+						startTime: appointment.startTime instanceof Date ? appointment.startTime.toISOString() : appointment.startTime,
+						endTime: appointment.endTime instanceof Date ? appointment.endTime.toISOString() : appointment.endTime,
 						duration: appointment.duration,
 					},
 					projectId: this.project_id ?? undefined,
-					description: this.task_id ?? undefined,
+					taskId: this.task_id ?? undefined,
 				};
 
 				const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -253,6 +254,12 @@ class TimeTracker {
 					// Server expects JWT in httpOnly cookie named 'token'
 					headers["Cookie"] = `token=${this.authToken}`;
 				}
+
+				emitRendererLog('[TimeTracker] Sending payload to server', { 
+					url: "http://localhost:4000/api/time-entries",
+					payload,
+					hasAuthToken: !!this.authToken
+				});
 
 				try {
 					const res = await fetch("http://localhost:4000/api/time-entries", {
