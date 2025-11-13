@@ -1,5 +1,5 @@
 // src/pages/ForgotPasswordPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import MainButton from '../components/MainButton';
 import LoginBg from '../assets/login-bg.png';
@@ -41,6 +41,26 @@ const ForgotPasswordPage = () => {
     }
     setLoading(false);
   };
+
+  // Auto-hide success messages after a short period
+  const hideTimerRef = useRef(null);
+  useEffect(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    if (success) {
+      hideTimerRef.current = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+    }
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+    };
+  }, [success]);
 
   // Step 1: Verify OTP (His logic just moves to step 2)
   const handleVerifyOtp = (e) => {
@@ -148,7 +168,7 @@ const ForgotPasswordPage = () => {
 
             {/* Error & Success Messages */}
             {error && <div className="text-red-400 text-sm text-center">{error}</div>}
-            {success && <div className="text-green-400 text-sm text-center">{success}</div>}
+            {success && <div className="text-white text-sm text-center font-medium">{success}</div>}
 
             <div>
               <MainButton
@@ -197,7 +217,7 @@ const ForgotPasswordPage = () => {
 
             {/* Error & Success Messages */}
             {error && <div className="text-red-400 text-sm text-center">{error}</div>}
-            {success && <div className="text-green-400 text-sm text-center">{success}</div>}
+            {success && <div className="text-white text-sm text-center font-medium">{success}</div>}
 
             <div>
               <MainButton

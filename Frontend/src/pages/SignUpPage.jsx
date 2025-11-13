@@ -1,5 +1,5 @@
 // src/pages/SignUpPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import MainButton from '../components/MainButton';
 import Logo from '../components/Logo';
@@ -60,6 +60,31 @@ const SignUpPage = () => {
     }
     setResendLoading(false);
   };
+
+  // Auto-hide resend/success messages after a short period
+  const hideTimerRef = useRef(null);
+  useEffect(() => {
+    // clear any existing timer when messages change
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+
+    // If there's a resend message or otp success, hide after 5s
+    if (resendMsg || otpSuccess) {
+      hideTimerRef.current = setTimeout(() => {
+        setResendMsg('');
+        setOtpSuccess('');
+      }, 5000);
+    }
+
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+    };
+  }, [resendMsg, otpSuccess]);
 
   // Step 1: Verify OTP
   const handleVerifyOtp = async () => {
@@ -218,12 +243,12 @@ const SignUpPage = () => {
                 >
                   {resendLoading ? 'Resending...' : 'Resend OTP'}
                 </button>
-                {resendMsg && <div className="text-sm text-green-400 text-center">{resendMsg}</div>}
+                {resendMsg && <div className="text-white text-sm text-center font-medium">{resendMsg}</div>}
               </div>
             )}
 
             {otpError && <div className="text-red-400 text-sm text-center">{otpError}</div>}
-            {otpSuccess && <div className="text-green-400 text-sm text-center">{otpSuccess}</div>}
+            {otpSuccess && <div className="text-white text-sm text-center font-medium">{otpSuccess}</div>}
           </div>
         )}
 

@@ -14,13 +14,23 @@ export const sendOtp = async (req, res) => {
         if (existingUser) {
             return res.status(409).json({ success: false, message: 'User already exists' });
         }
+        // Rate-limit: if an OTP was sent recently, require a 30s gap before resending
+        const existingRecord = await OtpVerification.findOne({ email: emailLower });
+        const now = Date.now();
+        const RESEND_GAP_MS = 30 * 1000; // 30 seconds
+        if (existingRecord && existingRecord.lastSent && (now - existingRecord.lastSent) < RESEND_GAP_MS) {
+            const waitMs = RESEND_GAP_MS - (now - existingRecord.lastSent);
+            const waitSec = Math.ceil(waitMs / 1000);
+            return res.status(429).json({ success: false, message: `Please wait ${waitSec} second(s) before requesting a new OTP.` });
+        }
+
         // Generate OTP
         const otp = String(Math.floor(100000 + Math.random() * 900000));
         const otpExpireAt = Date.now() + 10 * 60 * 1000; // 10 min
-        // Upsert OTP record
+        // Upsert OTP record (store lastSent)
         await OtpVerification.findOneAndUpdate(
             { email: emailLower },
-            { otp, otpExpireAt, verified: false },
+            { otp, otpExpireAt, verified: false, lastSent: now },
             { upsert: true, new: true }
         );
         // Send OTP email
@@ -203,10 +213,20 @@ export const sendResetOtp = async (req, res)=>{
         if(!user){
             return res.json({success: false, message: 'User not Found'});
         }
-         const otp = String(Math.floor(100000 + Math.random()*900000));
+        // Rate-limit reset OTP sends: require 30s gap between sends
+        const now = Date.now();
+        const RESEND_GAP_MS = 30 * 1000;
+        if (user.resetOtpLastSent && (now - user.resetOtpLastSent) < RESEND_GAP_MS) {
+            const waitMs = RESEND_GAP_MS - (now - user.resetOtpLastSent);
+            const waitSec = Math.ceil(waitMs / 1000);
+            return res.status(429).json({ success: false, message: `Please wait ${waitSec} second(s) before requesting a new OTP.` });
+        }
+
+        const otp = String(Math.floor(100000 + Math.random()*900000));
 
         user.resetOtp = otp;
         user.resetOtpExpireAt = Date.now() + 15*60*1000;
+        user.resetOtpLastSent = now;
 
         await user.save();
 
@@ -217,7 +237,7 @@ export const sendResetOtp = async (req, res)=>{
             text:`Your OTP for resetting your password is ${otp}. Use this OTP to proceed with resetting your password.`
         };
         await transporter.sendMail(mailOptions);
-        return res.json({success: true, message: 'OTP sent to youe email'});
+        return res.json({success: true, message: 'OTP sent to your email'});
     }
     catch(error){
         res.json({success: false, message: error.message});
