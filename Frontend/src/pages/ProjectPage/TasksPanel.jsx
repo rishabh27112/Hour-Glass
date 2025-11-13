@@ -1,7 +1,8 @@
+// src/pages/ProjectPage/TasksPanel.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import styles from '../ProjectPage.module.css';
+import { RiFilterLine, RiAddLine, RiCloseLine } from 'react-icons/ri';
 
 export default function TasksPanel(props) {
   const {
@@ -35,8 +36,8 @@ export default function TasksPanel(props) {
     setTaskStatus,
     currentUser,
     projectOwner,
+    isCreator,
   } = props;
-
 
   const handleCancel = () => {
     setShowAddTaskDialog(false);
@@ -45,153 +46,248 @@ export default function TasksPanel(props) {
     if (setTaskAssigned) setTaskAssigned('');
     if (setTaskStatus) setTaskStatus('todo');
     setTaskError('');
+    if (setTaskDescription) setTaskDescription('');
+    if (setTaskDueDate) setTaskDueDate('');
   };
 
+  // Permission check for Add Task button
+  const canAddTask = isCreator || (currentUser && (currentUser.role === 'manager' || currentUser.isManager === true));
+
   return (
-    <div className={styles.rightPanel}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3>Active Tasks</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className={styles.filterButton} onClick={() => setShowTaskFilter((s) => !s)}>Filter</button>
-          <button type="button" className={styles.addTaskVisible} onClick={() => setShowAddTaskDialog(true)}>+ Add Task</button>
-        </div>
-      </div>
-      {showTaskFilter && (
-        <div style={{ margin: '8px 0', padding: 8, border: '1px solid #ddd', borderRadius: 6 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-              Member
-              <select value={filterMember} onChange={(e) => setFilterMember(e.target.value)} style={{ padding: 6 }}>
-                <option value="">All</option>
-                {cleanedEmployees && cleanedEmployees.map((m, i) => (
-                  <option key={`${m}-${i}`} value={m}>{m}</option>
-                ))}
-              </select>
-            </label>
-
-            <label style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-              Status
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: 6 }}>
-                <option value="">All</option>
-                <option value="todo">To do</option>
-                <option value="in-progress">In progress</option>
-                <option value="done">Done</option>
-              </select>
-            </label>
-
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              <button onClick={() => { setFilterMember(''); setFilterStatus(''); setShowTaskFilter(false); }}>Clear</button>
-              <button onClick={() => setShowTaskFilter(false)}>Apply</button>
-            </div>
+    // === MODIFICATION: Root div is now a full-height flex column ===
+    <div className="bg-surface rounded-lg shadow-md p-6 h-full flex flex-col min-h-0">
+      {/* === MODIFICATION: Header area is static (won't shrink) === */}
+      <div className="flex-shrink-0">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-2xl font-semibold text-white">Active Tasks</h3>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="flex items-center gap-1 border border-cyan text-cyan font-semibold py-1 px-3 rounded-lg text-sm hover:bg-cyan hover:text-brand-bg transition-colors"
+              onClick={() => setShowTaskFilter((s) => !s)}
+            >
+              <RiFilterLine />
+              Filter
+            </button>
+            {canAddTask && (
+              <button
+                type="button"
+                className="flex items-center gap-1 bg-cyan text-brand-bg font-bold py-1 px-3 rounded-lg text-sm hover:bg-cyan-dark transition-colors"
+                onClick={() => setShowAddTaskDialog(true)}
+              >
+                <RiAddLine />
+                Add Task
+              </button>
+            )}
           </div>
         </div>
-      )}
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th></th>
-            <th>#</th>
-            <th>Task</th>
-            <th>Assigned</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-              {(tasksToShow && tasksToShow.length > 0) ? (
-            tasksToShow.map((task, idx) => {
-              const tid = getTaskKey(task, idx);
-              const isActive = activeTimer && activeTimer.taskId === tid;
-              
-              // Handle assignee - could be object or string
-              const assigneeData = task.assignedTo || task.assignee || task.assigneeName;
-              const displayedAssigned = assigneeData 
-                ? (typeof assigneeData === 'object' 
-                  ? (assigneeData.username || assigneeData.name || assigneeData._id || '-')
-                  : String(assigneeData))
-                : '-';
-              
-              // allow control if current user is the assigned member, or is manager, or is project owner (creator)
-              const isManager = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-              // check assigned against common currentUser identifiers (username, email, _id)
-              const userIdentifiers = currentUser ? [currentUser.username, currentUser.email, currentUser._id].filter(Boolean).map((s) => String(s).toLowerCase()) : [];
-              const isAssigned = userIdentifiers.length > 0 && userIdentifiers.includes(String(displayedAssigned).toLowerCase());
-              // projectOwner may be an id, username or email — compare against common currentUser fields
-              const isProjOwner = projectOwner && currentUser && (
-                String(projectOwner).toLowerCase() === String(currentUser._id || '').toLowerCase()
-                || String(projectOwner).toLowerCase() === String(currentUser.username || '').toLowerCase()
-                || String(projectOwner).toLowerCase() === String(currentUser.email || '').toLowerCase()
-              );
-              const canControl = Boolean(isAssigned || isManager || isProjOwner);
+        
+        {showTaskFilter && (
+          <div className="bg-surface-light rounded-lg p-4 my-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+              <label className="flex flex-col gap-1 text-sm text-gray-300 w-full md:w-auto">
+                Member
+                <select
+                  value={filterMember}
+                  onChange={(e) => setFilterMember(e.target.value)}
+                  className="bg-surface border border-gray-600 rounded-md p-2 text-gray-200 focus:ring-cyan focus:border-cyan"
+                >
+                  <option value="">All</option>
+                  {cleanedEmployees && cleanedEmployees.map((m, i) => (
+                    <option key={`${m}-${i}`} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
 
-              return (
-                <tr key={tid}>
-                  <td>
-                    {isActive ? (
-                      <button onClick={() => pauseTimer(tid)} disabled={!canControl}>⏸</button>
-                    ) : (
-                      <button onClick={() => startTimer(tid)} disabled={!canControl}>▶</button>
-                    )}
-                  </td>
-                  <td>{idx + 1}</td>
-                      <td>
-                        {/* link to task page */}
-                        <Link to={`/projects/${props.projectId || ''}/tasks/${tid}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                          {task.title || task.name || 'Untitled task'}
-                        </Link>
-                      </td>
-                  <td>{displayedAssigned}</td>
-                  <td>{task.status || 'todo'}</td>
-                </tr>
-              );
-            })
-          ) : (
-            <tr>
-              <td colSpan={5}>No active tasks</td>
+              <label className="flex flex-col gap-1 text-sm text-gray-300 w-full md:w-auto">
+                Status
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-surface border border-gray-600 rounded-md p-2 text-gray-200 focus:ring-cyan focus:border-cyan"
+                >
+                  <option value="">All</option>
+                  <option value="todo">To do</option>
+                  <option value="in-progress">In progress</option>
+                  <option value="done">Done</option>
+                </select>
+              </label>
+
+              <div className="flex gap-2 ml-auto pt-4 md:pt-0">
+                <button 
+                  onClick={() => { setFilterMember(''); setFilterStatus(''); setShowTaskFilter(false); }}
+                  className="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm hover:bg-gray-500 transition-colors"
+                >
+                  Clear
+                </button>
+                <button 
+                  onClick={() => setShowTaskFilter(false)}
+                  className="bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-lg text-sm hover:bg-cyan-dark transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* === MODIFICATION: This div wraps the table and scrolls === */}
+      <div className="flex-1 overflow-y-auto pr-2 min-h-0">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-surface-light">
+              <th className="py-2 px-1 text-gray-400 font-semibold w-10"></th>
+              <th className="py-2 px-1 text-gray-400 font-semibold w-10">#</th>
+              <th className="py-2 px-1 text-gray-400 font-semibold">Task</th>
+              <th className="py-2 px-1 text-gray-400 font-semibold">Assigned</th>
+              <th className="py-2 px-1 text-gray-400 font-semibold">Status</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+              {(tasksToShow && tasksToShow.length > 0) ? (
+              tasksToShow.map((task, idx) => {
+                const tid = getTaskKey(task, idx);
+                const isActive = activeTimer && activeTimer.taskId === tid;
+                
+                const assigneeData = task.assignedTo || task.assignee || task.assigneeName;
+                const displayedAssigned = assigneeData 
+                  ? (typeof assigneeData === 'object' 
+                      ? (assigneeData.username || assigneeData.name || assigneeData._id || '-')
+                      : String(assigneeData))
+                  : '-';
+                
+                const isManager = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+                const userIdentifiers = currentUser ? [currentUser.username, currentUser.email, currentUser._id].filter(Boolean).map((s) => String(s).toLowerCase()) : [];
+                const isAssigned = userIdentifiers.length > 0 && userIdentifiers.includes(String(displayedAssigned).toLowerCase());
+                const isProjOwner = projectOwner && currentUser && (
+                  String(projectOwner).toLowerCase() === String(currentUser._id || '').toLowerCase()
+                  || String(projectOwner).toLowerCase() === String(currentUser.username || '').toLowerCase()
+                  || String(projectOwner).toLowerCase() === String(currentUser.email || '').toLowerCase()
+                );
+                const canControl = Boolean(isAssigned || isManager || isProjOwner);
+
+                return (
+                  <tr key={tid} className="border-b border-surface-light">
+                    <td className="py-3 px-1">
+                      <button 
+                        onClick={() => isActive ? pauseTimer(tid) : startTimer(tid)} 
+                        disabled={!canControl}
+                        title={isActive ? "Pause timer" : "Start timer"}
+                        className={`
+                          text-2xl transition-colors
+                          ${!canControl && 'opacity-30 cursor-not-allowed'}
+                          ${isActive 
+                            ? 'text-yellow-400 hover:text-yellow-300' 
+                            : 'text-cyan hover:text-cyan-dark'
+                          }
+                        `}
+                      >
+                        {isActive ? '⏸' : '▶'}
+                      </button>
+                    </td>
+                    <td className="py-3 px-1 text-gray-400">{idx + 1}</td>
+                    <td className="py-3 px-1">
+                      <Link 
+                        to={`/projects/${props.projectId || ''}/tasks/${tid}`} 
+                        className="text-gray-200 font-medium hover:text-cyan transition-colors"
+                      >
+                        {task.title || task.name || 'Untitled task'}
+                      </Link>
+                    </td>
+                    <td className="py-3 px-1 text-gray-300">{displayedAssigned}</td>
+                    <td className="py-3 px-1 text-gray-300">{task.status || 'todo'}</td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={5} className="py-4 text-center text-gray-500 italic">No active tasks found</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {showAddTaskDialog && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ width: 640, maxWidth: '95%', background: '#fff', borderRadius: 8, padding: 16 }}>
-            <h3>Add Task</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <input type="text" placeholder="Task title" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} style={{ padding: 8 }} />
-              <textarea placeholder="Description (optional)" value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} style={{ padding: 8, minHeight: 80 }} />
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-surface-light rounded-lg shadow-xl w-full max-w-2xl p-6 relative">
+            <button 
+              onClick={handleCancel}
+              className="absolute top-3 right-4 text-gray-400 hover:text-white text-2xl"
+            >
+              <RiCloseLine />
+            </button>
+            <h3 className="text-2xl font-bold text-white mb-6">Add New Task</h3>
+            <div className="flex flex-col gap-4">
+              <input
+                type="text"
+                placeholder="Task title"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                className="w-full bg-surface text-gray-200 placeholder-gray-400 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
+              />
+              <textarea
+                placeholder="Description (optional)"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                className="w-full bg-surface text-gray-200 placeholder-gray-400 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light min-h-[80px]"
+              />
+              <label className="flex flex-col gap-1 text-sm text-gray-300">
                 Assign to member
-                <select value={taskAssignee} onChange={(e) => setTaskAssignee(e.target.value)} style={{ padding: 8 }}>
-                  {/* only allow selecting members that are part of this project */}
+                <select
+                  value={taskAssignee}
+                  onChange={(e) => setTaskAssignee(e.target.value)}
+                  className="w-full bg-surface text-gray-200 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
+                >
                   {cleanedEmployees && cleanedEmployees.length > 0 ? (
                     cleanedEmployees.map((m, i) => (
                       <option key={`${m}-${i}`} value={m}>{m}</option>
                     ))
                   ) : (
-                    <>
-                      <option value="">No members</option>
-                      <option value="">All Members</option>
-                    </>
+                    <option value="">No members</option>
                   )}
                   <option value="">Unassigned</option>
                 </select>
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
-                  Due date
-                  <input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} style={{ padding: 8 }} />
+              
+              <div className="flex flex-col md:flex-row gap-4">
+                <label className="flex flex-col gap-1 text-sm text-gray-300 flex-1">
+                  Due date (optional)
+                  <input
+                    type="date"
+                    value={taskDueDate}
+                    onChange={(e) => setTaskDueDate(e.target.value)}
+                    className="w-full bg-surface text-gray-200 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
+                  />
                 </label>
-                <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12, justifyContent: 'center' }}>
-                  <span>Status: To do (default)</span>
+                <div className="flex flex-col gap-1 text-sm text-gray-300 flex-1">
+                  Status
+                  <input
+                    type="text"
+                    readOnly
+                    value="To do (default)"
+                    className="w-full bg-surface/50 text-gray-400 py-2 px-4 rounded-lg border border-surface-light"
+                  />
                 </div>
               </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={handleCancel}>Cancel</button>
-                <button disabled={taskLoading} onClick={handleAddTaskSubmit}>
+              
+              <div className="flex gap-2 justify-end mt-4">
+                <button 
+                  onClick={handleCancel}
+                  className="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm hover:bg-gray-500 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={taskLoading}
+                  onClick={handleAddTaskSubmit}
+                  className="bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-lg text-sm hover:bg-cyan-dark transition-colors disabled:opacity-50"
+                >
                   {taskLoading ? 'Adding...' : 'Add Task'}
                 </button>
               </div>
-              {taskError && <div style={{ color: 'red' }}>{taskError}</div>}
+              {taskError && <div className="text-red-500 text-sm text-right">{taskError}</div>}
             </div>
           </div>
         </div>
@@ -200,6 +296,7 @@ export default function TasksPanel(props) {
   );
 }
 
+// PropTypes are preserved exactly from your original code
 TasksPanel.propTypes = {
   tasksToShow: PropTypes.array,
   getTaskKey: PropTypes.func.isRequired,
@@ -232,4 +329,5 @@ TasksPanel.propTypes = {
   projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   currentUser: PropTypes.object,
   projectOwner: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+  isCreator: PropTypes.bool,
 };

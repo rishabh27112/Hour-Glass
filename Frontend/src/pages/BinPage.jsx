@@ -1,6 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { RiSearchLine, RiCloseLine } from 'react-icons/ri';
-import styles from './ManagerDashboard.module.css';
+import {
+  RiSearchLine,
+  RiCloseLine,
+  RiArrowLeftLine,
+  RiInboxUnarchiveLine,
+  RiDeleteBinLine
+} from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
 
 const BinPage = () => {
@@ -9,7 +14,7 @@ const BinPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef(null);
 
-  // Auth check: redirect to login if unauthenticated
+  // Auth check: redirect to signin if unauthenticated
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -20,12 +25,12 @@ const BinPage = () => {
         if (!json || !json.success || !json.userData) {
           sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
           localStorage.removeItem('user'); localStorage.removeItem('token');
-          navigate('/login');
+          navigate('/signin');
         }
       } catch (err) {
         sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
         localStorage.removeItem('user'); localStorage.removeItem('token');
-        navigate('/login');
+        navigate('/signin');
       }
     })();
     return () => { mounted = false; };
@@ -35,7 +40,7 @@ const BinPage = () => {
     fetchProjects();
   }, []);
 
-  // Fetch projects from server and set state (also used after actions to refresh)
+  // Fetch projects from server
   async function fetchProjects() {
     try {
       const res = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
@@ -61,20 +66,20 @@ const BinPage = () => {
     }
   }
 
+  // Base list of deleted projects
   const deletedList = projects.filter((p) => (
     (p && p.deleted === true) ||
     (p && p.status === 'deleted') ||
     (p && p.raw && p.raw.status === 'deleted')
   ));
 
-  // (optional) autofocus when component mounts
   useEffect(() => {
     if (searchInputRef.current && typeof searchInputRef.current.focus === 'function') {
-      // do not force-focus by default; leave commented if needed
-      // searchInputRef.current.focus();
+      // do not force-focus by default
     }
   }, []);
 
+  // getOwners helper for search
   const getOwners = (p) => {
     const out = [];
     if (!p) return out;
@@ -93,6 +98,7 @@ const BinPage = () => {
     return out.map(String);
   };
 
+  // Search-filtered list
   const filteredDeleted = (() => {
     const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return deletedList;
@@ -107,64 +113,96 @@ const BinPage = () => {
   })();
 
   return (
-    <div className={styles.pageContainer} style={{ padding: 24 }}>
-      <div className={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-          <div style={{ position: 'relative', flex: 1, maxWidth: 640 }}>
-            <RiSearchLine style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search bin projects"
-              aria-label="Search bin projects"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8, border: '1px solid #ccc', background: 'transparent', color: '#fff' }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                title="Clear search"
-                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#9CA3AF' }}
-              >
-                <RiCloseLine />
-              </button>
-            )}
-          </div>
+    <div className="min-h-screen bg-brand-bg text-gray-200 p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        
+        {/* Header Row 1: Title and Back Button */}
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+          <h1 className="text-3xl font-bold text-white">Deleted Projects</h1>
+          <button
+            onClick={() => navigate(-1)}
+            className="
+              group flex items-center justify-center gap-2 
+              border border-cyan text-cyan font-semibold 
+              py-2 px-5 rounded-lg 
+              hover:bg-cyan hover:text-brand-bg 
+              transition-all duration-300 
+              w-full md:w-auto flex-shrink-0
+            "
+          >
+            <RiArrowLeftLine className="transition-transform duration-300 group-hover:-translate-x-2 text-xl" />
+            <span>Back</span>
+          </button>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => navigate(-1)} className={styles.secondaryButton}>Back</button>
+
+        {/* Header Row 2: Search Bar */}
+        <div className="relative w-full md:max-w-lg mb-6">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <RiSearchLine className="text-gray-400" />
+          </span>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search bin projects"
+            aria-label="Search bin projects"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="
+              w-full pl-10 pr-10 py-2 rounded-lg 
+              bg-surface border border-gray-600 
+              text-white placeholder-gray-400
+              focus:outline-none focus:ring-2 focus:ring-cyan
+            "
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              title="Clear search"
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+            >
+              <RiCloseLine className="text-gray-400 hover:text-white" />
+            </button>
+          )}
         </div>
-      </div>
-      <div className={styles.middleScroll}>
-        <div className={styles.content}>
-          {filteredDeleted.length === 0 ? (
-            <p>No deleted projects match your search.</p>
+
+        {/* Project List */}
+        <div>
+          {deletedList.length === 0 ? (
+            <p className="p-6 text-gray-400 bg-surface rounded-lg">No deleted projects.</p>
+          ) : filteredDeleted.length === 0 ? (
+            <p className="p-6 text-gray-400 bg-surface rounded-lg">No deleted projects match your search.</p>
           ) : (
-            <ul className={styles.projectList}>
+            <ul className="space-y-4">
               {filteredDeleted.map((project) => (
-                <li key={project._id} className={styles.projectItem}>
-                  <div className={styles.projectInfo} style={{ textAlign: 'left' }}>
+                <li
+                  key={project._id}
+                  className="
+                    bg-surface rounded-lg shadow-md flex flex-col md:flex-row items-start md:items-center justify-between p-4 gap-4
+                    transition-transform duration-200 ease-in-out hover:scale-[1.02] 
+                  "
+                >
+                  <div className="flex-1">
                     <h3>
                       <button
-                        className={styles.projectLink}
+                        className="text-xl font-semibold text-white hover:text-cyan transition-colors"
                         onClick={() => navigate(`/projects/${project._id}`)}
                       >
                         {project.name}
                       </button>
                     </h3>
-                    <p>{project.description}</p>
+                    <p className="text-gray-400 mt-1 text-sm">{project.description}</p>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2 flex-shrink-0 w-full md:w-auto">
                     <button
-                      className={styles.secondaryButton}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-lg hover:bg-cyan-dark transition-colors"
                       onClick={async () => {
                         try {
                           const r = await fetch(`http://localhost:4000/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include' });
                           if (r.ok) {
-                            // refresh from server to get canonical state
-                            await fetchProjects();
+                            await fetchProjects(); // Refresh list
                           } else {
                             const body = await r.text().catch(() => '');
                             alert('Restore failed: ' + r.status + ' ' + body);
@@ -172,17 +210,17 @@ const BinPage = () => {
                         } catch (err) { console.error(err); alert('Restore error'); }
                       }}
                     >
+                      <RiInboxUnarchiveLine />
                       Restore
                     </button>
                     <button
-                      className={styles.dangerButton}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
                       onClick={async () => {
                         if (!globalThis.confirm('Permanently delete this project? This cannot be undone.')) return;
                         try {
                           const r = await fetch(`http://localhost:4000/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include' });
                           if (r.ok) {
-                            // refresh canonical list
-                            await fetchProjects();
+                            await fetchProjects(); // Refresh list
                           } else {
                             const body = await r.text().catch(() => '');
                             alert('Permanent delete failed: ' + r.status + ' ' + body);
@@ -190,6 +228,7 @@ const BinPage = () => {
                         } catch (err) { console.error(err); alert('Permanent delete error'); }
                       }}
                     >
+                      <RiDeleteBinLine />
                       Delete Permanently
                     </button>
                   </div>

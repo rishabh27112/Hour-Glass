@@ -1,16 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { RiSearchLine, RiCloseLine } from 'react-icons/ri';
-import styles from './ManagerDashboard.module.css';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { 
+  RiArrowLeftLine, RiInboxUnarchiveLine, RiDeleteBinLine, 
+  RiSearchLine, RiCloseLine 
+} from 'react-icons/ri';
 
 const ArchivePage = () => {
+  // --- All state and logic is preserved ---
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef(null);
   const [profileUser, setProfileUser] = useState(null);
 
-  // Auth check: redirect to login if unauthenticated
+  // Auth check
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -21,19 +24,20 @@ const ArchivePage = () => {
         if (!json || !json.success || !json.userData) {
           sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
           localStorage.removeItem('user'); localStorage.removeItem('token');
-          navigate('/login');
+          navigate('/signin'); 
         } else {
           setProfileUser(json.userData);
         }
       } catch (err) {
         sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
         localStorage.removeItem('user'); localStorage.removeItem('token');
-        navigate('/login');
+        navigate('/signin');
       }
     })();
     return () => { mounted = false; };
   }, [navigate]);
 
+  // Fetch projects
   useEffect(() => {
     const fetchProjects = async () => {
       try {
@@ -46,9 +50,7 @@ const ArchivePage = () => {
           description: p.Description || p.description,
           archived: p.status === 'archived',
           deleted: p.status === 'deleted',
-          // keep createdById for backward compatibility
           createdById: p.createdBy && (p.createdBy._id || p.createdBy),
-          // also expose an "owner" field similar to ManagerDashboard.normalizeProject
           owner: (p.createdBy && (p.createdBy.username || p.createdBy._id)) || p.owner || null,
         })) : []);
       } catch (err) {
@@ -56,14 +58,10 @@ const ArchivePage = () => {
         try { const raw = sessionStorage.getItem('hg_projects'); setProjects(raw ? JSON.parse(raw) : []); } catch (e) { setProjects([]); }
       }
     };
-
     fetchProjects();
   }, []);
 
-  // derive a convenient currentUserId that may be an email, username or _id
-  const currentUserId = profileUser && (profileUser.email || profileUser.username || profileUser._id || null);
-
-  // helper: gather possible owner identifiers from a project (handles object or string shapes)
+  // Project owner helpers
   const getProjectOwners = (p) => {
     const out = new Set();
     if (!p) return out;
@@ -78,33 +76,26 @@ const ArchivePage = () => {
     };
     pushVal(p.createdById);
     pushVal(p.owner);
-    // legacy: if raw createdBy exists on raw project object
     if (p.raw && p.raw.createdBy) pushVal(p.raw.createdBy);
     return out;
   };
 
   const canRestore = (project) => {
     if (!profileUser || !project) {
-      console.log('canRestore: No user or project', { profileUser, project });
       return false;
     }
     const userIds = [profileUser._id, profileUser.username, profileUser.email].filter(Boolean).map(String);
     const owners = Array.from(getProjectOwners(project));
     const result = userIds.some((u) => owners.includes(u));
-    console.log('canRestore check:', { userIds, owners, result, project: project.name });
     return result;
   };
 
-  // helper kept for legacy but not used since app fetches from server
-  const updateProjectAt = (idx, changes) => {
-    // intentionally no-op for server-backed mode
-  };
-
+  // Base list of archived projects
   const archivedList = projects
     .map((p, idx) => ({ ...p, _idx: idx }))
     .filter((p) => p.archived && !p.deleted);
 
-  // filtered view based on search input (name, description, owner)
+  // Filtering logic
   const filteredArchived = (() => {
     const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return archivedList;
@@ -112,7 +103,6 @@ const ArchivePage = () => {
       const name = String(p.name || '').toLowerCase();
       const desc = String(p.description || '').toLowerCase();
       if (name.includes(q) || desc.includes(q)) return true;
-      // check owners using existing helper
       const owners = Array.from(getProjectOwners(p)).map(String).map(s => s.toLowerCase());
       if (owners.some(o => o.includes(q))) return true;
       return false;
@@ -120,58 +110,91 @@ const ArchivePage = () => {
   })();
 
   return (
-    <div className={styles.pageContainer} style={{ padding: 24 }}>
-      <div className={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
-          <div style={{ position: 'relative', flex: 1, maxWidth: 640 }}>
-            <RiSearchLine style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search archived projects"
-              aria-label="Search archived projects"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: 8, border: '1px solid #ccc', background: 'transparent', color: '#fff' }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                title="Clear search"
-                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#9CA3AF' }}
-              >
-                <RiCloseLine />
-              </button>
-            )}
-          </div>
+    <div className="min-h-screen bg-brand-bg text-gray-200 p-4 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        
+        {/* Header Row 1: Title and Back Button */}
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+          <h1 className="text-3xl font-bold text-white">Archived Projects</h1>
+          <button
+            onClick={() => navigate(-1)}
+            className="
+              group flex items-center justify-center gap-2 
+              border border-cyan text-cyan font-semibold 
+              py-2 px-5 rounded-lg 
+              hover:bg-cyan hover:text-brand-bg 
+              transition-all duration-300 
+              w-full md:w-auto flex-shrink-0
+            "
+          >
+            <RiArrowLeftLine className="transition-transform duration-300 group-hover:-translate-x-1" />
+            <span>Back</span>
+          </button>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => navigate(-1)} className={styles.secondaryButton}>Back</button>
-        </div>
-      </div>
 
-      <div className={styles.middleScroll}>
-        <div className={styles.content}>
-          {filteredArchived.length === 0 ? (
-            <p>No archived projects match your search.</p>
+        {/* --- THIS SECTION is now identical to BinPage --- */}
+        <div className="relative w-full md:max-w-lg mb-6">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+            <RiSearchLine className="text-gray-400" />
+          </span>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search archived projects"
+            aria-label="Search archived projects"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="
+              w-full pl-10 pr-10 py-2 rounded-lg 
+              bg-surface border border-gray-600 
+              text-white placeholder-gray-400
+              focus:outline-none focus:ring-2 focus:ring-cyan
+            "
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              title="Clear search"
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+            >
+              <RiCloseLine className="text-gray-400 hover:text-white" />
+            </button>
+          )}
+        </div>
+
+        {/* Project List */}
+        <div>
+          {archivedList.length === 0 ? (
+             <p className="p-6 text-gray-400 bg-surface rounded-lg">No archived projects.</p>
+          ) : filteredArchived.length === 0 ? (
+            <p className="p-6 text-gray-400 bg-surface rounded-lg">No archived projects match your search.</p>
           ) : (
-            <ul className={styles.projectList}>
+            <ul className="space-y-4">
               {filteredArchived.map((project) => (
-                <li key={project._idx} className={styles.projectItem}>
-                  <div className={styles.projectInfo} style={{ textAlign: 'left' }}>
+                <li 
+                  key={project._idx} 
+                  className="
+                    bg-surface rounded-lg shadow-md flex flex-col md:flex-row items-start md:items-center justify-between p-4 gap-4
+                    transition-transform duration-200 ease-in-out hover:scale-[1.02]
+                  "
+                >
+                  <div className="flex-1">
                     <h3>
-                      <button className={styles.projectLink} onClick={() => navigate(`/projects/${project._id || project._idx}`)}>
+                      <button
+                        className="text-xl font-semibold text-white hover:text-cyan transition-colors"
+                        onClick={() => navigate(`/projects/${project._id || project._idx}`)}
+                      >
                         {project.name}
                       </button>
                     </h3>
-                    <p>{project.description}</p>
+                    <p className="text-gray-400 mt-1 text-sm">{project.description}</p>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 1 }}>
+                  
+                  <div className="flex gap-2 flex-shrink-0 w-full md:w-auto">
                     {canRestore(project) ? (
                       <button
-                        className={styles.secondaryButton}
-                        style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-lg hover:bg-cyan-dark transition-colors"
                         onClick={async (e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -179,20 +202,21 @@ const ArchivePage = () => {
                             const id = project._id;
                             if (!id) {
                               alert('Cannot restore: missing project id');
-                              console.error('Restore called but project has no _id', project);
                               return;
                             }
                             const r = await fetch(`http://localhost:4000/api/projects/${id}/restore`, {
-                              method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+                              method: 'PATCH',
+                              credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({}),
                             });
                             if (r.ok) {
                               alert('Project restored');
-                              try { globalThis.location.reload(); } catch (err) { /* ignore */ }
+                              window.location.reload(); // Simple refresh to update list
                             } else {
-                              let body = '';
-                              try { body = await r.json(); } catch (e) { body = await r.text().catch(() => ''); }
+                              let body = await r.text().catch(() => '');
                               console.error('Restore failed', r.status, body);
-                              alert('Restore failed: ' + r.status + ' ' + (typeof body === 'string' ? body : JSON.stringify(body)));
+                              alert('Restore failed: ' + r.status + ' ' + body);
                             }
                           } catch (err) {
                             console.error('Restore error', err);
@@ -200,18 +224,27 @@ const ArchivePage = () => {
                           }
                         }}
                       >
+                        <RiInboxUnarchiveLine />
                         Restore
                       </button>
                     ) : (
-                      <button className={styles.secondaryButton} disabled title="Only project owner or creator can restore">Restore</button>
+                      <button
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-surface-light text-gray-500 font-semibold py-2 px-4 rounded-lg cursor-not-allowed"
+                        disabled
+                        title="Only project owner or creator can restore"
+                      >
+                        <RiInboxUnarchiveLine />
+                        Restore
+                      </button>
                     )}
                     <button
-                      className={styles.leftButtonDanger}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
                       onClick={async () => {
                         try {
                           const r = await fetch(`http://localhost:4000/api/projects/${project._id}`, { method: 'DELETE', credentials: 'include' });
                           if (r.ok) {
                             alert('Moved to Bin');
+                            // Refetch projects to update UI
                             const res2 = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
                             if (res2.ok) {
                               const arr = await res2.json();
@@ -232,6 +265,7 @@ const ArchivePage = () => {
                         } catch (err) { console.error('Move to bin error', err); alert('Move to bin error'); }
                       }}
                     >
+                      <RiDeleteBinLine />
                       Move to Bin
                     </button>
                   </div>

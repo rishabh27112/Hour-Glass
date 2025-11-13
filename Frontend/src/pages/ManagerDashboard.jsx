@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   RiSearchLine, RiCloseLine, RiAddLine, RiArchiveLine, RiDeleteBinLine,
-  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine
+  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine, RiSparkling2Line
 } from 'react-icons/ri';
 import NavLogo from '../components/NavLogo';
 
@@ -305,7 +305,7 @@ const ManagerDashboard = () => {
         alert('Project created successfully');
         setProjectName(''); setProjectDescription(''); setEmployees(''); setIsAddingProject(false);
         setAddedMembers([]); // Clear added members
-        
+
         // Add members in the background without refetching
         (async () => {
           if (created && created._id && Array.isArray(addedMembers) && addedMembers.length > 0) {
@@ -364,38 +364,58 @@ const ManagerDashboard = () => {
               {notifLoading ? 'Notifying...' : 'Notify Deadlines'}
             </button>
           </div>
-            {/* Notifications bell */}
-            <div className="inline-block mr-3 relative">
-              <button
-                className="rounded-full h-9 w-9 flex items-center justify-center focus:outline-none hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
-                onClick={() => { setNotifOpen((v) => !v); if (!notifOpen) fetchNotifications(); }}
-                aria-label="Notifications"
-              >
-                <span style={{ fontSize: 18 }}>🔔</span>
-                {notifications && notifications.length > 0 && (
-                  <span style={{ position: 'absolute', top: -6, right: -6, background: '#e11', color: '#fff', borderRadius: 12, padding: '2px 6px', fontSize: 12 }}>{notifications.length}</span>
-                )}
-              </button>
-              {notifOpen && (
-                <div className="absolute right-0 mt-2 w-80 max-h-80 overflow-auto bg-white text-black rounded shadow-lg z-50">
-                  <div className="px-3 py-2 border-b font-semibold">Notifications</div>
-                  <div>
-                    {notifications && notifications.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-gray-600">No notifications</div>
-                    )}
-                    {notifications && notifications.map((n) => (
-                      <div key={n._id} className="px-3 py-2 border-b text-sm">
-                        <div className="font-medium">{n.taskTitle || n.message}</div>
-                        <div className="text-xs text-gray-500">{(n.sentAt || n.createdAt) ? new Date(n.sentAt || n.createdAt).toLocaleString() : ''}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+          {/* Notifications bell --- MERGED DESIGN --- */}
+          <div className="inline-block mr-3 relative">
+            <button
+              className="group rounded-full h-9 w-9 flex items-center justify-center text-gray-300 text-xl"
+              onClick={() => { setNotifOpen((v) => !v); if (!notifOpen) fetchNotifications(); }}
+              aria-label="Notifications"
+            >
+              <i className="
+                  text-yellow-300 ri-notification-3-fill 
+                  inline-block group-hover:animate-ring
+                "></i>
+
+              {notifications && notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {notifications.length}
+                </span>
               )}
-            </div>
+            </button>
+
+            {/* --- MERGED DROPDOWN DESIGN --- */}
+            {notifOpen && (
+              <div className="absolute right-0 mt-2 w-80 max-h-80 flex flex-col bg-surface-light text-gray-200 rounded-lg shadow-xl z-50 border border-surface">
+
+                <div className="flex justify-between items-center px-3 py-2 border-b border-surface">
+                  <h3 className="font-semibold text-white">Notifications</h3>
+                  <button
+                    className="text-gray-400 hover:text-white text-xl"
+                    onClick={() => setNotifOpen(false)}
+                  >
+                    <RiCloseLine />
+                  </button>
+                </div>
+
+                <div className="overflow-y-auto">
+                  {notifications && notifications.length === 0 && (
+                    <div className="px-3 py-4 text-sm text-gray-400 text-center">No notifications</div>
+                  )}
+                  {notifications && notifications.map((n) => (
+                    <div key={n._id} className="px-3 py-2 border-b border-surface hover:bg-surface transition-colors">
+                      <div className="font-medium text-sm text-gray-200">{n.taskTitle || n.message}</div>
+                      <div className="text-xs text-gray-400">{(n.sentAt || n.createdAt) ? new Date(n.sentAt || n.createdAt).toLocaleString() : ''}</div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            )}
+            {/* --- END MERGED DROPDOWN --- */}
+          </div>
           <button
             className="rounded-full h-9 w-9 overflow-hidden focus:outline-none 
-                       hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
+                        hover:ring-2 hover:ring-offset-2 hover:ring-offset-surface-light hover:ring-cyan"
             ref={avatarButtonRef}
             onClick={() => {
               // Toggle profile menu instead of navigating directly
@@ -980,19 +1000,23 @@ const ManagerDashboard = () => {
                             <p className="text-gray-400 mt-1 text-xs">{project.description}</p>
                             <p className="text-xs text-gray-500 mt-2">Owner: {project.owner || 'N/A'}</p>
                           </div>
-                          <button
-                            className="ml-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-2 px-4 rounded-lg text-sm flex items-center gap-2 hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log('AI Summary clicked for project:', project.name);
-                              // TODO: Implement AI summary logic
-                              alert(`AI Summary for ${project.name}\n\nThis feature will provide AI-generated insights about project progress, time tracking, and productivity metrics.`);
-                            }}
-                            title="Generate AI Summary"
-                          >
-                            <span>✨</span>
-                            <span>AI Summary</span>
-                          </button>
+                         <button
+  className="
+    ml-4 flex items-center gap-2 rounded-lg border border-cyan 
+    py-2 px-4 text-sm font-semibold text-cyan 
+    transition-all duration-200 
+    hover:bg-cyan hover:text-brand-bg hover:shadow-lg hover:shadow-cyan/10
+  "
+  onClick={(e) => {
+    e.stopPropagation();
+    console.log('AI Summary clicked for project:', project.name);
+    alert(`AI Summary for ${project.name}\n\nThis feature will provide AI-generated insights...`);
+  }}
+  title="Generate AI Summary"
+>
+  <RiSparkling2Line className="text-lg" />
+  <span>AI Summary</span>
+</button>
                         </li>
                       );
                     })}
