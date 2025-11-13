@@ -2,6 +2,7 @@
   padding: 20px;
   max-width: 1000px;
   margin: 0 auto;
+  background-color: #e6f7ff; /* light blue background */
 }
 
 .backButton {
@@ -37,7 +38,55 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
+.summaryRow {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
+.summaryBox {
+  background: #ffffff;
+  border: 1px solid #e6eef7;
+  padding: 12px;
+  border-radius: 8px;
+  min-width: 160px;
+  text-align: center;
+}
+.summaryLabel { color: #555; font-size: 13px; }
+.summaryValue { font-size: 20px; font-weight: 700; margin-top: 6px; }
+.inputSmall { width: 100px; padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; }
+.inputMedium { width: 140px; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; }
+.paymentBox { margin-top: 12px; background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid #e6eef7; }
+
 .section h2 {
   margin-top: 0;
   color: #333;
 }
+
+.cta {
+  background: linear-gradient(90deg,#667eea,#764ba2);
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.italic { color: #667; font-style: italic; }
+
+.appTable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.appRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fafcff;
+  border: 1px solid #e6eef7;
+}
+.appName { font-weight: 600; color: #223; }
+.appAvg { color: #334; font-weight: 700; }

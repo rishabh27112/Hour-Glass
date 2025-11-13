@@ -256,6 +256,83 @@ router.post('/daily-summary/manager', userAuth, async (req, res) => {
   }
 });
 
+// POST /api/time-entries/hours-per-day
+// body: { projectId: string, memberUsername: string }
+// returns: [{ date: 'YYYY-MM-DD', hours: number }]
+router.post('/hours-per-day', userAuth, async (req, res) => {
+  try {
+    const { projectId, memberUsername } = req.body || {};
+    if (!projectId || !memberUsername) return res.status(400).json({ msg: 'projectId and memberUsername are required' });
+
+    // resolve current user and check manager rights or allow self
+    const currentUser = await userModel.findById(req.userId).select('username');
+    if (!currentUser) return res.status(401).json({ msg: 'User not found' });
+    const username = currentUser.username;
+
+    const project = await Project.findById(projectId).populate('createdBy', 'username');
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+    const creatorId = project.createdBy && (project.createdBy._id || project.createdBy);
+    const creatorUsername = project.createdBy && (project.createdBy.username || null);
+    // allow if requester is project creator (manager) or requesting their own data
+    if (!(creatorId && creatorId.toString() === req.userId) && username !== memberUsername) {
+      return res.status(403).json({ msg: 'Only the project owner/manager or the member themselves can request this data' });
+    }
+
+    // fetch time entries for the member on this project
+    const docs = await TimeEntry.find({ userId: memberUsername, project: projectId }).exec();
+    const intervals = [];
+    for (const doc of docs) {
+      for (const a of (doc.appointments || [])) {
+        for (const ti of (a.timeIntervals || [])) {
+          if (!ti || !ti.startTime) continue;
+          const start = new Date(ti.startTime);
+          const durSec = Number(ti.duration) || (ti.endTime ? (new Date(ti.endTime).getTime() - start.getTime()) / 1000 : 0);
+          const end = ti.endTime ? new Date(ti.endTime) : new Date(start.getTime() + durSec * 1000);
+          intervals.push({ start, end, duration: durSec });
+        }
+      }
+    }
+
+    if (intervals.length === 0) return res.json({ ok: true, data: [] });
+
+    // determine date range (use local dates)
+    let minDate = intervals.reduce((min, it) => it.start < min ? it.start : min, intervals[0].start);
+    let maxDate = intervals.reduce((max, it) => it.end > max ? it.end : max, intervals[0].end);
+    // normalize to date boundaries (local)
+    const toYMD = d => {
+      const dt = new Date(d);
+      dt.setHours(0,0,0,0);
+      return dt;
+    };
+    let cur = toYMD(minDate);
+    const last = toYMD(maxDate);
+
+    // bucket durations by date (simple attribution to start-date)
+    const buckets = {};
+    for (const it of intervals) {
+      const dayKey = toYMD(it.start).toISOString().slice(0,10);
+      buckets[dayKey] = (buckets[dayKey] || 0) + (Number(it.duration) || 0);
+    }
+
+    // create continuous array from min to max inclusive
+    const out = [];
+    for (let dt = new Date(cur); dt <= last; dt.setDate(dt.getDate() + 1)) {
+      const key = dt.toISOString().slice(0,10);
+      const seconds = buckets[key] || 0;
+      out.push({ date: key, hours: Math.round((seconds / 3600) * 100) / 100 });
+    }
+
+    return res.json({ ok: true, data: out });
+  } catch (err) {
+    console.error('[time-entries] hours-per-day error:', err && err.stack ? err.stack : err);
+    if (process.env.NODE_ENV !== 'production') {
+      return res.status(500).json({ error: String(err && (err.message || err)), stack: err && err.stack });
+    }
+    return res.status(500).send('Server Error');
+  }
+});
+
 // DELETE /api/time-entries/:projectId/:apptitle — delete full appointment group
 router.delete('/:projectId/:apptitle', userAuth, async (req, res) => {
   try {
