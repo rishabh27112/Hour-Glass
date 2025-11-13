@@ -568,6 +568,8 @@ const ProjectPage = () => {
               onClick={(e) => {
                 e.stopPropagation();
                 console.log('AI Summary clicked for member:', displayName);
+                const projId = project?._id || project?.id || 'unknown';
+                navigate(`/ai-summary/${projId}/${encodeURIComponent(displayName)}`);
                 // TODO: Implement AI summary logic for member
                 alert(`AI Summary for ${displayName}\n\nThis feature will provide AI-generated insights about this member's:\n- Time tracking patterns\n- Task completion rates\n- Productivity metrics\n- Work hours distribution`);
               }}
