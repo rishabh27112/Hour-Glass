@@ -26,8 +26,8 @@ function startNativeTrackerForTask(project, task, taskId, currentUser) {
     const projId = (project && project._id) ? String(project._id) : '';
     const taskTitle = (task && (task.title || task.name)) || 'Task';
     const userStr = (currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
-    console.log('[ProjectPage] Calling TimeTracker.start with:', { user: userStr, project: projId, task: `${taskTitle} (${taskId})` });
-    tt.start(String(userStr), String(projId), `${taskTitle} (${taskId})`, 200);
+  console.log('[ProjectPage] Calling TimeTracker.start with:', { user: userStr, project: projId, taskId });
+  tt.start(String(userStr), String(projId), String(taskId), 200);
     console.log('[ProjectPage] TimeTracker.start completed');
   } catch (e) {
     console.error('[ProjectPage] TimeTracker.start failed:', e);
@@ -247,9 +247,8 @@ const ProjectPage = () => {
           if (webToken && typeof tt.setAuthToken === 'function') tt.setAuthToken(webToken);
         } catch {}
         const projId = (p && p._id) ? String(p._id) : '';
-        const taskTitle = task.title || task.name || 'Task';
-        const userStr = (currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
-        tt.start(String(userStr), String(projId), `${taskTitle} (${taskId})`, 200);
+  const userStr = (currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
+  tt.start(String(userStr), String(projId), String(taskId), 200);
       } catch (e) {
         console.warn('TimeTracker.start failed', e);
       }
@@ -563,7 +562,43 @@ const ProjectPage = () => {
         <tr key={`${displayName}-${idx}`}>
           <td>{idx + 1}</td>
           <td>{displayName}</td>
-          <td>
+          <td style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
+            <button 
+              className={styles.aiSummaryButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log('AI Summary clicked for member:', displayName);
+                // TODO: Implement AI summary logic for member
+                alert(`AI Summary for ${displayName}\n\nThis feature will provide AI-generated insights about this member's:\n- Time tracking patterns\n- Task completion rates\n- Productivity metrics\n- Work hours distribution`);
+              }}
+              title="Generate AI Summary"
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 4px 8px rgba(102, 126, 234, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+              }}
+            >
+              <span>✨</span>
+              <span>AI</span>
+            </button>
             <button className={styles.deleteButton} onClick={() => handleDeleteMember(usernameForApi || displayName)} title="Remove member">🗑</button>
             {currentMode === 'delete' && isCreator && (
               <button className={styles.removeButton} onClick={() => handleRemoveMember(idx, displayName)} style={{ marginLeft: 8 }}>-</button>

@@ -17,9 +17,15 @@ export default function TaskPage() {
   const [timeEntries, setTimeEntries] = useState([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesError, setEntriesError] = useState('');
-  const [liveLogs, setLiveLogs] = useState([]);
-  const liveLogBoxRef = useRef(null);
   const [summary, setSummary] = useState(null);
+  const [showTimeLapse, setShowTimeLapse] = useState(false);
+  const [expandedApps, setExpandedApps] = useState({});
+  const [isBrainstorming, setIsBrainstorming] = useState(false);
+  const [showBrainstormDialog, setShowBrainstormDialog] = useState(false);
+  const [brainstormDescription, setBrainstormDescription] = useState('');
+  const [brainstormDisplayMs, setBrainstormDisplayMs] = useState(0);
+  const brainstormIntervalRef = useRef(null);
+  const brainstormStorageKey = `hg_brainstorm_${projectId}_${taskId}`;
 
   useEffect(() => {
     let mounted = true;
@@ -46,57 +52,12 @@ export default function TaskPage() {
   }, [projectId, taskId]);
 
   // initialize timer state when task loads
-  useEffect(() => {
-    // subscribe to native TimeTracker logs (if available in preload)
-    try {
-      const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
-      if (tt && typeof tt.onLog === 'function') {
-        tt.onLog((d) => {
-          // If this is a summary payload, capture it separately for UI
-          try {
-            if (d && d.message === '[TimeTracker] Summary' && d.data && Array.isArray(d.data.summary)) {
-              setSummary(d.data.summary);
-              return;
-            }
-          } catch (err) {
-            // fall through to live logs
-          }
-          setLiveLogs((prev) => {
-            const next = [...prev, d];
-            // keep recent 200 lines
-            return next.slice(-200);
-          });
-        });
-      }
-    } catch (err) {
-      // non-fatal
-      console.debug('TimeTracker.onLog not available', err);
-    }
-
+  useEffect(()=>{
     if (!task) return;
-    // fetch related time entries for this task (by projectId and task id/title)
-    (async () => {
-      setEntriesLoading(true);
-      setEntriesError('');
-      try {
-        // Try to match by taskId first, server will filter appointment.apptitle
-        const q = encodeURIComponent(taskId || (task.title || ''));
-        const url = `/api/time-entries?projectId=${encodeURIComponent(projectId)}&task=${q}`;
-        const res = await fetch(url, { credentials: 'include' });
-        if (res.ok) {
-          const arr = await res.json();
-          setTimeEntries(Array.isArray(arr) ? arr : []);
-        } else {
-          console.error('Failed to load time entries', res.status);
-          setEntriesError('Failed to load usage logs');
-        }
-      } catch (err) {
-        console.error('load entries error', err);
-        setEntriesError('Failed to load usage logs');
-      } finally { setEntriesLoading(false); }
-    })();
+    
     const initial = Number(task.timeSpent) || 0;
     setBaseMs(initial);
+    
     // set assignee to current logged-in user if not assigned
     try {
       const rawUser = sessionStorage.getItem('user') || localStorage.getItem('user');
@@ -110,13 +71,37 @@ export default function TaskPage() {
     } catch (err) {
       console.warn('Could not parse current user from storage', err);
     }
+    
     // try to load persisted running state for this task
     try {
       const raw = sessionStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.runningSince) {
+          console.log('[TaskPage] Restoring running timer from sessionStorage', { runningSince: parsed.runningSince });
           setRunningSince(parsed.runningSince);
+          
+          // Check if native tracker is still running
+          const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+          if (tt && typeof tt.status === 'function') {
+            tt.status().then(status => {
+              console.log('[TaskPage] Native tracker status on restore:', status);
+              // If tracker stopped but timer was running, restart it
+              if (!status || !status.running) {
+                console.log('[TaskPage] Restarting native tracker after page navigation');
+                if (typeof tt.start === 'function') {
+                  const token = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
+                  if (token && typeof tt.setAuthToken === 'function') {
+                    tt.setAuthToken(token);
+                  }
+                  const pId = project && project._id ? String(project._id) : String(projectId || '');
+                  tt.start('', pId, String(taskId), 200).then(res => {
+                    console.log('[TaskPage] Native tracker restarted:', res);
+                  });
+                }
+              }
+            }).catch(err => console.warn('[TaskPage] Failed to check tracker status:', err));
+          }
         }
         // if accumulated stored (optional), prefer it
         if (parsed && typeof parsed.accumulated === 'number') {
@@ -126,16 +111,105 @@ export default function TaskPage() {
     } catch (e) {
       console.warn('Could not parse persisted timer state', e);
     }
-  }, [task]);
+  }, [task, storageKey, project, projectId, taskId]);
 
-  // auto-scroll live log box when new lines arrive
+  // Restore brainstorming state if present and keep a separate visible timer ticking
   useEffect(() => {
     try {
-      if (liveLogBoxRef && liveLogBoxRef.current) {
-        liveLogBoxRef.current.scrollTop = liveLogBoxRef.current.scrollHeight;
+      const raw = sessionStorage.getItem(brainstormStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.runningSince) {
+          setIsBrainstorming(true);
+          const startedAt = Number(parsed.runningSince);
+          // start ticking display timer
+          if (brainstormIntervalRef.current) clearInterval(brainstormIntervalRef.current);
+          const tick = () => setBrainstormDisplayMs(Date.now() - startedAt);
+          tick();
+          brainstormIntervalRef.current = setInterval(tick, 1000);
+        }
+        if (parsed && typeof parsed.description === 'string') {
+          setBrainstormDescription(parsed.description);
+        }
       }
-    } catch (e) { /* ignore */ }
-  }, [liveLogs]);
+    } catch (e) {
+      console.debug('Brainstorm restore failed', e);
+    }
+    return () => {
+      if (brainstormIntervalRef.current) {
+        clearInterval(brainstormIntervalRef.current);
+        brainstormIntervalRef.current = null;
+      }
+    };
+  }, [brainstormStorageKey]);
+
+  // Helper to post a brainstorm entry to backend and refresh entries
+  const postBrainstormEntry = async (startMs, endMs, description) => {
+    try {
+      const payload = {
+        appointment: {
+          apptitle: description && description.trim() ? `Brainstorming: ${description.trim()}` : 'Brainstorming',
+          appname: 'Brainstorming',
+          startTime: new Date(startMs).toISOString(),
+          endTime: new Date(endMs).toISOString(),
+          duration: Math.max(0, Math.round((endMs - startMs) / 1000))
+        },
+        projectId: project && project._id ? String(project._id) : String(projectId || ''),
+        taskId: String(taskId)
+      };
+      const res = await fetch('/api/time-entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.warn('Failed to store brainstorming entry', res.status, txt);
+      }
+      // Refresh entries table
+      try {
+        const url = `/api/time-entries/flat?projectId=${encodeURIComponent(projectId)}&taskId=${encodeURIComponent(taskId)}`;
+        const r2 = await fetch(url, { credentials: 'include' });
+        if (r2.ok) {
+          const arr = await r2.json();
+          setTimeEntries(Array.isArray(arr) ? arr : []);
+        }
+      } catch {}
+    } catch (err) {
+      console.error('Error posting brainstorming entry', err);
+    }
+  };
+
+  // Separate effect for fetching time entries with polling
+  useEffect(() => {
+    if (!task) return;
+    
+    // fetch related time entries for this task (flattened by intervals)
+    const fetchEntries = async () => {
+      setEntriesLoading(true);
+      setEntriesError('');
+      try {
+        const url = `/api/time-entries/flat?projectId=${encodeURIComponent(projectId)}&taskId=${encodeURIComponent(taskId)}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (res.ok) {
+          const arr = await res.json();
+          setTimeEntries(Array.isArray(arr) ? arr : []);
+        } else {
+          console.error('Failed to load time entries', res.status);
+          setEntriesError('Failed to load usage logs');
+        }
+      } catch (err) {
+        console.error('load entries error', err);
+        setEntriesError('Failed to load usage logs');
+      } finally { setEntriesLoading(false); }
+    };
+    
+    fetchEntries();
+    // poll every 5s for live updates while on this page
+    const poll = setInterval(fetchEntries, 5000);
+    return () => { clearInterval(poll); };
+  }, [task, projectId, taskId]);
 
   // manage interval to update visible timer
   useEffect(() => {
@@ -179,9 +253,8 @@ export default function TaskPage() {
           tt.setAuthToken(token);
         }
         const pId = project && project._id ? String(project._id) : String(projectId || '');
-        const title = (task && (task.title || task.name)) || 'Task';
-        console.log('[TaskPage] Calling TimeTracker.start with:', { project: pId, task: `${title} (${taskId})` });
-        const startRes = await tt.start('', pId, `${title} (${taskId})`, 200);
+  console.log('[TaskPage] Calling TimeTracker.start with:', { project: pId, taskId });
+  const startRes = await tt.start('', pId, String(taskId), 200);
         console.log('[TaskPage] TimeTracker.start returned:', startRes);
         if (!startRes || startRes.ok === false) {
           console.warn('[TaskPage] Native tracker reported failure to start', startRes);
@@ -244,6 +317,40 @@ export default function TaskPage() {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   };
 
+  // Show date along with time for start/end cells
+  const formatDateTime = (isoLike) => {
+    if (!isoLike) return '-';
+    const d = new Date(isoLike);
+    // Keep it simple and locale-aware: date + time
+    const datePart = d.toLocaleDateString();
+    const timePart = d.toLocaleTimeString();
+    return `${datePart} ${timePart}`;
+  };
+
+  // Group time entries by app name
+  const groupedEntries = React.useMemo(() => {
+    const groups = {};
+    timeEntries.forEach(entry => {
+      const appName = entry.appointment?.appname || 'Unknown';
+      if (!groups[appName]) {
+        groups[appName] = [];
+      }
+      groups[appName].push(entry);
+    });
+    return groups;
+  }, [timeEntries]);
+
+  const toggleApp = (appName) => {
+    setExpandedApps(prev => ({
+      ...prev,
+      [appName]: !prev[appName]
+    }));
+  };
+
+  const calculateTotalDuration = (entries) => {
+    return entries.reduce((sum, e) => sum + (e.appointment?.duration || 0), 0);
+  };
+
   if (loading) return <div className={styles.container}><p>Loading...</p></div>;
   if (!project) return <div className={styles.container}><p>Project not found</p><button onClick={() => navigate(-1)}>Go back</button></div>;
   if (!task) return <div className={styles.container}><p>Task not found</p><button onClick={() => navigate(-1)}>Go back</button></div>;
@@ -282,20 +389,6 @@ export default function TaskPage() {
         <p>{task.description || task.desc || task.body || 'No description'}</p>
         <p><strong>Billable Rate in INR (per Hour):</strong> {task.billableRate ? `$${task.billableRate.toFixed(2)}` : 'Not specified'}</p>
         <p><strong>Total amount to be paid:</strong> {task.billableRate && task.timeSpent ? `$${(task.billableRate * (task.timeSpent / 3600000)).toFixed(2)}` : '—'}</p>
-        <p>If you want to get further details about your spending of time.</p>
-        <h3>Live tracker console</h3>
-        <div ref={liveLogBoxRef} style={{ border: '1px solid #eee', background: '#0f1720', color: '#d1d5db', padding: 10, borderRadius: 6, maxHeight: 180, overflow: 'auto', fontFamily: 'monospace', fontSize: 12, marginBottom: 12 }}>
-          {liveLogs.length === 0 ? (
-            <div style={{ color: '#9ca3af' }}>No live logs yet. Start the timer to see native tracker output.</div>
-          ) : (
-            liveLogs.map((l, idx) => (
-              <div key={idx} style={{ marginBottom: 6 }}>
-                <div style={{ color: '#6ee7b7' }}>[{new Date(l.ts).toLocaleTimeString()}]</div>
-                <div>{String(l.message)} {l.data ? JSON.stringify(l.data) : ''}</div>
-              </div>
-            ))
-          )}
-        </div>
 
         {summary && (
           <div style={{ border: '1px solid #e6f4ea', background: '#f7fffb', padding: 12, borderRadius: 6, marginBottom: 12 }}>
@@ -310,32 +403,281 @@ export default function TaskPage() {
           </div>
         )}
 
-        <h3>Usage logs</h3>
-        {entriesLoading ? (
-          <div>Loading usage logs…</div>
-        ) : entriesError ? (
-          <div style={{ color: 'red' }}>{entriesError}</div>
-        ) : (
-          <div style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8, maxHeight: 280, overflow: 'auto' }}>
-            {timeEntries && timeEntries.length > 0 ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}><th>App</th><th>Title</th><th>Start</th><th>Duration</th></tr>
-                </thead>
-                <tbody>
-                  {timeEntries.map((e) => (
-                    <tr key={e._id} style={{ borderBottom: '1px solid #f6f6f6' }}>
-                      <td style={{ padding: '6px 8px' }}>{e.appointment?.appname || '-'}</td>
-                      <td style={{ padding: '6px 8px' }}>{e.appointment?.apptitle || '-'}</td>
-                      <td style={{ padding: '6px 8px' }}>{e.appointment?.startTime ? new Date(e.appointment.startTime).toLocaleString() : '-'}</td>
-                      <td style={{ padding: '6px 8px' }}>{e.appointment?.duration != null ? formatMs(e.appointment.duration * 1000) : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>Usage logs</h3>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button 
+              onClick={() => {
+                setShowBrainstormDialog(true);
+                console.log('[TaskPage] Opening brainstorming dialog');
+              }}
+              disabled={isBrainstorming}
+              style={{
+                background: isBrainstorming ? '#ccc' : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: isBrainstorming ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: isBrainstorming ? 'none' : '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+              title="Start brainstorming session"
+            >
+              <span>💡</span>
+              <span>Start Brainstorming</span>
+            </button>
+            <button 
+              onClick={async () => {
+                try {
+                  // Stop ticking
+                  if (brainstormIntervalRef.current) {
+                    clearInterval(brainstormIntervalRef.current);
+                    brainstormIntervalRef.current = null;
+                  }
+                  // Determine start and end
+                  const now = Date.now();
+                  let startMs = now;
+                  try {
+                    const raw = sessionStorage.getItem(brainstormStorageKey);
+                    if (raw) {
+                      const parsed = JSON.parse(raw);
+                      if (parsed && parsed.runningSince) startMs = Number(parsed.runningSince);
+                    }
+                  } catch (e) {
+                    console.debug('Brainstorm stop: parse storage failed', e);
+                  }
+                  // Clear storage/state
+                  sessionStorage.removeItem(brainstormStorageKey);
+                  setIsBrainstorming(false);
+                  setBrainstormDisplayMs(0);
+                  console.log('[TaskPage] Brainstorming stopped. Posting entry.');
+                  await postBrainstormEntry(startMs, now, brainstormDescription);
+                  if (brainstormDescription) {
+                    alert(`Brainstorming session ended!\n\nDescription: ${brainstormDescription}`);
+                  }
+                } finally {
+                  setBrainstormDescription('');
+                }
+              }}
+              disabled={!isBrainstorming}
+              style={{
+                background: !isBrainstorming ? '#ccc' : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: !isBrainstorming ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: !isBrainstorming ? 'none' : '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+              title="Stop brainstorming session"
+            >
+              <span>🛑</span>
+              <span>Stop Brainstorming</span>
+            </button>
+            <button 
+              onClick={() => setShowTimeLapse(!showTimeLapse)} 
+              className={styles.cta}
+              style={{ fontSize: '14px', padding: '6px 12px' }}
+            >
+              {showTimeLapse ? 'Hide Time Lapse' : 'Show Time Lapse'}
+            </button>
+          </div>
+        </div>
+
+        {showTimeLapse && (
+          <>
+            {entriesLoading ? (
+              <div>Loading usage logs…</div>
+            ) : entriesError ? (
+              <div style={{ color: 'red' }}>{entriesError}</div>
             ) : (
-              <div className={styles.italic}>No usage logs for this task.</div>
+              <div style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8, maxHeight: 400, overflow: 'auto' }}>
+                {timeEntries && timeEntries.length > 0 ? (
+                  <div>
+                    {Object.entries(groupedEntries).map(([appName, entries]) => {
+                      const isExpanded = expandedApps[appName];
+                      const totalDuration = calculateTotalDuration(entries);
+                      return (
+                        <div key={appName} style={{ marginBottom: 16, border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
+                          {/* App Header - Clickable to expand/collapse */}
+                          <div 
+                            onClick={() => toggleApp(appName)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleApp(appName); }}
+                            role="button"
+                            tabIndex={0}
+                            style={{ 
+                              padding: '12px', 
+                              background: '#f8f9fa', 
+                              cursor: 'pointer',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontWeight: 'bold',
+                              borderBottom: isExpanded ? '1px solid #e0e0e0' : 'none'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: '16px' }}>{isExpanded ? '▼' : '▶'}</span>
+                              <span>{appName}</span>
+                              <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>
+                                ({entries.length} session{entries.length !== 1 ? 's' : ''})
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>
+                              Total: {formatMs(totalDuration * 1000)}
+                            </span>
+                          </div>
+                          
+                          {/* Expanded Time Intervals */}
+                          {isExpanded && (
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee', background: '#fafafa' }}>
+                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>Title</th>
+                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>Start Time</th>
+                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>End Time</th>
+                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>Duration</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {entries.map((e) => (
+                                  <tr key={e._id} style={{ borderBottom: '1px solid #f6f6f6' }}>
+                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.apptitle || '-'}</td>
+                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.startTime ? formatDateTime(e.appointment.startTime) : '-'}</td>
+                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.endTime ? formatDateTime(e.appointment.endTime) : '-'}</td>
+                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.duration != null ? formatMs(e.appointment.duration * 1000) : '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={styles.italic}>No usage logs for this task.</div>
+                )}
+              </div>
             )}
+          </>
+        )}
+
+        {/* Brainstorming Dialog */}
+        {showBrainstormDialog && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '90%',
+              maxWidth: '500px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)'
+            }}>
+              <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#333' }}>
+                💡 Start Brainstorming Session
+              </h3>
+              <p style={{ marginBottom: '16px', color: '#666', fontSize: '14px' }}>
+                Describe what you plan to brainstorm about:
+              </p>
+              <textarea
+                value={brainstormDescription}
+                onChange={(e) => setBrainstormDescription(e.target.value)}
+                placeholder="e.g., Exploring new features for the dashboard, brainstorming UI improvements, planning architecture changes..."
+                style={{
+                  width: '100%',
+                  minHeight: '120px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                  marginBottom: '20px'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setShowBrainstormDialog(false);
+                    setBrainstormDescription('');
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    backgroundColor: 'white',
+                    color: '#666',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const desc = brainstormDescription.trim();
+                    if (!desc) {
+                      alert('Please enter a description for your brainstorming session');
+                      return;
+                    }
+                    const startedAt = Date.now();
+                    // Persist state for recovery
+                    sessionStorage.setItem(
+                      brainstormStorageKey,
+                      JSON.stringify({ runningSince: startedAt, description: desc })
+                    );
+                    // Start ticking immediately
+                    if (brainstormIntervalRef.current) clearInterval(brainstormIntervalRef.current);
+                    const tick = () => setBrainstormDisplayMs(Date.now() - startedAt);
+                    tick();
+                    brainstormIntervalRef.current = setInterval(tick, 1000);
+                    setIsBrainstorming(true);
+                    setShowBrainstormDialog(false);
+                    console.log('[TaskPage] Brainstorming started with description:', desc);
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  Start Brainstorming
+                </button>
+              </div>
+            </div>
           </div>
         )}
        

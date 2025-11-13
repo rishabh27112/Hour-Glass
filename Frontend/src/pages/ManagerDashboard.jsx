@@ -980,6 +980,19 @@ const ManagerDashboard = () => {
                             <p className="text-gray-400 mt-1 text-xs">{project.description}</p>
                             <p className="text-xs text-gray-500 mt-2">Owner: {project.owner || 'N/A'}</p>
                           </div>
+                          <button
+                            className="ml-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-2 px-4 rounded-lg text-sm flex items-center gap-2 hover:from-purple-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log('AI Summary clicked for project:', project.name);
+                              // TODO: Implement AI summary logic
+                              alert(`AI Summary for ${project.name}\n\nThis feature will provide AI-generated insights about project progress, time tracking, and productivity metrics.`);
+                            }}
+                            title="Generate AI Summary"
+                          >
+                            <span>✨</span>
+                            <span>AI Summary</span>
+                          </button>
                         </li>
                       );
                     })}
