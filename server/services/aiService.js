@@ -1,4 +1,5 @@
 import process from 'process';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 function humanDuration(seconds) {
   if (seconds == null || isNaN(seconds)) return '0s';
@@ -13,37 +14,95 @@ function humanDuration(seconds) {
   return parts.join(' ') || '0s';
 }
 
-async function callOpenAI(system, content) {
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_KEY) return null;
+// Gemini caller replacing the previous OpenAI integration
+let genAIInstance = null;
+function getGenAI() {
+  if (genAIInstance) return genAIInstance;
+  const GEMINI_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!GEMINI_KEY) return null;
+  genAIInstance = new GoogleGenerativeAI(GEMINI_KEY);
+  return genAIInstance;
+}
+
+const MODEL_CANDIDATES = [
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-1.5-pro',
+  'gemini-1.0-pro-latest',
+  'gemini-1.0-pro',
+  'gemini-pro'
+];
+
+const LATEST_ALIASES = [
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-pro-latest'
+];
+
+let discoveredModelsCache = null;
+async function listGeminiModels() {
+  if (discoveredModelsCache) return discoveredModelsCache;
+  const GEMINI_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!GEMINI_KEY) return null;
   try {
-    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content }
-        ],
-        temperature: 0.35,
-        max_tokens: 700,
-      })
-    });
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(GEMINI_KEY)}`;
+    const resp = await fetch(url);
     if (!resp.ok) {
       const txt = await resp.text();
-      console.error('OpenAI error', resp.status, txt);
+      console.error('Gemini listModels failed', resp.status, txt);
       return null;
     }
     const json = await resp.json();
-    return json?.choices?.[0]?.message?.content?.trim() || null;
+    const entries = (json.models || [])
+      .map(m => ({
+        name: (m.name || '').split('/').pop(),
+        methods: m.supportedGenerationMethods || []
+      }))
+      .filter(e => e.name);
+    discoveredModelsCache = entries;
+    return entries;
   } catch (err) {
-    console.error('OpenAI request failed', err);
+    console.error('Gemini listModels request failed', err);
     return null;
   }
+}
+
+async function callGemini(system, content) {
+  const genAI = getGenAI();
+  if (!genAI) return null;
+  const prompt = `${system}\n\nUSER INPUT:\n${content}`;
+  // Build candidate list with: env override > discovered (supports generateContent) > aliases > known fallbacks
+  const envModel = (process.env.GEMINI_MODEL || '').trim();
+  let candidates = [];
+  if (envModel) candidates.push(envModel);
+  const available = await listGeminiModels();
+  if (available && available.length) {
+    const supported = available
+      .filter(e => (e.methods || []).includes('generateContent'))
+      .map(e => e.name);
+    // Prioritize discovered, then add aliases and static list
+    candidates.push(...supported);
+  }
+  candidates.push(...LATEST_ALIASES, ...MODEL_CANDIDATES);
+  // De-duplicate while preserving order
+  candidates = Array.from(new Set(candidates));
+
+  for (const modelName of candidates) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = (response.text && response.text()) || '';
+      if (text && text.trim()) return text.trim();
+    } catch (err) {
+      // Log and try next model
+      const code = err?.status || err?.statusCode;
+      const msg = err?.message || String(err);
+      console.error(`Gemini model ${modelName} failed${code ? ` [${code}]` : ''}:`, msg);
+      // Try the next candidate on 404/400/unsupported
+      continue;
+    }
+  }
+  return null;
 }
 
 export async function generateDailySummary({ items = [], username = 'user', date }) {
@@ -61,7 +120,7 @@ export async function generateDailySummary({ items = [], username = 'user', date
   const system = `You are a helpful assistant that writes short daily check-ins for a user based on a list of activities. Produce 4-8 concise bullet points, start with a one-line summary sentence, then bullets detailing main tasks, time spent, and any suggestions for tomorrow. Keep it professional and ~4-6 short bullets.`;
   const userPrompt = `Date: ${date ? new Date(date).toLocaleDateString() : 'unknown'}\nUsername: ${username}\nActivities:\n${lines}\n\nWrite a short daily check-in using the information above.`;
 
-  const ai = await callOpenAI(system, userPrompt);
+  const ai = await callGemini(system, userPrompt);
   if (ai) return ai;
 
   // Fallback deterministic summary
@@ -87,13 +146,30 @@ export async function generateManagerSummary({ reports = [], managerName = 'mana
   // reports: [{ username, items, itemsCount, summary }]
   if (!reports || reports.length === 0) return `No team activity for ${managerName} on ${date ? new Date(date).toLocaleDateString() : 'the selected date'}.`;
 
-  const summaryLines = reports.map(r => `-- ${r.username} (${r.itemsCount} items):\n${(r.summary || '').slice(0,400)}`).join('\n\n');
+  // Prepare richer, data-backed context per member. If summary is missing, include key items.
+  const memberBlocks = reports.map(r => {
+    const header = `-- ${r.username} (${r.itemsCount || 0} items)`;
+    const hasSummary = r.summary && String(r.summary).trim().length > 0;
+    if (hasSummary) {
+      return `${header}:\n${String(r.summary).slice(0, 700)}`;
+    }
+    const items = Array.isArray(r.items) ? r.items : [];
+    if (items.length === 0) return `${header}:\n(no items listed)`;
+    const lines = items.slice(0, 12).map((it, idx) => {
+      const app = it.appname || 'app';
+      const title = it.apptitle || '-';
+      const dur = it.duration != null ? humanDuration(it.duration) : '-';
+      const proj = it.project ? ` [${it.project}]` : '';
+      return `${idx + 1}. ${app} - ${title}${proj} (${dur})`;
+    });
+    return `${header}:\n${lines.join('\n')}`;
+  }).join('\n\n');
 
-  const system = `You are an assistant that produces a concise manager-facing daily check-in summarizing what each team member did today. Provide an executive 3-5 line summary at top, then a short per-person note (1-2 lines) and finally recommendations for the manager (1-3 bullets). Keep it concise and actionable.`;
+  const system = `You produce concise, data-grounded manager daily check-ins. Use the provided per-member activity (summaries and/or item lists). Do not infer "no activity" if items are present. Start with a brief executive summary (3-5 lines), then 1-2 lines per person, then 1-3 actionable recommendations. Keep it professional and specific.`;
 
-  const userPrompt = `Date: ${date ? new Date(date).toLocaleDateString() : 'unknown'}\nManager: ${managerName}\nTeam reports:\n${summaryLines}\n\nProduce the manager-facing daily check-in.`;
+  const userPrompt = `Date: ${date ? new Date(date).toLocaleDateString() : 'unknown'}\nManager: ${managerName}\n\nTeam activity context (per member):\n${memberBlocks}\n\nWrite the manager-facing daily check-in.`;
 
-  const ai = await callOpenAI(system, userPrompt);
+  const ai = await callGemini(system, userPrompt);
   if (ai) return ai;
 
   // Fallback: aggregate simple totals
