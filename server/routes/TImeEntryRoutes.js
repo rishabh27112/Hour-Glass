@@ -1,17 +1,20 @@
+
+
 import express from 'express';
 import userAuth from '../middleware/userAuth.js';
 import TimeEntry from '../models/TimeEntry.js';
 import userModel from '../models/userModel.js';
-import Project from '../models/ProjectModel.js';
-import { classifyActivity } from '../services/classificationService.js';
+import Project from '../models/ProjectModel.js'; // <-- IMPORT PROJECT MODEL
+import { classifyActivity } from '../services/classificationService.js'; // <-- IMPORT OUR NEW SERVICE
 import { generateDailySummary, generateManagerSummary } from '../services/aiService.js';
+import AiSummary from '../models/AiSummaryModel.js';
 
 const router = express.Router();
 
-// shared handler to add or update grouped appointment
-async function handleAddEntry(req, res) {
+// POST /api/time-entries - Store a complete appointment/time entry
+router.post('/', userAuth, async (req, res) => {
   try {
-    const { appointment, projectId, description, taskId } = req.body;
+    const { appointment, projectId, description } = req.body;
     if (!appointment || !appointment.apptitle || !appointment.appname || !appointment.startTime || appointment.duration == null) {
       return res.status(400).json({ msg: 'Invalid appointment payload. Required: apptitle, appname, startTime, duration' });
     }
@@ -21,181 +24,105 @@ async function handleAddEntry(req, res) {
     if (!currentUser) return res.status(401).json({ msg: 'User not found' });
     const username = currentUser.username;
 
-  // derive task identifier if passed (Electron sends description as task string)
-  const incomingTaskId = (taskId || description || '').toString() || undefined;
-
-  // 2. Classify activity (AI + rule-based)
+    // --- START NEW CLASSIFICATION LOGIC ---
+    
+    // 2. Classify the activity (using Rules DB + AI)
+    // This gives us 'billable' or 'non-billable'
     const suggestedCategory = await classifyActivity(appointment);
-
+    
     let finalIsBillable = false;
+    
+    // 3. Check the Project's billable status
     if (projectId) {
       const project = await Project.findById(projectId).select('isBillable');
       if (project && project.isBillable && suggestedCategory === 'billable') {
+        // Only billable if BOTH the project is billable AND the activity is billable
         finalIsBillable = true;
       }
     }
+    // If no project is assigned, it defaults to false (non-billable)
 
-    // 3. Find or create user-project document
-  let entry = await TimeEntry.findOne({ userId: username, project: projectId });
+    // --- END NEW CLASSIFICATION LOGIC ---
 
-    if (!entry) {
-      // First appointment for this project
-      entry = new TimeEntry({
-        userId: username,
-        project: projectId,
-        appointments: [{
-          apptitle: appointment.apptitle,
-          appname: appointment.appname,
-          taskId: incomingTaskId,
-          suggestedCategory,
-          isBillable: finalIsBillable,
-          timeIntervals: [{
-            startTime: new Date(appointment.startTime),
-            endTime: appointment.endTime ? new Date(appointment.endTime) : undefined,
-            duration: Number(appointment.duration)
-          }]
-        }]
-      });
-    } else {
-      // 4. Check if same appointment type exists
-      const existingApp = entry.appointments.find(a =>
-        a.apptitle === appointment.apptitle &&
-        a.appname === appointment.appname &&
-        a.isBillable === finalIsBillable &&
-        ((incomingTaskId && a.taskId === incomingTaskId) || (!incomingTaskId && !a.taskId))
-      );
+    const newEntry = new TimeEntry({
+      userId: username,
+      description,
+      project: projectId,
+      appointment: {
+        apptitle: appointment.apptitle,
+        appname: appointment.appname,
+        startTime: new Date(appointment.startTime),
+        endTime: appointment.endTime ? new Date(appointment.endTime) : undefined,
+        duration: Number(appointment.duration),
+      },
+      suggestedCategory: suggestedCategory, // <-- SAVE SUGGESTION
+      isBillable: finalIsBillable          // <-- SAVE FINAL STATUS
+    });
 
-      if (existingApp) {
-        // Add new interval
-        existingApp.timeIntervals.push({
-          startTime: new Date(appointment.startTime),
-          endTime: appointment.endTime ? new Date(appointment.endTime) : undefined,
-          duration: Number(appointment.duration)
-        });
-      } else {
-        // Add new appointment group
-        entry.appointments.push({
-          apptitle: appointment.apptitle,
-          appname: appointment.appname,
-          taskId: incomingTaskId,
-          suggestedCategory,
-          isBillable: finalIsBillable,
-          timeIntervals: [{
-            startTime: new Date(appointment.startTime),
-            endTime: appointment.endTime ? new Date(appointment.endTime) : undefined,
-            duration: Number(appointment.duration)
-          }]
-        });
-      }
-    }
-
-    const savedEntry = await entry.save();
+    const savedEntry = await newEntry.save();
     const populatedEntry = await savedEntry.populate('project', 'ProjectName Description status');
     res.status(201).json(populatedEntry);
   } catch (err) {
     console.error(err);
     res.status(500).send('Server Error');
   }
-}
+});
 
-// POST /api/time-entries — Add or update grouped appointment
-router.post('/', userAuth, handleAddEntry);
-// Alias: POST /api/time-entries/add-entry
-router.post('/add-entry', userAuth, handleAddEntry);
+// (start/stop endpoints removed) Clients should send a complete appointment
+// object to POST /api/time-entries and the server will store it as-is.
 
-// GET /api/time-entries — Retrieve all user time entries
+
+// GET /api/time-entries - Get all time entries for a user
 router.get('/', userAuth, async (req, res) => {
-  try {
-    const currentUser = await userModel.findById(req.userId).select('username');
-    if (!currentUser) return res.status(401).json({ msg: 'User not found' });
-    const username = currentUser.username;
+ try {
+  const currentUser = await userModel.findById(req.userId).select('username');
+  if (!currentUser) return res.status(401).json({ msg: 'User not found' });
+  const username = currentUser.username;
 
-    const { projectId, task, taskId } = req.query;
-    const query = { userId: username };
-    if (projectId) query.project = projectId;
+  // optional query filters: projectId, task (task id or task title substring)
+  const { projectId, task } = req.query;
 
-    const entries = await TimeEntry.find(query)
-      .populate('project', 'ProjectName Description status')
-      .sort({ updatedAt: -1 })
-      .exec();
+  const query = { userId: username };
+  if (projectId) query.project = projectId;
 
-    // Optional: filter by task (apptitle substring)
-    let filtered = entries;
-    if (task) {
-      const regex = new RegExp(task, 'i');
-      filtered = entries.map(e => ({
-        ...e._doc,
-        appointments: e.appointments.filter(a => regex.test(a.apptitle))
-      })).filter(e => e.appointments.length > 0);
-    }
+  // base query
+  let entriesQuery = TimeEntry.find(query).populate('project', 'ProjectName Description status').sort({ 'appointment.startTime': -1 });
 
-    // Optional: filter by exact taskId
-    if (taskId) {
-      filtered = filtered.map(e => ({
-        ...e._doc,
-        appointments: e.appointments.filter(a => String(a.taskId) === String(taskId))
-      })).filter(e => e.appointments.length > 0);
-    }
+  let entries = await entriesQuery.exec();
 
-    res.json(filtered);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Server Error');
+  // additional in-memory filtering for task (matches appointment.apptitle case-insensitive)
+  if (task) {
+    const safe = String(task).trim();
+    const regex = new RegExp(safe.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+    entries = entries.filter(e => (e.appointment && e.appointment.apptitle && regex.test(e.appointment.apptitle)));
   }
+
+  res.json(entries);
+ } catch (err) {
+   console.error(err);
+   res.status(500).send('Server Error');
+ }
 });
 
-// GET /api/time-entries/flat — Flattened list per time interval for UI consumption
-// Returns: [{ _id, appointment: { appname, apptitle, startTime, endTime, duration }, project: {..}, taskId }]
-router.get('/flat', userAuth, async (req, res) => {
-  try {
-    const currentUser = await userModel.findById(req.userId).select('username');
-    if (!currentUser) return res.status(401).json({ msg: 'User not found' });
-    const username = currentUser.username;
 
-    const { projectId, taskId, task } = req.query;
-    const query = { userId: username };
-    if (projectId) query.project = projectId;
-
-    const docs = await TimeEntry.find(query)
-      .populate('project', 'ProjectName Description status')
-      .sort({ updatedAt: -1 })
-      .exec();
-
-    const out = [];
-    for (const doc of docs) {
-      for (const a of (doc.appointments || [])) {
-        // filter by taskId if provided
-        if (taskId && String(a.taskId) !== String(taskId)) continue;
-        // optional fuzzy filter by apptitle if provided as 'task'
-        if (task) {
-          const regex = new RegExp(task, 'i');
-          if (!regex.test(a.apptitle || '')) continue;
-        }
-        for (let i = 0; i < (a.timeIntervals || []).length; i++) {
-          const ti = a.timeIntervals[i];
-          out.push({
-            _id: `${doc._id}:${a.appname}:${i}:${ti.startTime?.toISOString?.() || i}`,
-            appointment: {
-              appname: a.appname,
-              apptitle: a.apptitle,
-              startTime: ti.startTime,
-              endTime: ti.endTime,
-              duration: ti.duration,
-            },
-            project: doc.project,
-            taskId: a.taskId || null,
-          });
-        }
-      }
-    }
-    // Sort newest first by startTime
-    out.sort((x, y) => new Date(y.appointment.startTime).getTime() - new Date(x.appointment.startTime).getTime());
-    res.json(out);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Server Error');
-  }
+// DELETE /api/time-entries/:id - Delete a time entry
+router.delete('/:id', userAuth, async (req, res) => {
+ try {
+   const currentUser = await userModel.findById(req.userId).select('username');
+   if (!currentUser) return res.status(401).json({ msg: 'User not found' });
+   const username = currentUser.username;
+   const entry = await TimeEntry.findOne({ _id: req.params.id, userId: username });
+   if (!entry) {
+     return res.status(404).json({ msg: 'Time entry not found' });
+   }
+   await entry.deleteOne();
+   res.json({ msg: 'Time entry removed' });
+ } catch (err) {
+  console.error(err);
+  res.status(500).send('Server Error');
+ }
 });
+
 
 // POST /api/time-entries/daily-summary/manager - manager-only summary for a project team
 // body: { projectId: string, date?: ISODateString }
@@ -203,6 +130,12 @@ router.post('/daily-summary/manager', userAuth, async (req, res) => {
   try {
     const { projectId, date } = req.body || {};
     if (!projectId) return res.status(400).json({ msg: 'projectId is required' });
+
+    // Ensure authentication middleware set req.userId (mirror project creation auth checks)
+    if (!req.userId) {
+      console.error('Missing req.userId in manager daily-summary - userAuth may have failed');
+      return res.status(401).json({ msg: 'Authentication required' });
+    }
 
     // resolve current user and check manager rights
     const currentUser = await userModel.findById(req.userId).select('username name');
@@ -249,6 +182,25 @@ router.post('/daily-summary/manager', userAuth, async (req, res) => {
     const managerName = currentUser.username || currentUser.name || 'manager';
     const managerSummary = await generateManagerSummary({ reports, managerName, date: dayStart.toISOString() });
 
+    // Persist the manager summary (upsert for project+date)
+    try {
+      await AiSummary.findOneAndUpdate(
+        { type: 'manager', project: projectId, date: dayStart },
+        {
+          $set: {
+            manager: currentUser._id || req.userId,
+            managerUsername: managerName,
+            summary: managerSummary,
+            reports: reports
+          }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (persistErr) {
+      console.error('Failed to persist manager summary', persistErr);
+      // Do not fail the request if save fails; just continue returning the summary
+    }
+
     return res.json({ ok: true, managerSummary, reportsCount: reports.length });
   } catch (err) {
     console.error('manager daily-summary error', err);
@@ -256,103 +208,27 @@ router.post('/daily-summary/manager', userAuth, async (req, res) => {
   }
 });
 
-// POST /api/time-entries/hours-per-day
-// body: { projectId: string, memberUsername: string }
-// returns: [{ date: 'YYYY-MM-DD', hours: number }]
-router.post('/hours-per-day', userAuth, async (req, res) => {
+
+
+
+// GET /api/time-entries/ai-summary/manager/:projectId?date=YYYY-MM-DD
+router.get('/ai-summary/manager/:projectId', userAuth, async (req, res) => {
   try {
-    const { projectId, memberUsername } = req.body || {};
-    if (!projectId || !memberUsername) return res.status(400).json({ msg: 'projectId and memberUsername are required' });
-
-    // resolve current user and check manager rights or allow self
-    const currentUser = await userModel.findById(req.userId).select('username');
-    if (!currentUser) return res.status(401).json({ msg: 'User not found' });
-    const username = currentUser.username;
-
-    const project = await Project.findById(projectId).populate('createdBy', 'username');
-    if (!project) return res.status(404).json({ msg: 'Project not found' });
-
-    const creatorId = project.createdBy && (project.createdBy._id || project.createdBy);
-    const creatorUsername = project.createdBy && (project.createdBy.username || null);
-    // allow if requester is project creator (manager) or requesting their own data
-    if (!(creatorId && creatorId.toString() === req.userId) && username !== memberUsername) {
-      return res.status(403).json({ msg: 'Only the project owner/manager or the member themselves can request this data' });
-    }
-
-    // fetch time entries for the member on this project
-    const docs = await TimeEntry.find({ userId: memberUsername, project: projectId }).exec();
-    const intervals = [];
-    for (const doc of docs) {
-      for (const a of (doc.appointments || [])) {
-        for (const ti of (a.timeIntervals || [])) {
-          if (!ti || !ti.startTime) continue;
-          const start = new Date(ti.startTime);
-          const durSec = Number(ti.duration) || (ti.endTime ? (new Date(ti.endTime).getTime() - start.getTime()) / 1000 : 0);
-          const end = ti.endTime ? new Date(ti.endTime) : new Date(start.getTime() + durSec * 1000);
-          intervals.push({ start, end, duration: durSec });
-        }
-      }
-    }
-
-    if (intervals.length === 0) return res.json({ ok: true, data: [] });
-
-    // determine date range (use local dates)
-    let minDate = intervals.reduce((min, it) => it.start < min ? it.start : min, intervals[0].start);
-    let maxDate = intervals.reduce((max, it) => it.end > max ? it.end : max, intervals[0].end);
-    // normalize to date boundaries (local)
-    const toYMD = d => {
-      const dt = new Date(d);
-      dt.setHours(0,0,0,0);
-      return dt;
-    };
-    let cur = toYMD(minDate);
-    const last = toYMD(maxDate);
-
-    // bucket durations by date (simple attribution to start-date)
-    const buckets = {};
-    for (const it of intervals) {
-      const dayKey = toYMD(it.start).toISOString().slice(0,10);
-      buckets[dayKey] = (buckets[dayKey] || 0) + (Number(it.duration) || 0);
-    }
-
-    // create continuous array from min to max inclusive
-    const out = [];
-    for (let dt = new Date(cur); dt <= last; dt.setDate(dt.getDate() + 1)) {
-      const key = dt.toISOString().slice(0,10);
-      const seconds = buckets[key] || 0;
-      out.push({ date: key, hours: Math.round((seconds / 3600) * 100) / 100 });
-    }
-
-    return res.json({ ok: true, data: out });
+    const { projectId } = req.params;
+    const { date } = req.query;
+    if (!projectId) return res.status(400).json({ msg: 'projectId is required' });
+    let dayStart = date ? new Date(date) : new Date();
+    dayStart.setHours(0,0,0,0);
+    const summary = await AiSummary.findOne({
+      type: 'manager',
+      project: projectId,
+      date: dayStart
+    });
+    if (!summary) return res.status(404).json({ msg: 'No summary found for this project/date' });
+    res.json({ ok: true, summary });
   } catch (err) {
-    console.error('[time-entries] hours-per-day error:', err && err.stack ? err.stack : err);
-    if (process.env.NODE_ENV !== 'production') {
-      return res.status(500).json({ error: String(err && (err.message || err)), stack: err && err.stack });
-    }
-    return res.status(500).send('Server Error');
-  }
-});
-
-// DELETE /api/time-entries/:projectId/:apptitle — delete full appointment group
-router.delete('/:projectId/:apptitle', userAuth, async (req, res) => {
-  try {
-    const currentUser = await userModel.findById(req.userId).select('username');
-    if (!currentUser) return res.status(401).json({ msg: 'User not found' });
-    const username = currentUser.username;
-
-    const { projectId, apptitle } = req.params;
-
-    const entry = await TimeEntry.findOne({ userId: username, project: projectId });
-    if (!entry) return res.status(404).json({ msg: 'Entry not found' });
-
-    const newAppointments = entry.appointments.filter(a => a.apptitle !== apptitle);
-    entry.appointments = newAppointments;
-
-    await entry.save();
-    res.json({ msg: 'Appointment group removed' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Server Error');
+    console.error('GET ai-summary error', err);
+    res.status(500).json({ ok: false, error: String(err && (err.message || err)) });
   }
 });
 
