@@ -68,46 +68,97 @@ const ProfilePage = () => {
   }, []);
 
   return (
-    <div style={{ padding: 24 }} className={styles.dashboardBg}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2>Profile</h2>
-        <div>
-          <button onClick={() => navigate(-1)} className={styles.back}>← Back</button>
-          <button onClick={() => navigate('/forgot-password')} style={{ marginLeft: 8 }} className={styles.filterButton}>Change Password</button>
-        </div>
+    <div style={{ padding: '120px 16px 24px 16px', width: '100%' }} className={styles.dashboardBg}>
+      <div style={{ position: 'fixed', top: 20, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 60 }}>
+        <h1 style={{ 
+          fontSize: '3rem', 
+          fontWeight: '700', 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          margin: 0,
+          padding: '8px 16px',
+        }}>
+          Profile
+        </h1>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24 }}>
-        <div style={{ background: '#fff', padding: 16, borderRadius: 8 }}>
-          <h3>Account</h3>
-          <p><strong>Name:</strong> {user.name || user.fullName || '-'}</p>
-          <p><strong>Username:</strong> {user.username || '-'}</p>
-          <p><strong>Email:</strong> {user.email || '-'}</p>
-        </div>
+      {/* Back button fixed on top-left (restored) */}
+      <div style={{ position: 'fixed', top: 18, left: 20, zIndex: 70 }}>
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            background: '#4c51bf',
+            color: '#fff',
+            border: 'none',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 600,
+          }}
+        >
+          ← Back
+        </button>
+      </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2.5fr 1.5fr', gap: 24, minHeight: 'calc(100vh - 160px)', width: '100%' }}>
+        {/* Left column: tasks you're leading */}
         <div>
-          <div style={{ background: '#fff', padding: 16, borderRadius: 8, marginBottom: 16 }}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 8, height: '100%' }}>
             <h3>Tasks you're leading</h3>
             {tasksLeading && tasksLeading.length > 0 ? (
               <ul>
                 {tasksLeading.map((t, i) => (
                   <li key={t._id || t._clientId || i} style={{ marginBottom: 8 }}>
-                    <strong>{t.title || t.name || 'Untitled'}</strong> — <em>{t.projectName}</em>
-                    <div style={{ fontSize: 12 }}>{t.status || 'todo'} {t.dueDate ? ` • due ${new Date(t.dueDate).toLocaleString()}` : ''}</div>
+                    <strong>{t.title || t.name || 'Untitled'}</strong>
+                    <div style={{ fontSize: 12, marginTop: 4 }}><em>{t.projectName}</em> • {t.status || 'todo'}{t.dueDate ? ` • due ${new Date(t.dueDate).toLocaleDateString()}` : ''}</div>
                   </li>
                 ))}
               </ul>
             ) : <div className={styles.italic}>No tasks found</div>}
           </div>
+        </div>
 
-          <div style={{ background: '#fff', padding: 16, borderRadius: 8 }}>
+        {/* Center column: account info centered */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: 32, borderRadius: 8, width: '100%', maxWidth: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+            <h3>Account</h3>
+            <p><strong>Name:</strong> {user.name || user.fullName || '-'}</p>
+            <p><strong>Username:</strong> {user.username || '-'}</p>
+            <p><strong>Email:</strong> {user.email || '-'}</p>
+
+            <div style={{ marginTop: 20 }}>
+              <button
+                onClick={() => navigate('/forgot-password')}
+                style={{
+                  background: '#764ba2',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                }}
+              >
+                Change Password
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right column: tasks you're assigned to */}
+        <div>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 8, height: '100%' }}>
             <h3>Tasks you're assigned to</h3>
             {tasksAssigned && tasksAssigned.length > 0 ? (
               <ul>
                 {tasksAssigned.map((t, i) => (
                   <li key={t._id || t._clientId || i} style={{ marginBottom: 8 }}>
-                    <strong>{t.title || t.name || 'Untitled'}</strong> — <em>{t.projectName}</em>
-                    <div style={{ fontSize: 12 }}>{t.status || 'todo'} {t.dueDate ? ` • due ${new Date(t.dueDate).toLocaleString()}` : ''}</div>
+                    <strong>{t.title || t.name || 'Untitled'}</strong>
+                    <div style={{ fontSize: 12, marginTop: 4 }}><em>{t.projectName}</em> • {t.status || 'todo'}{t.dueDate ? ` • due ${new Date(t.dueDate).toLocaleDateString()}` : ''}</div>
                   </li>
                 ))}
               </ul>
