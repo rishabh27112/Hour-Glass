@@ -9,6 +9,8 @@ const userSchema = new mongoose.Schema({
     isAccountVerified: { type: Boolean, default: false },
     resetOtp: { type: String, default: '' },
     resetOtpExpireAt: { type: Number, default: 0 },
+    // timestamp (ms) when the last reset OTP was sent
+    resetOtpLastSent: { type: Number, default: 0 },
 });
 
 
