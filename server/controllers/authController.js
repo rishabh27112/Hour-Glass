@@ -74,6 +74,14 @@ export const register = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing details' });
     }
     try {
+        // Password policy: 6-12 chars, at least 1 upper, 1 lower, 1 digit, 1 special char
+        const pwdPolicy = /^(?=.{6,12}$)(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>\/?`~]).*$/;
+        if (!pwdPolicy.test(password)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be 6-12 characters long and include at least one uppercase letter, one lowercase letter, one number and one special character.'
+            });
+        }
         const normalizedEmail = String(email).trim().toLowerCase().replace(/[\s,;]+$/g, '').replace(/[;,]/g,'');
         const normalizedUsername = String(username).trim().toLowerCase();
         // basic server-side validation for username
@@ -264,6 +272,15 @@ export const resetPassword = async(req, res) =>{
 
         if(user.resetOtpExpireAt < Date.now()){
              return res.json({success: false, message: 'OTP expired'});
+        }
+
+        // Enforce same password policy for resets
+        const pwdPolicy = /^(?=.{6,12}$)(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>\/?`~]).*$/;
+        if (!pwdPolicy.test(newPassword)) {
+            return res.json({
+                success: false,
+                message: 'New password must be 6-12 characters long and include at least one uppercase letter, one lowercase letter, one number and one special character.'
+            });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword,10);

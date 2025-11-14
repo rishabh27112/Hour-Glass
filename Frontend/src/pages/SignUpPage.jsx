@@ -110,6 +110,10 @@ const SignUpPage = () => {
   // Step 2: Register
   const handleFormChange = (e) => {
     const { name, value } = e.target;
+    // Clear password-related error/message as soon as user starts typing again
+    if ((name === 'password' || name === 'confirmPassword') && formError) {
+      setFormError('');
+    }
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
