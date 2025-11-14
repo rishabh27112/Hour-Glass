@@ -246,7 +246,7 @@ class TimeTracker {
 						duration: appointment.duration,
 					},
 					projectId: this.project_id ?? undefined,
-					taskId: this.task_id ?? undefined,
+					description: this.task_id ?? undefined,
 				};
 
 				const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -317,6 +317,9 @@ class TimeTracker {
 			const activeWindow = this.sm.getCurrentWindowInfo();
 			const now = new Date();
 
+			// Log the active window for debugging
+			emitRendererLog('[TimeTracker] Active window detected', { title: activeWindow?.title, app: activeWindow?.owner?.name });
+
 			if (!this.currentEntry){
 				emitRendererLog('[TimeTracker] No current entry, initializing new entry', { title: activeWindow?.title });
 				if(activeWindow && activeWindow.title !== "Unknown"){
@@ -327,32 +330,38 @@ class TimeTracker {
 						endTime: now,
 						duration: 0,
 					};
-					emitRendererLog('[TimeTracker] Created new entry', { title: this.currentEntry.apptitle });
+					emitRendererLog('[TimeTracker] Created new entry', { title: this.currentEntry.apptitle, app: this.currentEntry.appname });
 				}
 				return;
 			}
 
 			if (this.currentEntry.apptitle === activeWindow?.title) {
+				// Same window, just update end time
 				this.currentEntry.endTime = now;
 				
 			} else {
+				// Window changed, save previous entry if duration > threshold
 				const ce = this.currentEntry;
-				if (ce?.startTime && ce?.endTime && (ce.endTime.getTime() - ce.startTime.getTime() > 2000)) {
-					ce.duration = (ce.endTime.getTime() - ce.startTime.getTime()) / 1000;
-						emitRendererLog('[TimeTracker] Pushing entry', { app: ce.appname, title: ce.apptitle, duration: ce.duration });
-						this.entries.push(ce);
-						emitRendererLog('[TimeTracker] Total entries in memory', { count: this.entries.length });
+				const durationMs = ce.endTime.getTime() - ce.startTime.getTime();
 				
-
-
-					this.currentEntry = {
-						apptitle: activeWindow?.title || "Unknown",
-						appname: activeWindow?.owner.name || "Unknown",
-						startTime: now,
-						endTime: now,
-						duration: 0,
-					};
+				if (durationMs > 500) {
+					ce.duration = durationMs / 1000;
+					emitRendererLog('[TimeTracker] Pushing entry', { app: ce.appname, title: ce.apptitle, duration: ce.duration });
+					this.entries.push(ce);
+					emitRendererLog('[TimeTracker] Total entries in memory', { count: this.entries.length });
+				} else {
+					emitRendererLog('[TimeTracker] Skipping short entry', { app: ce.appname, title: ce.apptitle, duration: durationMs });
 				}
+
+				// Create new entry for the new window
+				this.currentEntry = {
+					apptitle: activeWindow?.title || "Unknown",
+					appname: activeWindow?.owner.name || "Unknown",
+					startTime: now,
+					endTime: now,
+					duration: 0,
+				};
+				emitRendererLog('[TimeTracker] Switched to new entry', { title: this.currentEntry.apptitle, app: this.currentEntry.appname });
 			}
 		}, intervalMs);
 	}
@@ -396,7 +405,17 @@ class TimeTracker {
 		emitRendererLog('[TimeTracker] System resource monitor stopped');
 		
 		if (this.currentEntry) {
-			this.entries.push(this.currentEntry);
+			// Update endTime and calculate duration before pushing
+			this.currentEntry.endTime = new Date();
+			if (this.currentEntry.startTime && this.currentEntry.endTime) {
+				const durationMs = this.currentEntry.endTime.getTime() - this.currentEntry.startTime.getTime();
+				this.currentEntry.duration = durationMs / 1000;
+				// Only push if duration is greater than minimum threshold
+				if (durationMs > 500) {
+					emitRendererLog('[TimeTracker] Final entry on stop', { app: this.currentEntry.appname, title: this.currentEntry.apptitle, duration: this.currentEntry.duration });
+					this.entries.push(this.currentEntry);
+				}
+			}
 			this.currentEntry = null;
 		}
 		// Aggregate and emit a summary for UI instead of printing each entry

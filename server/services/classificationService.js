@@ -3,7 +3,7 @@ import ClassificationRule from "../models/classificationRule.model.js";
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
 /**
  * Normalizes an application name for consistent lookups.
@@ -24,6 +24,12 @@ function normalizeAppName(appName) {
  * Calls the Gemini API to get a classification for an ambiguous app.
  */
 async function getAIClassification(activity, normalizedName) {
+  // COMMENTED OUT - Gemini API temporarily disabled
+  // Default to non-billable when AI is unavailable
+  console.log('[AI] API disabled, defaulting to non-billable for:', normalizedName);
+  return 'non-billable';
+
+  /* GEMINI API CODE - COMMENTED OUT
   const prompt = `
     You are a productivity expert. Classify the following computer activity as "billable" or "non-billable" based on the application name and window title.
     - "billable" means professional work (coding, design, client email, documentation, etc.).
@@ -86,6 +92,7 @@ async function getAIClassification(activity, normalizedName) {
     // Don't default to non-billable on error — mark ambiguous so higher-level logic can fall back or handle it.
     return 'ambiguous';
   }
+  */
 }
 
 /**

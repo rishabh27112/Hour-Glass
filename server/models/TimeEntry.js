@@ -12,7 +12,7 @@ const groupedAppointmentSchema = new mongoose.Schema({
   // optional: associate this appointment group to a specific task within the project
   // we keep it as string to allow either a DB ObjectId or a client-generated id
   taskId: { type: String, required: false, index: true },
-  suggestedCategory: { type: String, enum: ['billable', 'non-billable'], required: true },
+  suggestedCategory: { type: String, enum: ['billable', 'non-billable', 'ambiguous'], required: true },
   isBillable: { type: Boolean, default: false },
 
   // multiple time intervals for the same task

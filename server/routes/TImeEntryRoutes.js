@@ -24,10 +24,7 @@ router.post('/', userAuth, async (req, res) => {
     if (!currentUser) return res.status(401).json({ msg: 'User not found' });
     const username = currentUser.username;
 
-    // --- START NEW CLASSIFICATION LOGIC ---
-    
     // 2. Classify the activity (using Rules DB + AI)
-    // This gives us 'billable' or 'non-billable'
     const suggestedCategory = await classifyActivity(appointment);
     
     let finalIsBillable = false;
@@ -36,30 +33,47 @@ router.post('/', userAuth, async (req, res) => {
     if (projectId) {
       const project = await Project.findById(projectId).select('isBillable');
       if (project && project.isBillable && suggestedCategory === 'billable') {
-        // Only billable if BOTH the project is billable AND the activity is billable
         finalIsBillable = true;
       }
     }
-    // If no project is assigned, it defaults to false (non-billable)
 
-    // --- END NEW CLASSIFICATION LOGIC ---
+    // 4. Find or create the TimeEntry document for this user+project
+    let timeEntry = await TimeEntry.findOne({ userId: username, project: projectId });
+    
+    if (!timeEntry) {
+      // Create new document
+      timeEntry = new TimeEntry({
+        userId: username,
+        project: projectId,
+        appointments: []
+      });
+    }
 
-    const newEntry = new TimeEntry({
-      userId: username,
-      description,
-      project: projectId,
-      appointment: {
+    // 5. Find or create the appointment group for this taskId
+    const taskId = description || 'default'; // Use description as taskId
+    let appointmentGroup = timeEntry.appointments.find(a => a.taskId === taskId && a.appname === appointment.appname && a.apptitle === appointment.apptitle);
+    
+    if (!appointmentGroup) {
+      // Create new appointment group
+      appointmentGroup = {
         apptitle: appointment.apptitle,
         appname: appointment.appname,
-        startTime: new Date(appointment.startTime),
-        endTime: appointment.endTime ? new Date(appointment.endTime) : undefined,
-        duration: Number(appointment.duration),
-      },
-      suggestedCategory: suggestedCategory, // <-- SAVE SUGGESTION
-      isBillable: finalIsBillable          // <-- SAVE FINAL STATUS
+        taskId: taskId,
+        suggestedCategory: suggestedCategory,
+        isBillable: finalIsBillable,
+        timeIntervals: []
+      };
+      timeEntry.appointments.push(appointmentGroup);
+    }
+
+    // 6. Add the time interval
+    appointmentGroup.timeIntervals.push({
+      startTime: new Date(appointment.startTime),
+      endTime: appointment.endTime ? new Date(appointment.endTime) : new Date(),
+      duration: Number(appointment.duration)
     });
 
-    const savedEntry = await newEntry.save();
+    const savedEntry = await timeEntry.save();
     const populatedEntry = await savedEntry.populate('project', 'ProjectName Description status');
     res.status(201).json(populatedEntry);
   } catch (err) {
@@ -85,16 +99,22 @@ router.get('/', userAuth, async (req, res) => {
   const query = { userId: username };
   if (projectId) query.project = projectId;
 
-  // base query
-  let entriesQuery = TimeEntry.find(query).populate('project', 'ProjectName Description status').sort({ 'appointment.startTime': -1 });
+  // base query - get all time entries for this user
+  let entries = await TimeEntry.find(query)
+    .populate('project', 'ProjectName Description status')
+    .sort({ createdAt: -1 })
+    .exec();
 
-  let entries = await entriesQuery.exec();
-
-  // additional in-memory filtering for task (matches appointment.apptitle case-insensitive)
+  // Filter by task if provided (matches taskId or apptitle in any appointment)
   if (task) {
     const safe = String(task).trim();
     const regex = new RegExp(safe.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
-    entries = entries.filter(e => (e.appointment && e.appointment.apptitle && regex.test(e.appointment.apptitle)));
+    entries = entries.filter(e => 
+      e.appointments && e.appointments.some(apt => 
+        (apt.taskId && regex.test(apt.taskId)) || 
+        (apt.apptitle && regex.test(apt.apptitle))
+      )
+    );
   }
 
   res.json(entries);

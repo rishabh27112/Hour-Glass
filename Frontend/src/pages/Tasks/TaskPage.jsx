@@ -214,7 +214,7 @@ export default function TaskPage() {
           duration: Math.max(0, Math.round((endMs - startMs) / 1000))
         },
         projectId: project && project._id ? String(project._id) : String(projectId || ''),
-        taskId: String(taskId)
+        description: String(taskId)
       };
       const res = await fetch('/api/time-entries', {
         method: 'POST',
@@ -228,7 +228,7 @@ export default function TaskPage() {
       }
       // Refresh entries table
       try {
-        const url = `/api/time-entries/flat?projectId=${encodeURIComponent(projectId)}&taskId=${encodeURIComponent(taskId)}`;
+        const url = `http://localhost:4000/api/time-entries?projectId=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`;
         const r2 = await fetch(url, { credentials: 'include' });
         if (r2.ok) {
           const arr = await r2.json();
@@ -244,12 +244,12 @@ export default function TaskPage() {
   useEffect(() => {
     if (!task) return;
     
-    // fetch related time entries for this task (flattened by intervals)
+    // fetch related time entries for this task
     const fetchEntries = async () => {
       setEntriesLoading(true);
       setEntriesError('');
       try {
-        const url = `/api/time-entries/flat?projectId=${encodeURIComponent(projectId)}&taskId=${encodeURIComponent(taskId)}`;
+        const url = `http://localhost:4000/api/time-entries?projectId=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`;
         const res = await fetch(url, { credentials: 'include' });
         if (res.ok) {
           const arr = await res.json();
@@ -389,12 +389,31 @@ export default function TaskPage() {
   // Group time entries by app name
   const groupedEntries = React.useMemo(() => {
     const groups = {};
+    let uniqueKeyCounter = 0; // Counter for unique keys
+    // Flatten appointments array from each TimeEntry
     timeEntries.forEach(entry => {
-      const appName = entry.appointment?.appname || 'Unknown';
-      if (!groups[appName]) {
-        groups[appName] = [];
+      if (entry.appointments && Array.isArray(entry.appointments)) {
+        entry.appointments.forEach(apt => {
+          const appName = apt.appname || 'Unknown';
+          if (!groups[appName]) {
+            groups[appName] = [];
+          }
+          // Create flat entry for each time interval
+          apt.timeIntervals.forEach(interval => {
+            groups[appName].push({
+              _id: `${entry._id}_${uniqueKeyCounter++}`, // Generate unique key
+              appointment: {
+                apptitle: apt.apptitle,
+                appname: apt.appname,
+                taskId: apt.taskId,
+                startTime: interval.startTime,
+                endTime: interval.endTime,
+                duration: interval.duration
+              }
+            });
+          });
+        });
       }
-      groups[appName].push(entry);
     });
     return groups;
   }, [timeEntries]);
