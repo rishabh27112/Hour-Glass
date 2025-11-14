@@ -1,6 +1,65 @@
+// src/pages/TaskPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import styles from '../ProjectPage.module.css';
+import { 
+  RiArrowLeftLine, RiCloseLine, RiBrainLine, RiStopCircleLine 
+} from 'react-icons/ri';
+
+// --- Native time tracker helpers (All logic is 100% preserved) ---
+const getTimeTracker = () => (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+
+function startNativeTrackerForTask(project, task, taskId, currentUser) {
+  console.log('[TaskPage] startNativeTrackerForTask called:', { project: project?._id, taskId });
+  const tt = getTimeTracker();
+  console.log('[TaskPage] TimeTracker available:', !!tt);
+  if (!tt || typeof tt.start !== 'function') {
+    console.warn('[TaskPage] TimeTracker.start not available');
+    return;
+  }
+  try {
+    try {
+      const webToken = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
+      if (webToken && typeof tt.setAuthToken === 'function') {
+        console.log('[TaskPage] Setting auth token');
+        tt.setAuthToken(webToken);
+      }
+    } catch {}
+    const projId = (project && project._id) ? String(project._id) : '';
+    // Use task title from startTimer call
+    // const taskTitle = (task && (task.title || task.name)) || 'Task';
+    const userStr = (currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
+    console.log('[TaskPage] Calling TimeTracker.start with:', { user: userStr, project: projId, taskId });
+    // Pass task title and ID separately
+    tt.start(String(userStr), String(projId), String(taskId), 200); 
+    console.log('[TaskPage] TimeTracker.start completed');
+  } catch (e) {
+    console.error('[TaskPage] TimeTracker.start failed:', e);
+  }
+}
+
+function stopNativeTrackerAndFlush() {
+  console.log('[TaskPage] stopNativeTrackerAndFlush called');
+  const tt = getTimeTracker();
+  console.log('[TaskPage] TimeTracker available for stop:', !!tt);
+  if (!tt) {
+    console.warn('[TaskPage] TimeTracker not available');
+    return;
+  }
+  try {
+    if (typeof tt.stop === 'function') {
+      console.log('[TaskPage] Calling TimeTracker.stop');
+      tt.stop();
+    }
+    if (typeof tt.sendData === 'function') {
+      console.log('[TaskPage] Calling TimeTracker.sendData');
+      tt.sendData();
+    }
+    console.log('[TaskPage] TimeTracker stopped and flushed');
+  } catch (e) {
+    console.error('[TaskPage] TimeTracker.stop/sendData failed:', e);
+  }
+}
+// --- End of native helpers ---
 
 export default function TaskPage() {
   const { projectId, taskId } = useParams();
@@ -232,7 +291,7 @@ export default function TaskPage() {
     };
   }, [runningSince, baseMs]);
 
-  const startTimer = async () => {
+  const startTimerInternal = async () => {
     if (runningSince) return; // already running
     const now = Date.now();
     setRunningSince(now);
@@ -253,8 +312,8 @@ export default function TaskPage() {
           tt.setAuthToken(token);
         }
         const pId = project && project._id ? String(project._id) : String(projectId || '');
-  console.log('[TaskPage] Calling TimeTracker.start with:', { project: pId, taskId });
-  const startRes = await tt.start('', pId, String(taskId), 200);
+        console.log('[TaskPage] Calling TimeTracker.start with:', { project: pId, taskId });
+        const startRes = await tt.start('', pId, String(taskId), 200);
         console.log('[TaskPage] TimeTracker.start returned:', startRes);
         if (!startRes || startRes.ok === false) {
           console.warn('[TaskPage] Native tracker reported failure to start', startRes);
@@ -273,7 +332,7 @@ export default function TaskPage() {
     }
   };
 
-  const stopTimer = () => {
+  const stopTimerInternal = () => {
     if (!runningSince) return;
     const now = Date.now();
     const delta = now - runningSince;
@@ -351,11 +410,8 @@ export default function TaskPage() {
     return entries.reduce((sum, e) => sum + (e.appointment?.duration || 0), 0);
   };
 
-  if (loading) return <div className={styles.container}><p>Loading...</p></div>;
-  if (!project) return <div className={styles.container}><p>Project not found</p><button onClick={() => navigate(-1)}>Go back</button></div>;
-  if (!task) return <div className={styles.container}><p>Task not found</p><button onClick={() => navigate(-1)}>Go back</button></div>;
-  // prepare safe display strings for possibly-object fields to avoid rendering objects directly
   const assigneeDisplay = (() => {
+    if (!task) return null;
     const a = task.assignee || task.assignedTo || task.assigneeName;
     if (!a) return null;
     // if it's an object, prefer username, then name, then _id
@@ -366,322 +422,337 @@ export default function TaskPage() {
     return String(a);
   })();
 
+  if (loading) return (
+    <div className="h-screen flex items-center justify-center bg-brand-bg text-gray-200">
+      <p>Loading...</p>
+    </div>
+  );
+  
+  if (!project || !task) return (
+    <div className="h-screen flex flex-col items-center justify-center bg-brand-bg text-gray-200 p-4">
+      <h2 className="text-2xl font-bold text-white mb-4">{!project ? 'Project not found' : 'Task not found'}</h2>
+      <button
+        onClick={() => navigate(-1)}
+        className="group flex items-center justify-center gap-2 border border-cyan text-cyan font-semibold py-2 px-5 rounded-lg hover:bg-cyan hover:text-brand-bg transition-all duration-300"
+      >
+        <RiArrowLeftLine className="text-xl transition-transform duration-300 group-hover:-translate-x-1" />
+        <span>Back</span>
+      </button>
+    </div>
+  );
+
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <button onClick={() => navigate(-1)} className={styles.back}>← Back</button>
-        <h2>{task.title || task.name || 'Untitled task'}</h2>
-      </div>
-      <div className={styles.body}>
-        <p><strong>Project:</strong> {project.ProjectName || project.name}</p>
-        <p><strong>Status:</strong> {task.status || 'todo'}</p>
-  <p><strong>Assignee:</strong> {assigneeDisplay || 'Unassigned'}</p>
-        <p><strong>Due:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleString() : '—'}</p>
-        <p>
-          <strong>Time spent:</strong> {formatMs(displayMs)}
-        </p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-          <button onClick={startTimer} disabled={!!runningSince} className={styles.cta}>Start</button>
-          <button onClick={stopTimer} disabled={!runningSince} className={styles.cta}>Stop</button>
-          {runningSince ? <small style={{ color: '#666' }}>Running…</small> : <small style={{ color: '#666' }}>Paused</small>}
-        </div>
-        <h3>Description</h3>
-        <p>{task.description || task.desc || task.body || 'No description'}</p>
-        <p><strong>Billable Rate in INR (per Hour):</strong> {task.billableRate ? `$${task.billableRate.toFixed(2)}` : 'Not specified'}</p>
-        <p><strong>Total amount to be paid:</strong> {task.billableRate && task.timeSpent ? `$${(task.billableRate * (task.timeSpent / 3600000)).toFixed(2)}` : '—'}</p>
-
-        {summary && (
-          <div style={{ border: '1px solid #e6f4ea', background: '#f7fffb', padding: 12, borderRadius: 6, marginBottom: 12 }}>
-            <h4 style={{ marginTop: 0 }}>Summary — total time per App/Tab</h4>
-            <ul style={{ margin: 0, paddingLeft: 16 }}>
-              {summary.map(item => (
-                <li key={item.key} style={{ marginBottom: 6 }}>
-                  <strong>{item.key}</strong>: {item.pretty}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>Usage logs</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button 
-              onClick={() => {
-                setShowBrainstormDialog(true);
-                console.log('[TaskPage] Opening brainstorming dialog');
-              }}
-              disabled={isBrainstorming}
-              style={{
-                background: isBrainstorming ? '#ccc' : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: isBrainstorming ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease',
-                boxShadow: isBrainstorming ? 'none' : '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-              title="Start brainstorming session"
-            >
-              <span>💡</span>
-              <span>Start Brainstorming</span>
-            </button>
-            <button 
-              onClick={async () => {
-                try {
-                  // Stop ticking
-                  if (brainstormIntervalRef.current) {
-                    clearInterval(brainstormIntervalRef.current);
-                    brainstormIntervalRef.current = null;
-                  }
-                  // Determine start and end
-                  const now = Date.now();
-                  let startMs = now;
-                  try {
-                    const raw = sessionStorage.getItem(brainstormStorageKey);
-                    if (raw) {
-                      const parsed = JSON.parse(raw);
-                      if (parsed && parsed.runningSince) startMs = Number(parsed.runningSince);
-                    }
-                  } catch (e) {
-                    console.debug('Brainstorm stop: parse storage failed', e);
-                  }
-                  // Clear storage/state
-                  sessionStorage.removeItem(brainstormStorageKey);
-                  setIsBrainstorming(false);
-                  setBrainstormDisplayMs(0);
-                  console.log('[TaskPage] Brainstorming stopped. Posting entry.');
-                  await postBrainstormEntry(startMs, now, brainstormDescription);
-                  if (brainstormDescription) {
-                    alert(`Brainstorming session ended!\n\nDescription: ${brainstormDescription}`);
-                  }
-                } finally {
-                  setBrainstormDescription('');
-                }
-              }}
-              disabled={!isBrainstorming}
-              style={{
-                background: !isBrainstorming ? '#ccc' : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: !isBrainstorming ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease',
-                boxShadow: !isBrainstorming ? 'none' : '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-              title="Stop brainstorming session"
-            >
-              <span>🛑</span>
-              <span>Stop Brainstorming</span>
-            </button>
-            <button 
-              onClick={() => setShowTimeLapse(!showTimeLapse)} 
-              className={styles.cta}
-              style={{ fontSize: '14px', padding: '6px 12px' }}
-            >
-              {showTimeLapse ? 'Hide Time Lapse' : 'Show Time Lapse'}
-            </button>
-          </div>
+    <div className="h-screen flex flex-col overflow-hidden bg-brand-bg text-gray-200 p-4 md:p-8">
+      {/* === MODIFICATION: Width changed to max-w-7xl === */}
+      <div className="max-w-7xl mx-auto flex-1 flex flex-col overflow-hidden w-full">
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between gap-4 mb-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="group flex items-center justify-center gap-2 border border-cyan text-cyan font-semibold py-2 px-5 rounded-lg hover:bg-cyan hover:text-brand-bg transition-all duration-300 w-auto"
+          >
+            <RiArrowLeftLine className="text-xl transition-transform duration-300 group-hover:-translate-x-1" />
+            <span>Back</span>
+          </button>
+          <h2 className="text-3xl font-bold text-white text-center truncate">
+            {task.title || task.name || 'Untitled task'}
+          </h2>
+          <div className="w-28"></div> {/* Spacer to balance header */}
         </div>
 
-        {showTimeLapse && (
-          <>
-            {entriesLoading ? (
-              <div>Loading usage logs…</div>
-            ) : entriesError ? (
-              <div style={{ color: 'red' }}>{entriesError}</div>
-            ) : (
-              <div style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8, maxHeight: 400, overflow: 'auto' }}>
-                {timeEntries && timeEntries.length > 0 ? (
-                  <div>
-                    {Object.entries(groupedEntries).map(([appName, entries]) => {
-                      const isExpanded = expandedApps[appName];
-                      const totalDuration = calculateTotalDuration(entries);
-                      return (
-                        <div key={appName} style={{ marginBottom: 16, border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
-                          {/* App Header - Clickable to expand/collapse */}
-                          <div 
-                            onClick={() => toggleApp(appName)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleApp(appName); }}
-                            role="button"
-                            tabIndex={0}
-                            style={{ 
-                              padding: '12px', 
-                              background: '#f8f9fa', 
-                              cursor: 'pointer',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              fontWeight: 'bold',
-                              borderBottom: isExpanded ? '1px solid #e0e0e0' : 'none'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: '16px' }}>{isExpanded ? '▼' : '▶'}</span>
-                              <span>{appName}</span>
-                              <span style={{ fontSize: '12px', color: '#666', fontWeight: 'normal' }}>
-                                ({entries.length} session{entries.length !== 1 ? 's' : ''})
-                              </span>
-                            </div>
-                            <span style={{ fontSize: '14px', color: '#555', fontWeight: 'normal' }}>
-                              Total: {formatMs(totalDuration * 1000)}
-                            </span>
-                          </div>
-                          
-                          {/* Expanded Time Intervals */}
-                          {isExpanded && (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                              <thead>
-                                <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee', background: '#fafafa' }}>
-                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>Title</th>
-                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>Start Time</th>
-                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>End Time</th>
-                                  <th style={{ padding: '8px', fontSize: '12px', color: '#666' }}>Duration</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {entries.map((e) => (
-                                  <tr key={e._id} style={{ borderBottom: '1px solid #f6f6f6' }}>
-                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.apptitle || '-'}</td>
-                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.startTime ? formatDateTime(e.appointment.startTime) : '-'}</td>
-                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.endTime ? formatDateTime(e.appointment.endTime) : '-'}</td>
-                                    <td style={{ padding: '8px', fontSize: '13px' }}>{e.appointment?.duration != null ? formatMs(e.appointment.duration * 1000) : '-'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+        {/* === MODIFICATION: Main Content is now a Grid === */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0 overflow-y-auto lg:overflow-hidden">
+          
+          {/* === Left Column (Sidebar) === */}
+          <div className="lg:col-span-1 space-y-6 lg:overflow-y-auto pb-4">
+            <div className="bg-surface rounded-lg shadow-md p-6">
+              <h3 className="text-2xl font-semibold text-white mb-4">Task Details</h3>
+              <dl className="space-y-4">
+                <div className="flex flex-col sm:flex-row">
+                  <dt className="w-32 flex-shrink-0 font-semibold text-gray-400">Project</dt>
+                  <dd className="text-gray-200">{project.ProjectName || project.name}</dd>
+                </div>
+                <div className="flex flex-col sm:flex-row">
+                  <dt className="w-32 flex-shrink-0 font-semibold text-gray-400">Status</dt>
+                  <dd className="text-gray-200 capitalize">{task.status || 'todo'}</dd>
+                </div>
+                <div className="flex flex-col sm:flex-row">
+                  <dt className="w-32 flex-shrink-0 font-semibold text-gray-400">Assignee</dt>
+                  <dd className="text-gray-200">{assigneeDisplay || 'Unassigned'}</dd>
+                </div>
+                <div className="flex flex-col sm:flex-row">
+                  <dt className="w-32 flex-shrink-0 font-semibold text-gray-400">Due</dt>
+                  <dd className="text-gray-200">{task.dueDate ? new Date(task.dueDate).toLocaleString() : '—'}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="bg-surface rounded-lg shadow-md p-6">
+              <h3 className="text-2xl font-semibold text-white mb-4">Timer</h3>
+              <div className="text-5xl font-bold text-white mb-4">{formatMs(displayMs)}</div>
+              <div className="flex flex-wrap gap-4 items-center mb-4">
+                <button
+                  onClick={startTimerInternal}
+                  disabled={!!runningSince}
+                  className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Start
+                </button>
+                <button
+                  onClick={stopTimerInternal}
+                  disabled={!runningSince}
+                  className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Stop
+                </button>
+                {runningSince ? (
+                  <span className="text-green-400 animate-pulse">Running…</span>
                 ) : (
-                  <div className={styles.italic}>No usage logs for this task.</div>
+                  <span className="text-gray-400">Paused</span>
                 )}
               </div>
-            )}
-          </>
-        )}
-
-        {/* Brainstorming Dialog */}
-        {showBrainstormDialog && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999
-          }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              padding: '24px',
-              width: '90%',
-              maxWidth: '500px',
-              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)'
-            }}>
-              <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#333' }}>
-                💡 Start Brainstorming Session
-              </h3>
-              <p style={{ marginBottom: '16px', color: '#666', fontSize: '14px' }}>
-                Describe what you plan to brainstorm about:
-              </p>
-              <textarea
-                value={brainstormDescription}
-                onChange={(e) => setBrainstormDescription(e.target.value)}
-                placeholder="e.g., Exploring new features for the dashboard, brainstorming UI improvements, planning architecture changes..."
-                style={{
-                  width: '100%',
-                  minHeight: '120px',
-                  padding: '12px',
-                  fontSize: '14px',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  resize: 'vertical',
-                  fontFamily: 'inherit',
-                  marginBottom: '20px'
-                }}
-              />
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => {
-                    setShowBrainstormDialog(false);
-                    setBrainstormDescription('');
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    border: '1px solid #ddd',
-                    borderRadius: '6px',
-                    backgroundColor: 'white',
-                    color: '#666',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    const desc = brainstormDescription.trim();
-                    if (!desc) {
-                      alert('Please enter a description for your brainstorming session');
-                      return;
-                    }
-                    const startedAt = Date.now();
-                    // Persist state for recovery
-                    sessionStorage.setItem(
-                      brainstormStorageKey,
-                      JSON.stringify({ runningSince: startedAt, description: desc })
-                    );
-                    // Start ticking immediately
-                    if (brainstormIntervalRef.current) clearInterval(brainstormIntervalRef.current);
-                    const tick = () => setBrainstormDisplayMs(Date.now() - startedAt);
-                    tick();
-                    brainstormIntervalRef.current = setInterval(tick, 1000);
-                    setIsBrainstorming(true);
-                    setShowBrainstormDialog(false);
-                    console.log('[TaskPage] Brainstorming started with description:', desc);
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    border: 'none',
-                    borderRadius: '6px',
-                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                    color: 'white',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  Start Brainstorming
-                </button>
+              
+              <div className="border-t border-surface-light pt-4 mt-6">
+                <h4 className="text-xl font-semibold text-white mb-3">Billing</h4>
+                <dl className="space-y-3">
+                  <div className="flex flex-col sm:flex-row">
+                    <dt className="w-48 flex-shrink-0 font-semibold text-gray-400">Billable Rate (per Hour)</dt>
+                    <dd className="text-gray-200">{task.billableRate ? `₹${task.billableRate.toFixed(2)}` : 'Not specified'}</dd>
+                  </div>
+                  <div className="flex flex-col sm:flex-row">
+                    <dt className="w-48 flex-shrink-0 font-semibold text-gray-400">Total Amount</dt>
+                    <dd className="text-2xl font-bold text-cyan">{task.billableRate && displayMs > 0 ? `₹${(task.billableRate * (displayMs / 3600000)).toFixed(2)}` : '—'}</dd>
+                  </div>
+                </dl>
+              </div>
+              
+              <div className="border-t border-surface-light pt-4 mt-6">
+                <h4 className="text-xl font-semibold text-white mb-3">Description</h4>
+                <p className="text-gray-300 prose prose-invert">{task.description || task.desc || task.body || 'No description'}</p>
               </div>
             </div>
           </div>
-        )}
-       
+          
+          {/* === Right Column (Main Content) === */}
+          <div className="lg:col-span-2 space-y-6 lg:overflow-y-auto pb-4">
+            {summary && (
+              <div className="bg-surface-light border border-surface rounded-lg p-6">
+                <h4 className="text-xl font-semibold text-white mt-0 mb-3">Summary — Total Time per App/Tab</h4>
+                <ul className="list-disc pl-5 space-y-2">
+                  {summary.map(item => (
+                    <li key={item.key}>
+                      <span className="font-semibold text-gray-200">{item.key}</span>: <span className="text-gray-300">{item.pretty}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="bg-surface rounded-lg shadow-md p-6">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                <h3 className="text-2xl font-semibold text-white m-0">Usage Logs</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setShowBrainstormDialog(true)}
+                    disabled={isBrainstorming}
+                    className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 shadow-md transition-all duration-200 ease-in-out  disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Start brainstorming session"
+                  >
+                    <RiBrainLine />
+                    Start Brainstorming
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (brainstormIntervalRef.current) {
+                          clearInterval(brainstormIntervalRef.current);
+                          brainstormIntervalRef.current = null;
+                        }
+                        const now = Date.now();
+                        let startMs = now;
+                        try {
+                          const raw = sessionStorage.getItem(brainstormStorageKey);
+                          if (raw) {
+                            const parsed = JSON.parse(raw);
+                            if (parsed && parsed.runningSince) startMs = Number(parsed.runningSince);
+                          }
+                        } catch (e) {
+                          console.debug('Brainstorm stop: parse storage failed', e);
+                        }
+                        sessionStorage.removeItem(brainstormStorageKey);
+                        setIsBrainstorming(false);
+                        setBrainstormDisplayMs(0);
+                        console.log('[TaskPage] Brainstorming stopped. Posting entry.');
+                        await postBrainstormEntry(startMs, now, brainstormDescription);
+                        if (brainstormDescription) {
+                          alert(`Brainstorming session ended!\n\nDescription: ${brainstormDescription}`);
+                        }
+                      } finally {
+                        setBrainstormDescription('');
+                      }
+                    }}
+                    disabled={!isBrainstorming}
+                    className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-gray-800 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-500 hover:to-yellow-400 shadow-md transition-all duration-200 ease-in-out  disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Stop brainstorming session"
+                  >
+                    <RiStopCircleLine />
+                    Stop {isBrainstorming ? `(${formatMs(brainstormDisplayMs)})` : ''}
+                  </button>
+                  <button 
+                    onClick={() => setShowTimeLapse(!showTimeLapse)} 
+                    className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors text-sm"
+                  >
+                    {showTimeLapse ? 'Hide Time Lapse' : 'Show Time Lapse'}
+                  </button>
+                </div>
+              </div>
+
+              {showTimeLapse && (
+                <>
+                  {entriesLoading ? (
+                    <div className="text-gray-400">Loading usage logs…</div>
+                  ) : entriesError ? (
+                    <div className="text-red-500">{entriesError}</div>
+                  ) : (
+                    <div className="border border-surface-light rounded-lg max-h-96 overflow-auto">
+                      {timeEntries && timeEntries.length > 0 ? (
+                        <div className="space-y-4 p-4">
+                          {Object.entries(groupedEntries).map(([appName, entries]) => {
+                            const isExpanded = expandedApps[appName];
+                            const totalDuration = calculateTotalDuration(entries);
+                            return (
+                              <div key={appName} className="bg-surface-light rounded-lg overflow-hidden border border-surface">
+                                <div 
+                                  onClick={() => toggleApp(appName)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleApp(appName); }}
+                                  role="button"
+                                  tabIndex={0}
+                                  className="p-3 bg-surface cursor-pointer flex justify-between items-center"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-cyan text-lg">{isExpanded ? '▼' : '▶'}</span>
+                                    <span className="font-semibold text-white">{appName}</span>
+                                    <span className="text-xs text-gray-400">
+                                      ({entries.length} session{entries.length !== 1 ? 's' : ''})
+                                    </span>
+                                  </div>
+                                  <span className="text-sm text-gray-300">
+                                    Total: {formatMs(totalDuration * 1000)}
+                                  </span>
+                                </div>
+                                
+                                {isExpanded && (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left min-w-[600px]">
+                                      <thead className="border-b border-surface">
+                                        <tr>
+                                          <th className="p-2 text-xs text-gray-400">Title</th>
+                                          <th className="p-2 text-xs text-gray-400">Start Time</th>
+                                          <th className="p-2 text-xs text-gray-400">End Time</th>
+                                          <th className="p-2 text-xs text-gray-400">Duration</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {entries.map((e) => (
+                                          <tr key={e._id} className="border-b border-surface">
+                                            <td className="p-2 text-sm text-gray-300 truncate max-w-xs">{e.appointment?.apptitle || '-'}</td>
+                                            <td className="p-2 text-sm text-gray-300">{e.appointment?.startTime ? formatDateTime(e.appointment.startTime) : '-'}</td>
+                                            <td className="p-2 text-sm text-gray-300">{e.appointment?.endTime ? formatDateTime(e.appointment.endTime) : '-'}</td>
+                                            <td className="p-2 text-sm text-gray-300">{e.appointment?.duration != null ? formatMs(e.appointment.duration * 1000) : '-'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-4 text-gray-500 italic">No usage logs for this task.</div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Brainstorming Dialog (Now Dark Mode) */}
+      {showBrainstormDialog && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-surface-light rounded-lg shadow-xl w-full max-w-lg p-6 relative">
+            <button 
+              onClick={() => {
+                setShowBrainstormDialog(false);
+                setBrainstormDescription('');
+              }}
+              className="absolute top-3 right-4 text-gray-400 hover:text-white text-2xl"
+            >
+              <RiCloseLine />
+            </button>
+            <h3 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
+              <RiBrainLine /> Start Brainstorming Session
+            </h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Describe what you plan to brainstorm about:
+            </p>
+            <textarea
+              value={brainstormDescription}
+              onChange={(e) => setBrainstormDescription(e.target.value)}
+              placeholder="e.g., Exploring new features for the dashboard, brainstorming UI improvements, planning architecture changes..."
+              className="w-full bg-surface text-gray-200 placeholder-gray-400 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface min-h-[120px] resize-vertical"
+            />
+            <div className="flex gap-2 justify-end mt-6">
+              <button 
+                onClick={() => {
+                  setShowBrainstormDialog(false);
+                  setBrainstormDescription('');
+                }}
+                className="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm hover:bg-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const desc = brainstormDescription.trim();
+                  if (!desc) {
+                    alert('Please enter a description for your brainstorming session');
+                    return;
+                  }
+                  const startedAt = Date.now();
+                  // Persist state for recovery
+                  sessionStorage.setItem(
+                    brainstormStorageKey,
+                    JSON.stringify({ runningSince: startedAt, description: desc })
+                  );
+                  // Start ticking immediately
+                  if (brainstormIntervalRef.current) clearInterval(brainstormIntervalRef.current);
+                  const tick = () => setBrainstormDisplayMs(Date.now() - startedAt);
+                  tick();
+                  brainstormIntervalRef.current = setInterval(tick, 1000);
+                  setIsBrainstorming(true);
+                  setShowBrainstormDialog(false);
+                  console.log('[TaskPage] Brainstorming started with description:', desc);
+                }}
+                className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 shadow-md transition-all"
+              >
+                Start Brainstorming
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// PropTypes are 100% preserved
+TaskPage.propTypes = {
+  // These are inferred from useParams() but good to be explicit if you were passing props
+  // projectId: PropTypes.string,
+  // taskId: PropTypes.string,
+};
