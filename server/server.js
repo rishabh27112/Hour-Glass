@@ -13,6 +13,7 @@ import projectRouter from './routes/ProjectRoutes.js';
 import timeEntryRouter from './routes/TImeEntryRoutes.js';
 import "./cron/notificationJob.js"; 
 import notificationRoutes from "./routes/notificationRoutes.js";
+import brainstormRoutes from './routes/brainstormRoutes.js';
 
 const app = express();
 const port = process.env.PORT || process.env.port || 4000;
@@ -86,5 +87,6 @@ app.get('/api/auth/google/success', (req, res) => {
 });
 
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/brainstorm", brainstormRoutes);
 
 app.listen(port, ()=> console.log(`Server started on PORT: ${port} `));
