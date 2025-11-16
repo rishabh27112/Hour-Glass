@@ -167,6 +167,13 @@ export default function TasksPanel(props) {
                 );
                 const canControl = Boolean(isAssigned || isManager || isProjOwner);
 
+                // Determine displayed status: if task is still "todo" but has recorded time
+                // or is currently running, show "in-progress" for that task only.
+                const rawStatus = task.status || 'todo';
+                const hasRecordedTime = (task.timeSpent && Number(task.timeSpent) > 0) || (task.time && Number(task.time) > 0);
+                const isCurrentlyActive = isActive;
+                const displayStatus = (rawStatus === 'todo' && (hasRecordedTime || isCurrentlyActive)) ? 'in-progress' : rawStatus;
+
                 return (
                   <tr key={tid} className="border-b border-surface-light">
                     <td className="py-3 px-1">
@@ -196,7 +203,7 @@ export default function TasksPanel(props) {
                       </Link>
                     </td>
                     <td className="py-3 px-1 text-gray-300">{displayedAssigned}</td>
-                    <td className="py-3 px-1 text-gray-300">{task.status || 'todo'}</td>
+                    <td className="py-3 px-1 text-gray-300">{displayStatus}</td>
                   </tr>
                 );
               })
