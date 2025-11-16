@@ -1,5 +1,6 @@
 // src/pages/ManagerDashboard.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import ManagerTimeOverview from './ManagerDashboard/ManagerTimeOverview.jsx';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   RiSearchLine, RiCloseLine, RiAddLine, RiArchiveLine, RiDeleteBinLine,
@@ -715,6 +716,8 @@ const ManagerDashboard = () => {
 
 
           <div className="flex-1 p-3 overflow-y-auto">
+            {/* Manager Time Overview (employee-wise aggregated entries) */}
+            <ManagerTimeOverview ownedProjects={projects.filter(p => (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))} />
 
 
             {isAddingProject && (

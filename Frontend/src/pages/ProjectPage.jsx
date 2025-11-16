@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import TasksPanel from './ProjectPage/TasksPanel.jsx';
+import TimeLogsPanel from './ProjectPage/TimeLogsPanel.jsx';
 import { 
   RiArrowLeftLine, RiUserAddLine, RiCloseLine, RiSearchLine, RiDeleteBinLine 
 } from 'react-icons/ri';
@@ -143,15 +144,18 @@ const ProjectPage = () => {
   const pauseTimer = (taskId) => {
     if (!activeTimer || !activeTimer.taskId) return;
     const starter = activeTimer.startedBy || null;
-    const isManager = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-    const projectOwner = projectOwnerNormalized;
-    const isProjectOwner = projectOwner && currentUser && (
-      String(projectOwner).toLowerCase() === String(currentUser.username || currentUser.email || currentUser._id).toLowerCase()
-    );
-    if (starter && !(isManager || isProjectOwner || (currentUser && currentUser.username && starter.toLowerCase() === currentUser.username.toLowerCase()))) {
-      console.debug('pauseTimer blocked', { starter, currentUser, projectOwner, isManager, isProjectOwner });
-      alert(`Only ${starter} can stop this timer`);
-      return;
+    // Only the user who started the timer may pause/stop it. Managers/project owners are no longer allowed to stop others' timers.
+    if (starter) {
+      const isStarter = currentUser && (
+        (currentUser.username && String(starter).toLowerCase() === String(currentUser.username).toLowerCase())
+        || (currentUser.email && String(starter).toLowerCase() === String(currentUser.email).toLowerCase())
+        || (currentUser._id && String(starter).toLowerCase() === String(currentUser._id).toLowerCase())
+      );
+      if (!isStarter) {
+        console.debug('pauseTimer blocked - not starter', { starter, currentUser });
+        alert(`Only ${starter} can stop this timer`);
+        return;
+      }
     }
     const elapsed = Date.now() - activeTimer.startedAt;
     setProjects((prev) => {
@@ -177,7 +181,7 @@ const ProjectPage = () => {
     setActiveTimer(null);
     persistActiveTimer(null);
   };
-  const startTimer = (taskId) => {
+  const startTimer = async (taskId) => {
     const p = projects[projectIndex] ? { ...projects[projectIndex] } : null;
     if (!p) return;
     const tasks = Array.isArray(p.tasks) ? p.tasks : [];
@@ -194,15 +198,15 @@ const ProjectPage = () => {
       assignee = String(task.assigneeName);
     }
     assignee = (assignee || '').trim();
-    const isManagerStart = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-    const projectOwnerStart = projectOwnerNormalized;
-    const isProjectOwnerStart = projectOwnerStart && currentUser && (
-      String(projectOwnerStart).toLowerCase() === String(currentUser.username || currentUser.email || currentUser._id).toLowerCase()
-    );
+    // Enforce: if a task has an assignee, only that assigned user may start the timer.
     if (assignee) {
-      console.debug('startTimer check', { assignee, currentUser, isManagerStart, isProjectOwnerStart });
-      if (!(currentUser && ((currentUser.username && currentUser.username.toLowerCase() === assignee.toLowerCase()) || (currentUser.email && currentUser.email.toLowerCase() === assignee.toLowerCase()))) && !isManagerStart && !isProjectOwnerStart) {
-        alert('Only the assigned member or manager/project owner can start this task timer');
+      const matchesAssignee = currentUser && (
+        (currentUser.username && String(currentUser.username).toLowerCase() === assignee.toLowerCase())
+        || (currentUser.email && String(currentUser.email).toLowerCase() === assignee.toLowerCase())
+        || (currentUser._id && String(currentUser._id).toLowerCase() === assignee.toLowerCase())
+      );
+      if (!matchesAssignee) {
+        alert('Only the assigned member can start this task timer');
         return;
       }
     }
@@ -212,6 +216,35 @@ const ProjectPage = () => {
     const timer = { taskId, startedAt: Date.now(), startedBy: (currentUser && currentUser.username) || null };
     setActiveTimer(timer);
     persistActiveTimer(timer);
+    
+    // Check if task has billable time and update status to in-progress if currently todo
+    const hasRecordedTime = (task.timeSpent && Number(task.timeSpent) > 0) || (task.time && Number(task.time) > 0);
+    const currentStatus = task.status || 'todo';
+    if (currentStatus === 'todo' && hasRecordedTime) {
+      try {
+        const actualTaskId = task._id || task._clientId;
+        if (actualTaskId && p._id) {
+          const res = await fetch(`/api/projects/${p._id}/tasks/${actualTaskId}/status`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'in-progress' })
+          });
+          if (res.ok) {
+            const updatedProject = await res.json();
+            setProjects((prev) => {
+              const copy = [...prev];
+              copy[projectIndex] = updatedProject;
+              try { saveProjects(copy); } catch (e) { console.error('saveProjects failed', e); }
+              return copy;
+            });
+            console.log('Task status updated to in-progress');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to update task status:', err);
+      }
+    }
     
     // Use the new helper function
     startNativeTrackerForTask(p, task, taskId, currentUser);
@@ -510,6 +543,20 @@ const ProjectPage = () => {
               >
                 <span>✨</span>
                 <span>AI</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const projId = project?._id || project?.id || id || '';
+                  const uname = usernameForApi || displayName || '';
+                  // Open the Usage Logs (EmployeeDashboard) for this project and member
+                  navigate(`/employee-dashboard?projectId=${projId}&username=${encodeURIComponent(uname)}`);
+                }}
+                title="Open Usage Logs"
+                className="flex items-center gap-1 py-1 px-2 rounded-md text-xs font-semibold text-white bg-cyan-600 hover:bg-cyan-500"
+              >
+                <span>⏱</span>
+                <span>Usage</span>
               </button>
               {canDelete && (
                 <button 
@@ -848,17 +895,13 @@ const ProjectPage = () => {
           const base = (t && (t.timeSpent || 0)) || 0;
           const elapsed = base + (Date.now() - activeTimer.startedAt);
           const starter = (activeTimer && activeTimer.startedBy) || null;
-          const isManager = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-          const projectOwner = projectOwnerNormalized || (project && (project.createdBy || project.createdByUsername || project.owner || project.ownerUsername || project.createdByName || project.createdByEmail));
-          const isProjectOwner = projectOwner && currentUser && (
-            String(projectOwner).toLowerCase() === String(currentUser.username || currentUser.email || currentUser._id).toLowerCase()
-          );
           const isStarter = starter && currentUser && (
             (currentUser.username && String(starter).toLowerCase() === String(currentUser.username).toLowerCase())
             || (currentUser.email && String(starter).toLowerCase() === String(currentUser.email).toLowerCase())
             || (currentUser._id && String(starter).toLowerCase() === String(currentUser._id).toLowerCase())
           );
-          if (!(isStarter || isManager || isProjectOwner)) return null;
+          // Only the starter may see/control the active timer bar now.
+          if (!isStarter) return null;
 
           return (
             // === Timer Bar: Static height ===
@@ -926,8 +969,9 @@ const ProjectPage = () => {
             </div>
           </div>
 
-          {/* === Right Column (Tasks Panel): Scrolls internally === */}
-          <div className="lg:col-span-2 lg:overflow-y-auto pb-4">
+          {/* === Right Column: Scrolls internally === */}
+          <div className="lg:col-span-2 space-y-6 lg:overflow-y-auto pb-4">
+            {/* Tasks Panel */}
             <TasksPanel
               tasksToShow={tasksToShow}
               getTaskKey={getTaskKey}
@@ -963,6 +1007,13 @@ const ProjectPage = () => {
               currentUser={currentUser}
               projectOwner={projectOwnerNormalized}
               isCreator={isCreator} // Pass isCreator to TasksPanel
+            />
+            
+            {/* Time Logs Panel */}
+            <TimeLogsPanel 
+              projectId={project && (project._id || project._clientId)}
+              currentUser={currentUser}
+              isManager={isCreator || (currentUser && (currentUser.role === 'manager' || currentUser.isManager === true))}
             />
           </div>
         </div>

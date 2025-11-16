@@ -67,6 +67,7 @@ export default function TaskPage() {
   const [project, setProject] = useState(null);
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
   // Timer state (milliseconds)
   const [baseMs, setBaseMs] = useState(0); // accumulated time when timer is stopped
   const [runningSince, setRunningSince] = useState(null); // timestamp (ms) when timer was started
@@ -85,6 +86,30 @@ export default function TaskPage() {
   const [brainstormDisplayMs, setBrainstormDisplayMs] = useState(0);
   const brainstormIntervalRef = useRef(null);
   const brainstormStorageKey = `hg_brainstorm_${projectId}_${taskId}`;
+
+  // Get current user
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/user/data', { method: 'GET', credentials: 'include' });
+        const json = await res.json();
+        if (!mounted) return;
+        if (!json || !json.success || !json.userData) {
+          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+          navigate('/signin');
+        } else {
+          setCurrentUser(json.userData);
+        }
+      } catch (err) {
+        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
+        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
+        navigate('/signin');
+      }
+    })();
+    return () => { mounted = false; };
+  }, [navigate]);
 
   useEffect(() => {
     let mounted = true;
@@ -208,21 +233,26 @@ export default function TaskPage() {
     setEntriesLoading(true);
     setEntriesError('');
     try {
-      const url = `/api/time-entries?projectId=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`;
+      // Use the new project-specific endpoint that filters by user role
+      const url = `/api/time-entries/project/${encodeURIComponent(projectId)}?taskId=${encodeURIComponent(taskId)}`;
       const res = await fetch(url, { credentials: 'include' });
       if (res.ok) {
-        const arr = await res.json();
-        console.debug('[TaskPage] fetchEntries response', { raw: arr });
-        // server normally returns an array; handle wrapped/single responses defensively
-        if (Array.isArray(arr)) {
-          console.debug('[TaskPage] fetchEntries -> array length', arr.length);
-          setTimeEntries(arr);
-        } else if (arr && Array.isArray(arr.entries)) {
-          console.debug('[TaskPage] fetchEntries -> wrapped entries length', arr.entries.length);
-          setTimeEntries(arr.entries);
+        const data = await res.json();
+        console.debug('[TaskPage] fetchEntries response', { data });
+        
+        // Handle different response formats based on user role
+        if (data.isManager) {
+          // Manager view: show summary but for task view, only show current task's logs
+          const allTaskEntries = [];
+          if (data.employeeStats) {
+            for (const empStat of data.employeeStats) {
+              allTaskEntries.push(...(empStat.entries || []));
+            }
+          }
+          setTimeEntries(allTaskEntries);
         } else {
-          console.debug('[TaskPage] fetchEntries -> single object returned');
-          setTimeEntries(arr ? [arr] : []);
+          // Employee view: only their own entries
+          setTimeEntries(data.entries || []);
         }
       } else {
         console.error('Failed to load time entries', res.status);
@@ -309,6 +339,31 @@ export default function TaskPage() {
     try {
       sessionStorage.setItem(storageKey, JSON.stringify({ runningSince: now, accumulated: baseMs }));
     } catch (e) { console.warn('Failed to persist running state', e); }
+
+    // Check if task has billable time and update status to in-progress if currently todo
+    const hasRecordedTime = baseMs > 0;
+    const currentStatus = task?.status || 'todo';
+    if (currentStatus === 'todo' && hasRecordedTime && project?._id && task?._id) {
+      try {
+        const res = await fetch(`/api/projects/${project._id}/tasks/${task._id}/status`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'in-progress' })
+        });
+        if (res.ok) {
+          const updatedProject = await res.json();
+          setProject(updatedProject);
+          const updatedTask = (updatedProject.tasks || []).find(t => String(t._id) === String(taskId) || String(t.clientId) === String(taskId));
+          if (updatedTask) {
+            setTask(updatedTask);
+          }
+          console.log('Task status updated to in-progress');
+        }
+      } catch (err) {
+        console.error('Failed to update task status:', err);
+      }
+    }
 
     // Start native tracker if available
     console.log('[TaskPage] Starting native tracker...');
@@ -422,7 +477,9 @@ export default function TaskPage() {
               taskId: apt.taskId,
               startTime: interval.startTime,
               endTime: interval.endTime,
-              duration: interval.duration
+              duration: interval.duration,
+              isBillable: apt.isBillable,
+              suggestedCategory: apt.suggestedCategory
             }
           });
         }
@@ -431,6 +488,28 @@ export default function TaskPage() {
     console.debug('[TaskPage] groupedEntries keys and counts', Object.keys(groups).reduce((acc,k)=>{acc[k]=groups[k].length; return acc;},{ }));
     return groups;
   }, [timeEntries]);
+
+  // Calculate time breakdown by category
+  const timeBreakdown = React.useMemo(() => {
+    let billable = 0;
+    let nonBillable = 0;
+    let ambiguous = 0;
+    
+    for (const entries of Object.values(groupedEntries)) {
+      for (const entry of entries) {
+        const duration = entry.appointment?.duration || 0;
+        if (entry.appointment?.isBillable) {
+          billable += duration;
+        } else if (entry.appointment?.suggestedCategory === 'non-billable') {
+          nonBillable += duration;
+        } else {
+          ambiguous += duration;
+        }
+      }
+    }
+    
+    return { billable, nonBillable, ambiguous, total: billable + nonBillable + ambiguous };
+  }, [groupedEntries]);
 
   const toggleApp = (appName) => {
     setExpandedApps(prev => ({
@@ -647,7 +726,32 @@ export default function TaskPage() {
                   ) : entriesError ? (
                     <div className="text-red-500">{entriesError}</div>
                   ) : (
-                      <div className="border border-surface-light rounded-lg max-h-96 overflow-auto">
+                      <div className="border border-surface-light rounded-lg overflow-auto">
+                        {/* Time Breakdown Summary */}
+                        {timeBreakdown.total > 0 && (
+                          <div className="p-4 border-b border-surface bg-surface/40">
+                            <div className="text-sm font-semibold text-white mb-2">Time Breakdown</div>
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                              <div className="bg-green-900/30 border border-green-700 rounded p-2">
+                                <div className="text-green-400 font-semibold">Billable</div>
+                                <div className="text-white text-lg">{formatMs(timeBreakdown.billable * 1000)}</div>
+                              </div>
+                              <div className="bg-red-900/30 border border-red-700 rounded p-2">
+                                <div className="text-red-400 font-semibold">Non-Billable</div>
+                                <div className="text-white text-lg">{formatMs(timeBreakdown.nonBillable * 1000)}</div>
+                              </div>
+                              <div className="bg-yellow-900/30 border border-yellow-700 rounded p-2">
+                                <div className="text-yellow-400 font-semibold">Ambiguous</div>
+                                <div className="text-white text-lg">{formatMs(timeBreakdown.ambiguous * 1000)}</div>
+                              </div>
+                              <div className="bg-blue-900/30 border border-blue-700 rounded p-2">
+                                <div className="text-blue-400 font-semibold">Total</div>
+                                <div className="text-white text-lg">{formatMs(timeBreakdown.total * 1000)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
                         {/* DEBUG: flattened list of all intervals for verification */}
                         <div className="p-4 border-b border-surface bg-surface/40 text-sm text-gray-300">
                           <div className="font-semibold">All intervals (flattened): <span className="text-gray-400">{(function(){let c=0; (timeEntries||[]).forEach(te=>{(te.appointments||[]).forEach(a=>{c+= (a.timeIntervals||[]).length;})}); return c; })()}</span></div>
@@ -698,24 +802,39 @@ export default function TaskPage() {
                                 
                                 {isExpanded && (
                                   <div className="overflow-x-auto">
-                                    <table className="w-full text-left min-w-[600px]">
+                                    <table className="w-full text-left min-w-[700px]">
                                       <thead className="border-b border-surface">
                                         <tr>
                                           <th className="p-2 text-xs text-gray-400">Title</th>
+                                          <th className="p-2 text-xs text-gray-400">Category</th>
                                           <th className="p-2 text-xs text-gray-400">Start Time</th>
                                           <th className="p-2 text-xs text-gray-400">End Time</th>
                                           <th className="p-2 text-xs text-gray-400">Duration</th>
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {entries.map((e) => (
-                                          <tr key={e._id} className="border-b border-surface">
-                                            <td className="p-2 text-sm text-gray-300 truncate max-w-xs">{e.appointment?.apptitle || '-'}</td>
-                                            <td className="p-2 text-sm text-gray-300">{e.appointment?.startTime ? formatDateTime(e.appointment.startTime) : '-'}</td>
-                                            <td className="p-2 text-sm text-gray-300">{e.appointment?.endTime ? formatDateTime(e.appointment.endTime) : '-'}</td>
-                                            <td className="p-2 text-sm text-gray-300">{e.appointment?.duration != null ? formatMs(e.appointment.duration * 1000) : '-'}</td>
-                                          </tr>
-                                        ))}
+                                        {entries.map((e) => {
+                                          const isBillable = e.appointment?.isBillable;
+                                          const category = e.appointment?.suggestedCategory;
+                                          let categoryBadge;
+                                          if (isBillable) {
+                                            categoryBadge = <span className="text-xs px-2 py-1 rounded bg-green-900/50 text-green-400 border border-green-700">Billable</span>;
+                                          } else if (category === 'non-billable') {
+                                            categoryBadge = <span className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-400 border border-red-700">Non-Billable</span>;
+                                          } else {
+                                            categoryBadge = <span className="text-xs px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700">Ambiguous</span>;
+                                          }
+                                          
+                                          return (
+                                            <tr key={e._id} className="border-b border-surface">
+                                              <td className="p-2 text-sm text-gray-300 truncate max-w-xs">{e.appointment?.apptitle || '-'}</td>
+                                              <td className="p-2 text-sm">{categoryBadge}</td>
+                                              <td className="p-2 text-sm text-gray-300">{e.appointment?.startTime ? formatDateTime(e.appointment.startTime) : '-'}</td>
+                                              <td className="p-2 text-sm text-gray-300">{e.appointment?.endTime ? formatDateTime(e.appointment.endTime) : '-'}</td>
+                                              <td className="p-2 text-sm text-gray-300">{e.appointment?.duration != null ? formatMs(e.appointment.duration * 1000) : '-'}</td>
+                                            </tr>
+                                          );
+                                        })}
                                       </tbody>
                                     </table>
                                   </div>

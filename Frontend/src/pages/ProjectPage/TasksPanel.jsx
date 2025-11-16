@@ -35,7 +35,6 @@ export default function TasksPanel(props) {
     setTaskAssigned,
     setTaskStatus,
     currentUser,
-    projectOwner,
     isCreator,
   } = props;
 
@@ -157,15 +156,9 @@ export default function TasksPanel(props) {
                       : String(assigneeData))
                   : '-';
                 
-                const isManager = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
                 const userIdentifiers = currentUser ? [currentUser.username, currentUser.email, currentUser._id].filter(Boolean).map((s) => String(s).toLowerCase()) : [];
                 const isAssigned = userIdentifiers.length > 0 && userIdentifiers.includes(String(displayedAssigned).toLowerCase());
-                const isProjOwner = projectOwner && currentUser && (
-                  String(projectOwner).toLowerCase() === String(currentUser._id || '').toLowerCase()
-                  || String(projectOwner).toLowerCase() === String(currentUser.username || '').toLowerCase()
-                  || String(projectOwner).toLowerCase() === String(currentUser.email || '').toLowerCase()
-                );
-                const canControl = Boolean(isAssigned || isManager || isProjOwner);
+                const canControl = Boolean(isAssigned);
 
                 // Determine displayed status: if task is still "todo" but has recorded time
                 // or is currently running, show "in-progress" for that task only.
@@ -335,6 +328,5 @@ TasksPanel.propTypes = {
   setTaskStatus: PropTypes.func,
   projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   currentUser: PropTypes.object,
-  projectOwner: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
   isCreator: PropTypes.bool,
 };

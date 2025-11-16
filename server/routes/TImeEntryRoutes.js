@@ -124,6 +124,161 @@ router.get('/', userAuth, async (req, res) => {
  }
 });
 
+// GET /api/time-entries/project/:projectId - Get time entries for a project
+// For employees: returns only their own logs
+// For managers: returns all employee logs with breakdown
+router.get('/project/:projectId', userAuth, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { taskId } = req.query; // optional filter by task
+    
+    if (!projectId) {
+      return res.status(400).json({ msg: 'Project ID is required' });
+    }
+
+    // Get current user info
+    const currentUser = await userModel.findById(req.userId).select('username');
+    if (!currentUser) return res.status(401).json({ msg: 'User not found' });
+    const username = currentUser.username;
+
+    // Get project to check if user is manager/owner
+    const project = await Project.findById(projectId)
+      .populate('members', 'username name')
+      .populate('createdBy', 'username name');
+    
+    if (!project) {
+      return res.status(404).json({ msg: 'Project not found' });
+    }
+
+    // Check if user is project manager/owner
+    const creatorId = project.createdBy && (project.createdBy._id || project.createdBy);
+    const isManager = creatorId && creatorId.toString() === req.userId;
+
+    let entries;
+    if (isManager) {
+      // Manager view: get all time entries for this project
+      const query = { project: projectId };
+      entries = await TimeEntry.find(query)
+        .populate('project', 'ProjectName Description status isBillable')
+        .sort({ createdAt: -1 })
+        .exec();
+      
+      // Group by employee and categorize by billable status
+      const employeeStats = {};
+      let totalBillable = 0;
+      let totalNonBillable = 0;
+      let totalAmbiguous = 0;
+
+      for (const entry of entries) {
+        const empUsername = entry.userId;
+        if (!employeeStats[empUsername]) {
+          employeeStats[empUsername] = {
+            username: empUsername,
+            billable: 0,
+            nonBillable: 0,
+            ambiguous: 0,
+            totalTime: 0,
+            entries: []
+          };
+        }
+
+        // Filter appointments by taskId if provided
+        let appointments = entry.appointments || [];
+        if (taskId) {
+          appointments = appointments.filter(apt => apt.taskId === taskId);
+        }
+
+        for (const apt of appointments) {
+          const totalDuration = (apt.timeIntervals || []).reduce((sum, interval) => sum + (interval.duration || 0), 0);
+          
+          // Categorize by billable status
+          if (apt.isBillable) {
+            employeeStats[empUsername].billable += totalDuration;
+            totalBillable += totalDuration;
+          } else if (apt.suggestedCategory === 'non-billable') {
+            employeeStats[empUsername].nonBillable += totalDuration;
+            totalNonBillable += totalDuration;
+          } else {
+            employeeStats[empUsername].ambiguous += totalDuration;
+            totalAmbiguous += totalDuration;
+          }
+          
+          employeeStats[empUsername].totalTime += totalDuration;
+        }
+
+        if (appointments.length > 0) {
+          employeeStats[empUsername].entries.push({
+            ...entry.toObject(),
+            appointments // filtered appointments
+          });
+        }
+      }
+
+      return res.json({
+        isManager: true,
+        employeeStats: Object.values(employeeStats),
+        summary: {
+          totalBillable,
+          totalNonBillable,
+          totalAmbiguous,
+          totalTime: totalBillable + totalNonBillable + totalAmbiguous
+        },
+        allEntries: entries
+      });
+    } else {
+      // Employee view: get only their own time entries for this project
+      const query = { userId: username, project: projectId };
+      entries = await TimeEntry.find(query)
+        .populate('project', 'ProjectName Description status isBillable')
+        .sort({ createdAt: -1 })
+        .exec();
+
+      // Filter by task if provided and calculate stats
+      let billable = 0;
+      let nonBillable = 0;
+      let ambiguous = 0;
+
+      const filteredEntries = entries.map(entry => {
+        let appointments = entry.appointments || [];
+        if (taskId) {
+          appointments = appointments.filter(apt => apt.taskId === taskId);
+        }
+
+        for (const apt of appointments) {
+          const totalDuration = (apt.timeIntervals || []).reduce((sum, interval) => sum + (interval.duration || 0), 0);
+          
+          if (apt.isBillable) {
+            billable += totalDuration;
+          } else if (apt.suggestedCategory === 'non-billable') {
+            nonBillable += totalDuration;
+          } else {
+            ambiguous += totalDuration;
+          }
+        }
+
+        return {
+          ...entry.toObject(),
+          appointments
+        };
+      }).filter(e => e.appointments.length > 0);
+
+      return res.json({
+        isManager: false,
+        entries: filteredEntries,
+        summary: {
+          billable,
+          nonBillable,
+          ambiguous,
+          totalTime: billable + nonBillable + ambiguous
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error fetching project time entries:', err);
+    res.status(500).json({ msg: 'Server Error' });
+  }
+});
+
 
 // DELETE /api/time-entries/:id - Delete a time entry
 router.delete('/:id', userAuth, async (req, res) => {
@@ -249,6 +404,113 @@ router.get('/ai-summary/manager/:projectId', userAuth, async (req, res) => {
   } catch (err) {
     console.error('GET ai-summary error', err);
     res.status(500).json({ ok: false, error: String(err && (err.message || err)) });
+  }
+});
+
+// GET /api/time-entries/manager/overview?projectId=optional
+// Returns aggregated employee-wise time (billable/non-billable/ambiguous) across all owned projects
+router.get('/manager/overview', userAuth, async (req, res) => {
+  try {
+    const { projectId } = req.query;
+
+    // Resolve current user (manager candidate)
+    const currentUser = await userModel.findById(req.userId).select('username');
+    if (!currentUser) return res.status(401).json({ msg: 'User not found' });
+    const managerUsername = currentUser.username;
+
+    // Determine owned projects
+    let ownedProjectsQuery = { createdBy: req.userId, status: { $ne: 'deleted' } };
+    if (projectId) {
+      ownedProjectsQuery = { _id: projectId, createdBy: req.userId, status: { $ne: 'deleted' } };
+    }
+    const ownedProjects = await Project.find(ownedProjectsQuery).select('ProjectName');
+    if (!ownedProjects || ownedProjects.length === 0) {
+      return res.status(403).json({ msg: 'No owned projects found or not authorized' });
+    }
+    const ownedIds = ownedProjects.map(p => p._id);
+
+    // Fetch all time entries for owned projects
+    const entries = await TimeEntry.find({ project: { $in: ownedIds } })
+      .populate('project', 'ProjectName isBillable')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    const employeeStats = {}; // per user across projects
+    let totalBillable = 0, totalNonBillable = 0, totalAmbiguous = 0;
+
+    for (const entry of entries) {
+      const userId = entry.userId;
+      if (!employeeStats[userId]) {
+        employeeStats[userId] = {
+          username: userId,
+          billable: 0,
+          nonBillable: 0,
+          ambiguous: 0,
+          totalTime: 0,
+          projects: {},
+          entries: [] // optional: raw entry references filtered
+        };
+      }
+
+      const projId = entry.project ? entry.project._id.toString() : String(entry.project);
+      if (!employeeStats[userId].projects[projId]) {
+        employeeStats[userId].projects[projId] = {
+          projectId: projId,
+          name: entry.project && entry.project.ProjectName ? entry.project.ProjectName : projId,
+          billable: 0,
+          nonBillable: 0,
+          ambiguous: 0,
+          totalTime: 0
+        };
+      }
+
+      for (const apt of (entry.appointments || [])) {
+        const duration = (apt.timeIntervals || []).reduce((sum, iv) => sum + (iv.duration || 0), 0);
+        if (duration <= 0) continue;
+        let bucket;
+        if (apt.isBillable) bucket = 'billable';
+        else if (apt.suggestedCategory === 'non-billable') bucket = 'nonBillable';
+        else bucket = 'ambiguous';
+
+        employeeStats[userId][bucket] += duration;
+        employeeStats[userId].totalTime += duration;
+        employeeStats[userId].projects[projId][bucket] += duration;
+        employeeStats[userId].projects[projId].totalTime += duration;
+
+        if (bucket === 'billable') totalBillable += duration;
+        else if (bucket === 'nonBillable') totalNonBillable += duration;
+        else totalAmbiguous += duration;
+      }
+
+      // Store a lightweight version of entry if it had appointments
+      if (entry.appointments && entry.appointments.length > 0) {
+        employeeStats[userId].entries.push({ _id: entry._id, project: projId });
+      }
+    }
+
+    const overview = {
+      manager: managerUsername,
+      ownedProjectCount: ownedProjects.length,
+      summary: {
+        totalBillable,
+        totalNonBillable,
+        totalAmbiguous,
+        totalTime: totalBillable + totalNonBillable + totalAmbiguous
+      },
+      employees: Object.values(employeeStats).map(e => ({
+        username: e.username,
+        billable: e.billable,
+        nonBillable: e.nonBillable,
+        ambiguous: e.ambiguous,
+        totalTime: e.totalTime,
+        projects: Object.values(e.projects)
+      }))
+    };
+
+    return res.json({ ok: true, overview });
+  } catch (err) {
+    console.error('manager overview error', err);
+    return res.status(500).json({ ok: false, error: String(err && (err.message || err)) });
   }
 });
 
