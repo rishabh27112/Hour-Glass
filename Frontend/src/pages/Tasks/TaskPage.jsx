@@ -202,6 +202,40 @@ export default function TaskPage() {
     };
   }, [brainstormStorageKey]);
 
+  // Centralized fetch for time entries (used for polling and refresh after posts)
+  const fetchEntries = React.useCallback(async () => {
+    if (!task) return;
+    setEntriesLoading(true);
+    setEntriesError('');
+    try {
+      const url = `/api/time-entries?projectId=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (res.ok) {
+        const arr = await res.json();
+        console.debug('[TaskPage] fetchEntries response', { raw: arr });
+        // server normally returns an array; handle wrapped/single responses defensively
+        if (Array.isArray(arr)) {
+          console.debug('[TaskPage] fetchEntries -> array length', arr.length);
+          setTimeEntries(arr);
+        } else if (arr && Array.isArray(arr.entries)) {
+          console.debug('[TaskPage] fetchEntries -> wrapped entries length', arr.entries.length);
+          setTimeEntries(arr.entries);
+        } else {
+          console.debug('[TaskPage] fetchEntries -> single object returned');
+          setTimeEntries(arr ? [arr] : []);
+        }
+      } else {
+        console.error('Failed to load time entries', res.status);
+        setEntriesError('Failed to load usage logs');
+      }
+    } catch (err) {
+      console.error('load entries error', err);
+      setEntriesError('Failed to load usage logs');
+    } finally {
+      setEntriesLoading(false);
+    }
+  }, [task, projectId, taskId]);
+
   // Helper to post a brainstorm entry to backend and refresh entries
   const postBrainstormEntry = async (startMs, endMs, description) => {
     try {
@@ -222,53 +256,29 @@ export default function TaskPage() {
         credentials: 'include',
         body: JSON.stringify(payload)
       });
+      // Log server response for debugging
+      try {
+        const body = await res.clone().text();
+        console.debug('[TaskPage] POST /api/time-entries response status', res.status, 'body:', body);
+      } catch (e) { console.debug('[TaskPage] Failed to read POST response body', e); }
       if (!res.ok) {
         const txt = await res.text();
         console.warn('Failed to store brainstorming entry', res.status, txt);
       }
-      // Refresh entries table
-      try {
-        const url = `http://localhost:4000/api/time-entries?projectId=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`;
-        const r2 = await fetch(url, { credentials: 'include' });
-        if (r2.ok) {
-          const arr = await r2.json();
-          setTimeEntries(Array.isArray(arr) ? arr : []);
-        }
-      } catch {}
+      // Refresh entries table using centralized fetch
+      try { await fetchEntries(); } catch (e) { console.debug('refresh after post failed', e); }
     } catch (err) {
       console.error('Error posting brainstorming entry', err);
     }
   };
 
-  // Separate effect for fetching time entries with polling
+  // Polling effect for live updates
   useEffect(() => {
     if (!task) return;
-    
-    // fetch related time entries for this task
-    const fetchEntries = async () => {
-      setEntriesLoading(true);
-      setEntriesError('');
-      try {
-        const url = `http://localhost:4000/api/time-entries?projectId=${encodeURIComponent(projectId)}&task=${encodeURIComponent(taskId)}`;
-        const res = await fetch(url, { credentials: 'include' });
-        if (res.ok) {
-          const arr = await res.json();
-          setTimeEntries(Array.isArray(arr) ? arr : []);
-        } else {
-          console.error('Failed to load time entries', res.status);
-          setEntriesError('Failed to load usage logs');
-        }
-      } catch (err) {
-        console.error('load entries error', err);
-        setEntriesError('Failed to load usage logs');
-      } finally { setEntriesLoading(false); }
-    };
-    
     fetchEntries();
-    // poll every 5s for live updates while on this page
     const poll = setInterval(fetchEntries, 5000);
     return () => { clearInterval(poll); };
-  }, [task, projectId, taskId]);
+  }, [task, fetchEntries]);
 
   // manage interval to update visible timer
   useEffect(() => {
@@ -390,31 +400,35 @@ export default function TaskPage() {
   const groupedEntries = React.useMemo(() => {
     const groups = {};
     let uniqueKeyCounter = 0; // Counter for unique keys
+    // Defensive logging of incoming timeEntries
+    try { console.debug('[TaskPage] grouping timeEntries count', Array.isArray(timeEntries) ? timeEntries.length : 0); } catch(e){}
     // Flatten appointments array from each TimeEntry
-    timeEntries.forEach(entry => {
-      if (entry.appointments && Array.isArray(entry.appointments)) {
-        entry.appointments.forEach(apt => {
-          const appName = apt.appname || 'Unknown';
-          if (!groups[appName]) {
-            groups[appName] = [];
-          }
-          // Create flat entry for each time interval
-          apt.timeIntervals.forEach(interval => {
-            groups[appName].push({
-              _id: `${entry._id}_${uniqueKeyCounter++}`, // Generate unique key
-              appointment: {
-                apptitle: apt.apptitle,
-                appname: apt.appname,
-                taskId: apt.taskId,
-                startTime: interval.startTime,
-                endTime: interval.endTime,
-                duration: interval.duration
-              }
-            });
+    for (const entry of (timeEntries || [])) {
+      const apts = entry && entry.appointments && Array.isArray(entry.appointments) ? entry.appointments : [];
+      for (const apt of apts) {
+        const appName = apt && apt.appname ? apt.appname : 'Unknown';
+        if (!groups[appName]) groups[appName] = [];
+        const intervals = apt && apt.timeIntervals && Array.isArray(apt.timeIntervals) ? apt.timeIntervals : [];
+        if (intervals.length === 0) {
+          // keep the group present but log why there are zero sessions for this appointment
+          console.debug('[TaskPage] appointment has no intervals', { project: entry.project, apptitle: apt.apptitle, appname: appName, taskId: apt.taskId });
+        }
+        for (const interval of intervals) {
+          groups[appName].push({
+            _id: `${entry._id}_${uniqueKeyCounter++}`,
+            appointment: {
+              apptitle: apt.apptitle,
+              appname: apt.appname,
+              taskId: apt.taskId,
+              startTime: interval.startTime,
+              endTime: interval.endTime,
+              duration: interval.duration
+            }
           });
-        });
+        }
       }
-    });
+    }
+    console.debug('[TaskPage] groupedEntries keys and counts', Object.keys(groups).reduce((acc,k)=>{acc[k]=groups[k].length; return acc;},{ }));
     return groups;
   }, [timeEntries]);
 
@@ -628,12 +642,34 @@ export default function TaskPage() {
 
               {showTimeLapse && (
                 <>
-                  {entriesLoading ? (
+                    {entriesLoading ? (
                     <div className="text-gray-400">Loading usage logs…</div>
                   ) : entriesError ? (
                     <div className="text-red-500">{entriesError}</div>
                   ) : (
-                    <div className="border border-surface-light rounded-lg max-h-96 overflow-auto">
+                      <div className="border border-surface-light rounded-lg max-h-96 overflow-auto">
+                        {/* DEBUG: flattened list of all intervals for verification */}
+                        <div className="p-4 border-b border-surface bg-surface/40 text-sm text-gray-300">
+                          <div className="font-semibold">All intervals (flattened): <span className="text-gray-400">{(function(){let c=0; (timeEntries||[]).forEach(te=>{(te.appointments||[]).forEach(a=>{c+= (a.timeIntervals||[]).length;})}); return c; })()}</span></div>
+                          <div className="mt-2 max-h-36 overflow-auto text-xs">
+                            {(function(){
+                              const flat = [];
+                              (timeEntries||[]).forEach(te=>{
+                                (te.appointments||[]).forEach(a=>{
+                                  (a.timeIntervals||[]).forEach(iv=>{
+                                    flat.push({ apptitle: a.apptitle, appname: a.appname, startTime: iv.startTime, endTime: iv.endTime, duration: iv.duration });
+                                  });
+                                });
+                              });
+                              return flat.length ? flat.map((f, i)=> (
+                                <div key={i} className="flex justify-between gap-4 py-1 border-b border-surface/30">
+                                  <div className="truncate">{f.apptitle} — <span className="text-gray-400">{f.appname}</span></div>
+                                  <div className="text-gray-400">{f.startTime ? new Date(f.startTime).toLocaleString() : '-'} → {f.endTime ? new Date(f.endTime).toLocaleTimeString() : '-'}</div>
+                                </div>
+                              )) : <div className="italic text-gray-500">No intervals</div>;
+                            })()}
+                          </div>
+                        </div>
                       {timeEntries && timeEntries.length > 0 ? (
                         <div className="space-y-4 p-4">
                           {Object.entries(groupedEntries).map(([appName, entries]) => {
