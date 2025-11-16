@@ -40,15 +40,7 @@ const Hero = () => {
                 </div>
                 </Link>
 
-                {/* Dashboard Image Placeholder */}
-                <div className="mt-20 md:mt-32 relative">
-                    <div className="bg-[#2c2c2c] p-8 rounded-2xl shadow-2xl border border-[#3a3a3a]">
-                        <p className="text-gray-400">
-                            <span className="font-bold text-[#18d4d1]">Placeholder for dashboard screenshots.</span>
-                        </p>
-                        {/* <img src="/path/to/your/dashboard-screenshot.png" alt="TrackMe Dashboard" className="w-full h-auto rounded-xl" /> */}
-                    </div>
-                </div>
+               
             </div>
         </div>
     );

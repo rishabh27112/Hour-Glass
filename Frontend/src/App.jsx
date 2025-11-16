@@ -12,7 +12,6 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import ProjectPage from './pages/ProjectPage';
 import TaskPage from './pages/Tasks/TaskPage';
 import AISummaryPage from './pages/AI_Summary/AI_Summary_Page';
-import './variables.css';
 
 const App = () => {
   return (
