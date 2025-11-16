@@ -5,12 +5,12 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "transpile:electron": "tsc -p src/electron/tsconfig.json",
-  "dev:react": "cd ../Frontend && npm start",
-  "dev:electron": "npm run transpile:electron && cross-env NODE_ENV=development electron .",
-  "dev": "npm-run-all --parallel dev:react dev:electron",
-  "build": "cd ../Frontend && npm run build && npm run transpile:electron",
-  "start": "cross-env NODE_ENV=production electron .",
-  "dist:win": "npm run build && electron-builder --win --x64"
+    "dev:react": "cd ../Frontend && npm start",
+    "dev:electron": "npm run transpile:electron && cross-env NODE_ENV=development electron .",
+    "dev": "npm-run-all --parallel dev:react dev:electron",
+    "build": "cd ../Frontend && npm run build && npm run transpile:electron",
+    "start": "cross-env NODE_ENV=production electron .",
+    "dist:win": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "active-win": "^8.2.1",

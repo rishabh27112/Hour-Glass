@@ -1,9 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import ClassificationRule from "../models/classificationRule.model.js";
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+// Initialize Groq
+const client = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1",
+});
 
 /**
  * Normalizes an application name for consistent lookups.
@@ -21,15 +23,9 @@ function normalizeAppName(appName) {
 }
 
 /**
- * Calls the Gemini API to get a classification for an ambiguous app.
+ * Calls the Groq API to get a classification for an ambiguous app.
  */
 async function getAIClassification(activity, normalizedName) {
-  // COMMENTED OUT - Gemini API temporarily disabled
-  // Default to non-billable when AI is unavailable
-  console.log('[AI] API disabled, defaulting to non-billable for:', normalizedName);
-  return 'non-billable';
-
-  /* GEMINI API CODE - COMMENTED OUT
   const prompt = `
     You are a productivity expert. Classify the following computer activity as "billable" or "non-billable" based on the application name and window title.
     - "billable" means professional work (coding, design, client email, documentation, etc.).
@@ -42,9 +38,15 @@ async function getAIClassification(activity, normalizedName) {
   `;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const raw = response.text().trim().toLowerCase();
+    const completion = await client.chat.completions.create({
+      model: "llama-3.1-70b-versatile",
+      messages: [
+        { role: "system", content: "You are a productivity expert that classifies computer activities." },
+        { role: "user", content: prompt },
+      ],
+    });
+
+    const raw = completion.choices[0].message.content.trim().toLowerCase();
     // For debugging: log AI outputs for first-time apps (comment out in prod)
     // console.debug('[AI] raw classification output for', normalizedName, ':', raw);
 
@@ -88,11 +90,10 @@ async function getAIClassification(activity, normalizedName) {
     return classification;
 
   } catch (err) {
-    console.error("Error calling Gemini API:", err);
+    console.error("Error calling Groq API:", err);
     // Don't default to non-billable on error — mark ambiguous so higher-level logic can fall back or handle it.
     return 'ambiguous';
   }
-  */
 }
 
 /**
