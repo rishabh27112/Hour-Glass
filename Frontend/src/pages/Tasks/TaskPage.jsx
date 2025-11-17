@@ -534,6 +534,12 @@ export default function TaskPage() {
     return String(a);
   })();
 
+  // Permission checks: only the assigned member may start/stop timers.
+  const userIdentifiers = currentUser ? [currentUser.username, currentUser.email, currentUser._id].filter(Boolean).map((s) => String(s).toLowerCase()) : [];
+  const isAssigned = userIdentifiers.length > 0 && userIdentifiers.includes(String(assigneeDisplay || '').toLowerCase());
+  const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+  const canStartStop = Boolean(isAssigned);
+
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-brand-bg text-gray-200">
       <p>Loading...</p>
@@ -605,14 +611,16 @@ export default function TaskPage() {
               <div className="flex flex-wrap gap-4 items-center mb-4">
                 <button
                   onClick={startTimerInternal}
-                  disabled={!!runningSince}
+                  disabled={!!runningSince || !canStartStop}
+                  title={canStartStop ? 'Start timer' : 'Only the assigned member can start this timer'}
                   className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Start
                 </button>
                 <button
                   onClick={stopTimerInternal}
-                  disabled={!runningSince}
+                  disabled={!runningSince || !canStartStop}
+                  title={canStartStop ? 'Stop timer' : 'Only the assigned member can stop this timer'}
                   className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Stop
@@ -623,6 +631,13 @@ export default function TaskPage() {
                   <span className="text-gray-400">Paused</span>
                 )}
               </div>
+              {!canStartStop && (
+                <div className="text-sm text-gray-400 mt-1">
+                  {isManagerFlag
+                    ? 'Managers cannot start/stop timers — only the assigned member may.'
+                    : 'Only the assigned member may start/stop this timer.'}
+                </div>
+              )}
               
               <div className="border-t border-surface-light pt-4 mt-6">
                 <h4 className="text-xl font-semibold text-white mb-3">Billing</h4>

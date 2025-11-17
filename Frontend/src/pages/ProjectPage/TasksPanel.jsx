@@ -158,7 +158,12 @@ export default function TasksPanel(props) {
                 
                 const userIdentifiers = currentUser ? [currentUser.username, currentUser.email, currentUser._id].filter(Boolean).map((s) => String(s).toLowerCase()) : [];
                 const isAssigned = userIdentifiers.length > 0 && userIdentifiers.includes(String(displayedAssigned).toLowerCase());
-                const canControl = Boolean(isAssigned);
+                const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+                // New policy:
+                // - Only the assigned member may START/PAUSE the timer for a task.
+                // - Project creator or manager may OPEN/view the task but cannot start/pause timers.
+                const canStartStop = Boolean(isAssigned);
+                const canOpen = Boolean(isAssigned || isManagerFlag || isCreator);
 
                 // Determine displayed status: if task is still "todo" but has recorded time
                 // or is currently running, show "in-progress" for that task only.
@@ -172,11 +177,11 @@ export default function TasksPanel(props) {
                     <td className="py-3 px-1">
                       <button 
                         onClick={() => isActive ? pauseTimer(tid) : startTimer(tid)} 
-                        disabled={!canControl}
-                        title={isActive ? "Pause timer" : "Start timer"}
+                        disabled={!canStartStop}
+                        title={canStartStop ? (isActive ? "Pause timer" : "Start timer") : "Only the assigned member can start/stop this timer"}
                         className={`
                           text-2xl transition-colors
-                          ${!canControl && 'opacity-30 cursor-not-allowed'}
+                          ${!canStartStop && 'opacity-30 cursor-not-allowed'}
                           ${isActive 
                             ? 'text-yellow-400 hover:text-yellow-300' 
                             : 'text-cyan hover:text-cyan-dark'
@@ -188,12 +193,21 @@ export default function TasksPanel(props) {
                     </td>
                     <td className="py-3 px-1 text-gray-400">{idx + 1}</td>
                     <td className="py-3 px-1">
-                      <Link 
-                        to={`/projects/${props.projectId || ''}/tasks/${tid}`} 
-                        className="text-gray-200 font-medium hover:text-cyan transition-colors"
-                      >
-                        {task.title || task.name || 'Untitled task'}
-                      </Link>
+                      {canOpen ? (
+                        <Link 
+                          to={`/projects/${props.projectId || ''}/tasks/${tid}`} 
+                          className="text-gray-200 font-medium hover:text-cyan transition-colors"
+                        >
+                          {task.title || task.name || 'Untitled task'}
+                        </Link>
+                      ) : (
+                        <span
+                          title="Only project creator or assigned member can open this task"
+                          className="text-gray-400 font-medium cursor-not-allowed"
+                        >
+                          {task.title || task.name || 'Untitled task'}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-1 text-gray-300">{displayedAssigned}</td>
                     <td className="py-3 px-1 text-gray-300">{displayStatus}</td>

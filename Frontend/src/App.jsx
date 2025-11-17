@@ -8,7 +8,6 @@ import ProfilePage from './pages/ProfilePage';
 import Dashboard from './pages/Dashboard';
 import ArchivePage from './pages/ArchivePage';
 import BinPage from './pages/BinPage';
-import EmployeeDashboard from './pages/EmployeeDashboard';
 import ProjectPage from './pages/ProjectPage';
 import TaskPage from './pages/Tasks/TaskPage';
 import AISummaryPage from './pages/AI_Summary/AI_Summary_Page';
@@ -28,7 +27,6 @@ const App = () => {
           <Route path="/bin" element={<BinPage />} />
           <Route path="/projects/:id" element={<ProjectPage />} />
           <Route path="/projects/:projectId/tasks/:taskId" element={<TaskPage />} />
-          <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
           <Route path="/ai-summary/:projectId/:memberId" element={<AISummaryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

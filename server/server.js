@@ -11,6 +11,7 @@ import authRouter from './routes/authRoutes.js';
 import userRouter from "./routes/userRoutes.js";
 import projectRouter from './routes/ProjectRoutes.js';
 import timeEntryRouter from './routes/TImeEntryRoutes.js';
+import classificationRoutes from './routes/classificationRoutes.js';
 import "./cron/notificationJob.js"; 
 import notificationRoutes from "./routes/notificationRoutes.js";
 import brainstormRoutes from './routes/brainstormRoutes.js';
@@ -77,6 +78,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/projects', projectRouter);
 app.use('/api/time-entries', timeEntryRouter);
+app.use('/api/classification-rules', classificationRoutes);
 
 // Debug route to inspect Google OAuth session (for dev only)
 app.get('/api/auth/google/success', (req, res) => {

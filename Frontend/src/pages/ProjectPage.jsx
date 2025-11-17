@@ -518,6 +518,28 @@ const ProjectPage = () => {
       const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
       const canDelete = isCreator || isManagerFlag;
 
+      // AI Summary permission: visible always, but disabled unless project creator/manager or the member themselves
+      const canUseAISummary = (() => {
+        if (!currentUser || !project) return false;
+        // collect owner identifiers from the project (support object or string forms)
+        const ownerIds = [];
+        if (project.createdBy) {
+          if (typeof project.createdBy === 'object') {
+            ownerIds.push(project.createdBy._id, project.createdBy.username, project.createdBy.email);
+          } else {
+            ownerIds.push(String(project.createdBy));
+          }
+        }
+        for (const k of ['createdById', 'createdByUsername', 'createdByEmail', 'owner', 'ownerUsername', 'ownerEmail']) {
+          if (project[k]) ownerIds.push(String(project[k]));
+        }
+        const normOwners = ownerIds.filter(Boolean).map(s => String(s).toLowerCase());
+        const userIds = [currentUser._id, currentUser.username, currentUser.email].filter(Boolean).map(s => String(s).toLowerCase());
+        const isProjectCreator = userIds.some(u => normOwners.includes(u));
+        const isMemberSelf = String(currentUser.username || '').toLowerCase() === String(usernameForApi || '').toLowerCase();
+        return Boolean(isProjectCreator || isMemberSelf);
+      })();
+
       return (
         <tr key={`${displayName}-${idx}`} className="border-b border-surface-light">
           <td className="py-3 px-1 text-gray-400 text-sm w-8">{idx + 1}</td>
@@ -530,34 +552,21 @@ const ProjectPage = () => {
                   console.log('AI Summary clicked for member:', displayName);
                   const projId = project?._id || project?.id || 'unknown';
                   navigate(`/ai-summary/${projId}/${encodeURIComponent(displayName)}`);
-                  // This alert is from your original code, preserved perfectly
-                  alert(`AI Summary for ${displayName}\n\nThis feature will provide AI-generated insights about this member's:\n- Time tracking patterns\n- Task completion rates\n- Productivity metrics\n- Work hours distribution`);
                 }}
-                title="Generate AI Summary"
-                className="
-                  flex items-center gap-1 py-1 px-2 rounded-md text-xs font-semibold text-white
-                  bg-gradient-to-r from-indigo-500 to-purple-600
-                  shadow-md transition-all duration-200 ease-in-out
-                  hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30
-                "
+                title={canUseAISummary ? "Generate AI Summary" : "You don't have permission to view AI Summary"}
+                disabled={!canUseAISummary}
+                className={
+                  `flex items-center gap-1 py-1 px-2 rounded-md text-xs font-semibold shadow-md transition-all duration-200 ease-in-out ` +
+                  (canUseAISummary
+                    ? `text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30`
+                    : `text-gray-300 bg-surface/40 cursor-not-allowed opacity-60`
+                  )
+                }
               >
                 <span>✨</span>
                 <span>AI</span>
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const projId = project?._id || project?.id || id || '';
-                  const uname = usernameForApi || displayName || '';
-                  // Open the Usage Logs (EmployeeDashboard) for this project and member
-                  navigate(`/employee-dashboard?projectId=${projId}&username=${encodeURIComponent(uname)}`);
-                }}
-                title="Open Usage Logs"
-                className="flex items-center gap-1 py-1 px-2 rounded-md text-xs font-semibold text-white bg-cyan-600 hover:bg-cyan-500"
-              >
-                <span>⏱</span>
-                <span>Usage</span>
-              </button>
+              {/* Usage button removed — employee app details now shown in AI Summary page */}
               {canDelete && (
                 <button 
                   className="text-red-500 hover:text-red-400 text-lg p-1" 

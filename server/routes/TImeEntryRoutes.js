@@ -96,8 +96,32 @@ router.get('/', userAuth, async (req, res) => {
   // optional query filters: projectId, task (task id or task title substring)
   const { projectId, task } = req.query;
 
+  // Access control: by default employees only see their own entries.
+  // If a projectId is provided and the requester is the project owner/manager,
+  // allow listing entries for that project (all users).
   const query = { userId: username };
-  if (projectId) query.project = projectId;
+  let isManager = false;
+  if (projectId) {
+    // try to resolve project owner to determine manager rights
+    try {
+      const project = await Project.findById(projectId).select('createdBy');
+      if (project) {
+        const creatorId = project.createdBy && (project.createdBy._id || project.createdBy);
+        isManager = creatorId && creatorId.toString() === req.userId;
+      }
+    } catch (e) {
+      // ignore and treat as non-manager (minimal change)
+    }
+
+    if (isManager) {
+      // manager may view all entries for the project
+      delete query.userId;
+      query.project = projectId;
+    } else {
+      // non-manager: restrict to own entries for the project
+      query.project = projectId;
+    }
+  }
 
   // base query - get all time entries for this user
   let entries = await TimeEntry.find(query)
@@ -115,6 +139,15 @@ router.get('/', userAuth, async (req, res) => {
         (apt.apptitle && regex.test(apt.apptitle))
       )
     );
+  }
+
+  // Enforce access control sanity: if requester is not manager, ensure
+  // all returned entries belong to the current user. If not, deny access.
+  if (!isManager) {
+    const bad = entries.some(e => String(e.userId) !== String(username));
+    if (bad) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
   }
 
   res.json(entries);
@@ -233,6 +266,12 @@ router.get('/project/:projectId', userAuth, async (req, res) => {
         .sort({ createdAt: -1 })
         .exec();
 
+      // Enforce access control: non-managers must not receive others' entries
+      const bad = entries.some(e => String(e.userId) !== String(username));
+      if (bad) {
+        return res.status(403).json({ msg: 'Not authorized' });
+      }
+
       // Filter by task if provided and calculate stats
       let billable = 0;
       let nonBillable = 0;
@@ -338,17 +377,24 @@ router.post('/daily-summary/manager', userAuth, async (req, res) => {
 
       const entries = await TimeEntry.find({
         userId: memberUsername,
-        'appointment.startTime': { $gte: dayStart, $lte: dayEnd }
-      }).populate('project', 'ProjectName').sort({ 'appointment.startTime': -1 }).exec();
+        'appointments.timeIntervals.startTime': { $gte: dayStart, $lte: dayEnd }
+      }).populate('project', 'ProjectName').sort({ 'appointments.timeIntervals.startTime': -1 }).exec();
 
-      const items = entries.map(e => ({
-        apptitle: e.appointment && e.appointment.apptitle,
-        appname: e.appointment && e.appointment.appname,
-        start: e.appointment && e.appointment.startTime,
-        end: e.appointment && e.appointment.endTime,
-        duration: e.appointment && e.appointment.duration,
-        project: e.project ? (e.project.ProjectName || String(e.project)) : null,
-      }));
+      const items = [];
+      for (const e of entries) {
+        for (const apt of (e.appointments || [])) {
+          for (const interval of (apt.timeIntervals || [])) {
+            items.push({
+              apptitle: apt.apptitle,
+              appname: apt.appname,
+              start: interval.startTime,
+              end: interval.endTime,
+              duration: interval.duration,
+              project: e.project ? (e.project.ProjectName || String(e.project)) : null,
+            });
+          }
+        }
+      }
 
       const summary = await generateDailySummary({ items, username: memberUsername, date: dayStart.toISOString() });
       reports.push({ username: memberUsername, items, itemsCount: items.length, summary });
