@@ -997,8 +997,6 @@ const ProjectPage = () => {
               tasksToShow={tasksToShow}
               getTaskKey={getTaskKey}
               activeTimer={activeTimer}
-              pauseTimer={pauseTimer}
-              startTimer={startTimer}
               showTaskFilter={showTaskFilter}
               setShowTaskFilter={setShowTaskFilter}
               filterMember={filterMember}
@@ -1027,7 +1025,7 @@ const ProjectPage = () => {
               taskStatus={taskStatus}
               currentUser={currentUser}
               projectOwner={projectOwnerNormalized}
-              isCreator={isCreator} // Pass isCreator to TasksPanel
+              isCreator={isCreator}
             />
             
             {/* Time Logs Panel */}

@@ -79,6 +79,8 @@ export default function TaskPage() {
   const [timeEntries, setTimeEntries] = useState([]);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesError, setEntriesError] = useState('');
+  // Track whether we have ever completed a load so we don't blank the table during polling
+  const [hasInitialEntriesLoaded, setHasInitialEntriesLoaded] = useState(false);
   const [summary, setSummary] = useState(null);
   const [showTimeLapse, setShowTimeLapse] = useState(false);
   const [expandedApps, setExpandedApps] = useState({});
@@ -256,17 +258,26 @@ export default function TaskPage() {
           // Employee view: only their own entries
           setTimeEntries(data.entries || []);
         }
+        // Mark that at least one load has completed successfully
+        if (!hasInitialEntriesLoaded) setHasInitialEntriesLoaded(true);
       } else {
         console.error('Failed to load time entries', res.status);
         setEntriesError('Failed to load usage logs');
+        // Even on error after first render, avoid flicker
+        if (!hasInitialEntriesLoaded && (timeEntries || []).length > 0) {
+          setHasInitialEntriesLoaded(true);
+        }
       }
     } catch (err) {
       console.error('load entries error', err);
       setEntriesError('Failed to load usage logs');
+      if (!hasInitialEntriesLoaded && (timeEntries || []).length > 0) {
+        setHasInitialEntriesLoaded(true);
+      }
     } finally {
       setEntriesLoading(false);
     }
-  }, [task, projectId, taskId]);
+  }, [task, projectId, taskId, hasInitialEntriesLoaded, timeEntries]);
 
   // Helper to post a brainstorm entry to backend and refresh entries
   const postBrainstormEntry = async (startMs, endMs, description) => {
@@ -679,7 +690,12 @@ export default function TaskPage() {
 
             <div className="bg-surface rounded-lg shadow-md p-6">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
-                <h3 className="text-2xl font-semibold text-white m-0">Usage Logs</h3>
+                <h3 className="text-2xl font-semibold text-white m-0 flex items-center gap-3">
+                  Usage Logs
+                  {entriesLoading && hasInitialEntriesLoaded ? (
+                    <span className="text-xs text-gray-400">Refreshing…</span>
+                  ) : null}
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setShowBrainstormDialog(true)}
@@ -738,7 +754,7 @@ export default function TaskPage() {
 
               {showTimeLapse && (
                 <>
-                    {entriesLoading ? (
+                    {entriesLoading && !hasInitialEntriesLoaded ? (
                     <div className="text-gray-400">Loading usage logs…</div>
                   ) : entriesError ? (
                     <div className="text-red-500">{entriesError}</div>
@@ -769,28 +785,6 @@ export default function TaskPage() {
                           </div>
                         )}
                         
-                        {/* DEBUG: flattened list of all intervals for verification */}
-                        <div className="p-4 border-b border-surface bg-surface/40 text-sm text-gray-300">
-                          <div className="font-semibold">All intervals (flattened): <span className="text-gray-400">{(function(){let c=0; (timeEntries||[]).forEach(te=>{(te.appointments||[]).forEach(a=>{c+= (a.timeIntervals||[]).length;})}); return c; })()}</span></div>
-                          <div className="mt-2 max-h-36 overflow-auto text-xs">
-                            {(function(){
-                              const flat = [];
-                              (timeEntries||[]).forEach(te=>{
-                                (te.appointments||[]).forEach(a=>{
-                                  (a.timeIntervals||[]).forEach(iv=>{
-                                    flat.push({ apptitle: a.apptitle, appname: a.appname, startTime: iv.startTime, endTime: iv.endTime, duration: iv.duration });
-                                  });
-                                });
-                              });
-                              return flat.length ? flat.map((f, i)=> (
-                                <div key={i} className="flex justify-between gap-4 py-1 border-b border-surface/30">
-                                  <div className="truncate">{f.apptitle} — <span className="text-gray-400">{f.appname}</span></div>
-                                  <div className="text-gray-400">{f.startTime ? new Date(f.startTime).toLocaleString() : '-'} → {f.endTime ? new Date(f.endTime).toLocaleTimeString() : '-'}</div>
-                                </div>
-                              )) : <div className="italic text-gray-500">No intervals</div>;
-                            })()}
-                          </div>
-                        </div>
                       {timeEntries && timeEntries.length > 0 ? (
                         <div className="space-y-4 p-4">
                           {Object.entries(groupedEntries).map(([appName, entries]) => {

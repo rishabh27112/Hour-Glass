@@ -9,8 +9,6 @@ export default function TasksPanel(props) {
     tasksToShow,
     getTaskKey,
     activeTimer,
-    pauseTimer,
-    startTimer,
     showTaskFilter,
     setShowTaskFilter,
     filterMember,
@@ -136,7 +134,6 @@ export default function TasksPanel(props) {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-surface-light">
-              <th className="py-2 px-1 text-gray-400 font-semibold w-10"></th>
               <th className="py-2 px-1 text-gray-400 font-semibold w-10">#</th>
               <th className="py-2 px-1 text-gray-400 font-semibold">Task</th>
               <th className="py-2 px-1 text-gray-400 font-semibold">Assigned</th>
@@ -150,23 +147,21 @@ export default function TasksPanel(props) {
                 const isActive = activeTimer && activeTimer.taskId === tid;
                 
                 const assigneeData = task.assignedTo || task.assignee || task.assigneeName;
-                const displayedAssigned = assigneeData 
-                  ? (typeof assigneeData === 'object' 
-                      ? (assigneeData.username || assigneeData.name || assigneeData._id || '-')
-                      : String(assigneeData))
-                  : '-';
+                let displayedAssigned = '-';
+                if (assigneeData) {
+                  if (typeof assigneeData === 'object') {
+                    displayedAssigned = assigneeData.username || assigneeData.name || assigneeData._id || '-';
+                  } else {
+                    displayedAssigned = String(assigneeData);
+                  }
+                }
                 
                 const userIdentifiers = currentUser ? [currentUser.username, currentUser.email, currentUser._id].filter(Boolean).map((s) => String(s).toLowerCase()) : [];
                 const isAssigned = userIdentifiers.length > 0 && userIdentifiers.includes(String(displayedAssigned).toLowerCase());
                 const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-                // New policy:
-                // - Only the assigned member may START/PAUSE the timer for a task.
-                // - Project creator or manager may OPEN/view the task but cannot start/pause timers.
-                const canStartStop = Boolean(isAssigned);
                 const canOpen = Boolean(isAssigned || isManagerFlag || isCreator);
 
-                // Determine displayed status: if task is still "todo" but has recorded time
-                // or is currently running, show "in-progress" for that task only.
+                // Determine displayed status
                 const rawStatus = task.status || 'todo';
                 const hasRecordedTime = (task.timeSpent && Number(task.timeSpent) > 0) || (task.time && Number(task.time) > 0);
                 const isCurrentlyActive = isActive;
@@ -174,23 +169,6 @@ export default function TasksPanel(props) {
 
                 return (
                   <tr key={tid} className="border-b border-surface-light">
-                    <td className="py-3 px-1">
-                      <button 
-                        onClick={() => isActive ? pauseTimer(tid) : startTimer(tid)} 
-                        disabled={!canStartStop}
-                        title={canStartStop ? (isActive ? "Pause timer" : "Start timer") : "Only the assigned member can start/stop this timer"}
-                        className={`
-                          text-2xl transition-colors
-                          ${!canStartStop && 'opacity-30 cursor-not-allowed'}
-                          ${isActive 
-                            ? 'text-yellow-400 hover:text-yellow-300' 
-                            : 'text-cyan hover:text-cyan-dark'
-                          }
-                        `}
-                      >
-                        {isActive ? '⏸' : '▶'}
-                      </button>
-                    </td>
                     <td className="py-3 px-1 text-gray-400">{idx + 1}</td>
                     <td className="py-3 px-1">
                       {canOpen ? (
@@ -216,7 +194,7 @@ export default function TasksPanel(props) {
               })
             ) : (
               <tr>
-                <td colSpan={5} className="py-4 text-center text-gray-500 italic">No active tasks found</td>
+                <td colSpan={4} className="py-4 text-center text-gray-500 italic">No active tasks found</td>
               </tr>
             )}
           </tbody>
@@ -310,13 +288,10 @@ export default function TasksPanel(props) {
   );
 }
 
-// PropTypes are preserved exactly from your original code
 TasksPanel.propTypes = {
   tasksToShow: PropTypes.array,
   getTaskKey: PropTypes.func.isRequired,
   activeTimer: PropTypes.object,
-  pauseTimer: PropTypes.func.isRequired,
-  startTimer: PropTypes.func.isRequired,
   showTaskFilter: PropTypes.bool,
   setShowTaskFilter: PropTypes.func.isRequired,
   filterMember: PropTypes.string,

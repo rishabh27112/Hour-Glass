@@ -241,7 +241,7 @@ const ManagerDashboard = () => {
   };
   const fetchProjects = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include', headers: buildHeaders() });
       if (!res.ok) {
         throw new Error('Failed to load projects');
       }
@@ -281,7 +281,7 @@ const ManagerDashboard = () => {
       const res = await fetch(`${API_BASE_URL}/api/projects`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...buildHeaders() },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
@@ -323,7 +323,7 @@ const ManagerDashboard = () => {
                 await fetch(`${API_BASE_URL}/api/projects/${created._id}/members`, {
                   method: 'POST',
                   credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: { 'Content-Type': 'application/json', ...buildHeaders() },
                   body: JSON.stringify(payload),
                 });
               } catch (err) {
@@ -927,10 +927,10 @@ const ManagerDashboard = () => {
                           if (!p || !p._id) continue;
                           try {
                             if (selectionMode === 'delete') {
-                              const r = await fetch(`${API_BASE_URL}/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include' });
+                              const r = await fetch(`${API_BASE_URL}/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include', headers: buildHeaders() });
                               if (r.ok) successCount++; else failCount++;
                             } else {
-                              const r = await fetch(`${API_BASE_URL}/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include' });
+                              const r = await fetch(`${API_BASE_URL}/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include', headers: buildHeaders() });
                               if (r.ok) successCount++; else failCount++;
                             }
                           } catch (err) { console.error('project action error', err); failCount++; }

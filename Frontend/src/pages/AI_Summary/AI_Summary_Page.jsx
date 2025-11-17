@@ -1,4 +1,3 @@
-// src/pages/AI_Summary_Page.jsx
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../../config/api';
 import buildHeaders from '../../config/fetcher';
@@ -6,18 +5,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { RiArrowLeftLine } from 'react-icons/ri';
 import ManagerSummaryPanel from './ManagerSummaryPanel';
 
-const AISummaryPage = () => {
-  const { projectId, memberId } = useParams();
-  const navigate = useNavigate();
+const AISummaryPage=()=>{
+  const {projectId,memberId}=useParams();
+  const navigate=useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [memberName, setMemberName] = useState('');
-  const [hoursPerDay, setHoursPerDay] = useState([]);
-  const [fetchError, setFetchError] = useState('');
-  const [billableHours, setBillableHours] = useState(0);
-  const [ratePerHour, setRatePerHour] = useState(0);
-  const [brainstormTotal, setBrainstormTotal] = useState(0);
-  const [appsAvg, setAppsAvg] = useState([]);
+  const [loading, setLoading]=useState(true);
+  const [memberName, setMemberName]=useState('');
+  const [hoursPerDay, setHoursPerDay]=useState([]);
+  const [fetchError, setFetchError]=useState('');
+  const [billableHours, setBillableHours]=useState(0);
+  const [ratePerHour, setRatePerHour]=useState(0);
+  const [brainstormTotal, setBrainstormTotal]=useState(0);
+  const [appsAvg, setAppsAvg]=useState([]);
   const [entries, setEntries] = useState([]);
   const [isManager, setIsManager] = useState(false);
   const [aiMatches, setAiMatches] = useState({});
@@ -46,8 +45,8 @@ const AISummaryPage = () => {
       const name = decodeURIComponent(memberId || '');
       try {
         // Use existing server route that returns project-level entries.
-        const url = `${API_BASE_URL}/api/time-entries/project/${encodeURIComponent(projectId)}`;
-        const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
+        const url = `/api/time-entries/project/${encodeURIComponent(projectId)}`;
+        const res = await fetch(url, { credentials: 'include' });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           setFetchError(data && data.msg ? data.msg : (data && data.error) ? data.error : `Server returned ${res.status}`);
@@ -102,8 +101,9 @@ const AISummaryPage = () => {
             return { date, hours, seconds };
           });
           setHoursPerDay(arr);
-          const totalHours = arr.reduce((s, d) => s + (Number(d.hours) || 0), 0);
-          setBillableHours(Math.round(totalHours * 100) / 100);
+          
+          // Note: billableHours will be set by the useEffect that syncs with totals.billable
+          // Don't set it here to avoid incorrect initial value
         }
       } catch (err) {
         setFetchError(String(err));
@@ -123,10 +123,10 @@ const AISummaryPage = () => {
     try {
       const body = { projectId };
       if (date) body.date = date;
-      const res = await fetch(`${API_BASE_URL}/api/time-entries/daily-summary/manager`, {
+      const res = await fetch('/api/time-entries/daily-summary/manager', {
         method: 'POST',
         credentials: 'include',
-        headers: buildHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
@@ -150,8 +150,8 @@ const AISummaryPage = () => {
     setAiLoading(true);
     try {
       const q = date ? `?date=${encodeURIComponent(date)}` : '';
-      const url = `${API_BASE_URL}/api/time-entries/ai-summary/manager/${encodeURIComponent(projectId)}${q}`;
-      const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
+      const url = `/api/time-entries/ai-summary/manager/${encodeURIComponent(projectId)}${q}`;
+      const res = await fetch(url, { credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setAiError(data && data.error ? data.error : `Server returned ${res.status}`);
@@ -256,14 +256,11 @@ const AISummaryPage = () => {
     }
   };
 
-  // keep track of whether the user manually edited billable hours input
-  const [manualBillableEdited, setManualBillableEdited] = useState(false);
-
-  // Sync billableHours state from computed totals (seconds -> hours) unless user manually edited
+  // Sync billableHours state from computed totals (seconds -> hours) - always auto-update
   useEffect(() => {
     try {
       const computedHours = Math.round(((totals && totals.billable) || 0) / 3600 * 100) / 100;
-      if (!manualBillableEdited) setBillableHours(computedHours);
+      setBillableHours(computedHours);
     } catch (e) {
       console.warn('Error syncing computed billable hours', e);
     }
@@ -303,7 +300,6 @@ const AISummaryPage = () => {
 
     // Update UI immediately
     setEntries(updated);
-    setManualBillableEdited(false);
 
     // Only attempt to persist if current viewer is manager
     if (!isManager) return;
@@ -332,10 +328,10 @@ const AISummaryPage = () => {
     if (!appForRule) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/classification-rules/${encodeURIComponent(appForRule)}`, {
+      const res = await fetch(`/api/classification-rules/${encodeURIComponent(appForRule)}`, {
         method: 'PATCH',
         credentials: 'include',
-        headers: buildHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ classification: newClass })
       });
       const data = await res.json().catch(() => ({}));
@@ -712,20 +708,23 @@ const AISummaryPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div className="bg-surface-light p-4 rounded-lg">
                   <div className="text-sm font-semibold text-gray-400">Total hours</div>
-                  <div className="text-2xl font-bold text-white">{Math.round((hoursPerDay.reduce((s, d) => s + (Number(d.hours) || 0), 0)) * 100) / 100}</div>
+                  <div className="text-2xl font-bold text-white">{(() => {
+                    const totalSec = (totals && totals.total) || 0;
+                    const hrs = Math.floor(totalSec / 3600);
+                    const mins = Math.floor((totalSec % 3600) / 60);
+                    return `${hrs}h ${mins}m`;
+                  })()}</div>
                 </div>
                 <div className="bg-surface-light p-4 rounded-lg">
                   <div className="text-sm font-semibold text-gray-400">Billable hours</div>
-                  <input 
-                    type="number" 
-                    min="0" 
-                    step="0.01" 
-                    value={billableHours} 
-                    onChange={(e) => { setManualBillableEdited(true); setBillableHours(Number(e.target.value || 0)); }} 
-                    className="w-full bg-surface text-gray-200 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface mt-1"
-                  />
-                  <div className="mt-2">
-                    <button onClick={() => { setManualBillableEdited(false); const computed = Math.round(((totals && totals.billable) || 0) / 3600 * 100) / 100; setBillableHours(computed); }} className="text-sm bg-surface hover:bg-surface-light px-3 py-1 rounded border border-surface text-gray-300">Reset to computed</button>
+                  <div className="text-2xl font-bold text-white mt-2">{(() => {
+                    const billableSec = (totals && totals.billable) || 0;
+                    const hrs = Math.floor(billableSec / 3600);
+                    const mins = Math.floor((billableSec % 3600) / 60);
+                    return `${hrs}h ${mins}m`;
+                  })()}</div>
+                  <div className="mt-2 text-xs text-gray-400">
+                    Auto-updated from billable sessions
                   </div>
                 </div>
               </div>

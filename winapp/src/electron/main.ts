@@ -115,6 +115,9 @@ class TimeTracker {
 	// running state
 	private _running: boolean = false;
 
+	// Minimum duration threshold in milliseconds (5 seconds)
+	private readonly MIN_DURATION_MS = 5000;
+
 	constructor(sys:SystemResourceMonitor) {
 		this.sm = sys;
 		this.storage = new FileStorageManager();
@@ -122,6 +125,92 @@ class TimeTracker {
 		this.project_id = null;
 		this.task_id = null;
 		emitRendererLog('[TimeTracker] TimeTracker initialized', { path: this.storage.getFilePath() });
+	}
+
+	// Check if entry is a duplicate (same app, title, and overlapping time)
+	private isDuplicateEntry(newEntry: TimeEntry): boolean {
+		const newStart = newEntry.startTime.getTime();
+		const newEnd = newEntry.endTime.getTime();
+		
+		for (const existing of this.entries) {
+			const existingStart = existing.startTime.getTime();
+			const existingEnd = existing.endTime.getTime();
+			
+			// Check if same app and title
+			if (existing.appname === newEntry.appname && 
+				existing.apptitle === newEntry.apptitle) {
+				// Check for time overlap or very close timestamps (within 1 second)
+				if (Math.abs(existingStart - newStart) < 1000 || 
+					(newStart >= existingStart && newStart <= existingEnd) ||
+					(newEnd >= existingStart && newEnd <= existingEnd)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	// Remove duplicate entries from an array and filter out entries less than 5 seconds
+	private deduplicateAndFilterEntries(entries: TimeEntry[]): TimeEntry[] {
+		const filtered: TimeEntry[] = [];
+		
+		for (const entry of entries) {
+			// Ensure dates are Date objects
+			const startTime = entry.startTime instanceof Date ? entry.startTime : new Date(entry.startTime);
+			const endTime = entry.endTime instanceof Date ? entry.endTime : new Date(entry.endTime);
+			const durationMs = endTime.getTime() - startTime.getTime();
+			
+			// Skip entries less than 5 seconds
+			if (durationMs < this.MIN_DURATION_MS) {
+				emitRendererLog('[TimeTracker] Filtering out short entry from storage', { 
+					app: entry.appname, 
+					title: entry.apptitle, 
+					duration: durationMs / 1000 
+				});
+				continue;
+			}
+			
+			// Update entry with proper Date objects and duration
+			entry.startTime = startTime;
+			entry.endTime = endTime;
+			entry.duration = durationMs / 1000;
+			
+			// Check for duplicates in the filtered array
+			let isDuplicate = false;
+			for (const existing of filtered) {
+				const existingStart = existing.startTime.getTime();
+				const existingEnd = existing.endTime.getTime();
+				const newStart = startTime.getTime();
+				const newEnd = endTime.getTime();
+				
+				if (existing.appname === entry.appname && existing.apptitle === entry.apptitle) {
+					// Check for exact match or time overlap
+					if (Math.abs(existingStart - newStart) < 1000 ||
+						(newStart >= existingStart && newStart <= existingEnd) ||
+						(newEnd >= existingStart && newEnd <= existingEnd)) {
+						isDuplicate = true;
+						emitRendererLog('[TimeTracker] Found duplicate in storage', { 
+							app: entry.appname, 
+							title: entry.apptitle, 
+							startTime: startTime.toISOString() 
+						});
+						break;
+					}
+				}
+			}
+			
+			if (!isDuplicate) {
+				filtered.push(entry);
+			}
+		}
+		
+		emitRendererLog('[TimeTracker] Deduplicated and filtered entries', { 
+			original: entries.length, 
+			filtered: filtered.length,
+			removed: entries.length - filtered.length
+		});
+		
+		return filtered;
 	}
 
 	public setAuthToken(token: string) {
@@ -209,15 +298,23 @@ class TimeTracker {
 				
 				const isEmpty = await this.storage.isEmpty();
 				
-				if (!isEmpty) {
-					const allEntries = await this.storage.readEntries();
+			if (!isEmpty) {
+				const allEntries = await this.storage.readEntries();
+				
+				if (allEntries.length > 0) {
+					emitRendererLog('[TimeTracker] Found entries to sync to server', { count: allEntries.length });
 					
-					if (allEntries.length > 0) {
-						emitRendererLog('[TimeTracker] Found entries to sync to server', { count: allEntries.length });
-						
-						const success = await this.sendToServer(allEntries);
-						
-						if (success) {
+					// Deduplicate and filter entries before sending
+					const cleanedEntries = this.deduplicateAndFilterEntries(allEntries);
+					
+					if (cleanedEntries.length === 0) {
+						emitRendererLog('[TimeTracker] No valid entries to sync after filtering');
+						// Clear the file since all entries were invalid
+						await this.storage.clearFile();
+						return;
+					}
+					
+					const success = await this.sendToServer(cleanedEntries);						if (success) {
 							await this.storage.clearFile();
 							emitRendererLog('[TimeTracker] Successfully synced to server and cleared local storage');
 						} else {
@@ -353,13 +450,20 @@ class TimeTracker {
 				const ce = this.currentEntry;
 				const durationMs = ce.endTime.getTime() - ce.startTime.getTime();
 				
-				if (durationMs > 500) {
+				// Check if duration is at least 5 seconds and not a duplicate
+				if (durationMs >= this.MIN_DURATION_MS) {
 					ce.duration = durationMs / 1000;
-					emitRendererLog('[TimeTracker] Pushing entry', { app: ce.appname, title: ce.apptitle, duration: ce.duration });
-					this.entries.push(ce);
-					emitRendererLog('[TimeTracker] Total entries in memory', { count: this.entries.length });
+					
+					// Check for duplicates before adding
+					if (this.isDuplicateEntry(ce)) {
+						emitRendererLog('[TimeTracker] Skipping duplicate entry', { app: ce.appname, title: ce.apptitle, duration: ce.duration });
+					} else {
+						emitRendererLog('[TimeTracker] Pushing entry', { app: ce.appname, title: ce.apptitle, duration: ce.duration });
+						this.entries.push(ce);
+						emitRendererLog('[TimeTracker] Total entries in memory', { count: this.entries.length });
+					}
 				} else {
-					emitRendererLog('[TimeTracker] Skipping short entry', { app: ce.appname, title: ce.apptitle, duration: durationMs });
+					emitRendererLog('[TimeTracker] Skipping short entry (< 5s)', { app: ce.appname, title: ce.apptitle, duration: durationMs / 1000 });
 				}
 
 				// Create new entry for the new window
@@ -419,8 +523,9 @@ class TimeTracker {
 			if (this.currentEntry.startTime && this.currentEntry.endTime) {
 				const durationMs = this.currentEntry.endTime.getTime() - this.currentEntry.startTime.getTime();
 				this.currentEntry.duration = durationMs / 1000;
-				// Only push if duration is greater than minimum threshold
-				if (durationMs > 500) {
+				// Only push if duration is at least 5 seconds and not a duplicate
+				const isDuplicate = this.isDuplicateEntry(this.currentEntry);
+				if (durationMs >= this.MIN_DURATION_MS && !isDuplicate) {
 					emitRendererLog('[TimeTracker] Final entry on stop', { app: this.currentEntry.appname, title: this.currentEntry.apptitle, duration: this.currentEntry.duration });
 					this.entries.push(this.currentEntry);
 				}
