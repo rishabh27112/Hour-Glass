@@ -24,7 +24,7 @@ const ForgotPasswordPage = () => {
     if (!email) { setError('Email is required'); return; }
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/auth/send-reset-otp', {
+      const response = await fetch('${API_BASE_URL}/api/auth/send-reset-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -83,7 +83,7 @@ const ForgotPasswordPage = () => {
     }
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/auth/reset-password', {
+      const response = await fetch('${API_BASE_URL}/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp, newPassword })

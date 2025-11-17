@@ -1,0 +1,477 @@
+
+> server@1.0.0 test
+> NODE_OPTIONS=--experimental-vm-modules jest
+
+(node:39088) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:39086) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL __tests__/services/brainstormService.test.js
+  ● Console
+
+    console.error
+      [Brainstorm] Failed to fetch project: Cast to ObjectId failed for value "proj-123" (type string) at path "_id" for model "Project"
+
+      121 |     }
+      122 |   } catch (err) {
+    > 123 |     console.error('[Brainstorm] Failed to fetch project:', err.message);
+          |             ^
+      124 |   }
+      125 |
+      126 |   // Fetch task details if provided
+
+      at classifyBrainstormEntry (services/brainstormService.js:123:13)
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:191:22)
+
+    console.warn
+      [Brainstorm] No GROQ_API_KEY; returning ambiguous
+
+      13 |   const GROQ_KEY = process.env.GROQ_API_KEY;
+      14 |   if (!GROQ_KEY) {
+    > 15 |     console.warn('[Brainstorm] No GROQ_API_KEY; returning ambiguous');
+         |             ^
+      16 |     return { classification: 'ambiguous', confidence: 0, reasoning: 'API key not configured' };
+      17 |   }
+      18 |
+
+      at callGroqForBrainstorm (services/brainstormService.js:15:13)
+      at classifyBrainstormEntry (services/brainstormService.js:141:16)
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:191:22)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Successful Classification › should classify as billable when description aligns with project
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      37 |       };
+      38 |
+    > 39 |       Project.findById.mockResolvedValue(mockProject);
+         |                        ^
+      40 |
+      41 |       const mockGroqResponse = {
+      42 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:39:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Successful Classification › should classify as non-billable for general learning
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      79 |       };
+      80 |
+    > 81 |       Project.findById.mockResolvedValue(mockProject);
+         |                        ^
+      82 |
+      83 |       const mockGroqResponse = {
+      84 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:81:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Successful Classification › should parse confidence correctly
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      116 |       };
+      117 |
+    > 118 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      119 |
+      120 |       const mockGroqResponse = {
+      121 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:118:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Successful Classification › should clamp confidence between 0 and 1
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      154 |       };
+      155 |
+    > 156 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      157 |
+      158 |       const mockGroqResponse = {
+      159 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:156:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Error Handling › should handle Groq API 400 error
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      233 |       };
+      234 |
+    > 235 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      236 |
+      237 |       const mockErrorResponse = {
+      238 |         ok: false,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:235:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Error Handling › should handle Groq API network error
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      262 |       };
+      263 |
+    > 264 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      265 |
+      266 |       fetch.mockRejectedValue(new Error('Network timeout'));
+      267 |
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:264:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Error Handling › should handle missing response from Groq
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      285 |       };
+      286 |
+    > 287 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      288 |
+      289 |       const mockResponse = {
+      290 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:287:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Error Handling › should handle malformed JSON from Groq
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      314 |       };
+      315 |
+    > 316 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      317 |
+      318 |       const mockResponse = {
+      319 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:316:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Edge Cases › should handle missing project gracefully
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      337 |   describe('Edge Cases', () => {
+      338 |     it('should handle missing project gracefully', async () => {
+    > 339 |       Project.findById.mockResolvedValue(null);
+          |                        ^
+      340 |
+      341 |       const mockGroqResponse = {
+      342 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:339:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Edge Cases › should handle unparseable response format
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      374 |       };
+      375 |
+    > 376 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      377 |
+      378 |       const mockGroqResponse = {
+      379 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:376:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Edge Cases › should handle very long description
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      407 |       };
+      408 |
+    > 409 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      410 |
+      411 |       const longDescription = 'This is a very long description. '.repeat(100);
+      412 |
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:409:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Edge Cases › should pass correct parameters to Groq API
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      450 |       };
+      451 |
+    > 452 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      453 |
+      454 |       const mockGroqResponse = {
+      455 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:452:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Full Classification Flow › should classify with all project and task context
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      501 |       };
+      502 |
+    > 503 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      504 |
+      505 |       const mockGroqResponse = {
+      506 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:503:24)
+
+  ● Brainstorm Service - classifyBrainstormEntry › Full Classification Flow › should use environment variable for model selection
+
+    TypeError: Project.findById.mockResolvedValue is not a function
+
+      541 |       };
+      542 |
+    > 543 |       Project.findById.mockResolvedValue(mockProject);
+          |                        ^
+      544 |
+      545 |       const mockGroqResponse = {
+      546 |         ok: true,
+
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:543:24)
+
+(node:39087) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL __tests__/routes/classificationRoutes.test.js
+  ● Classification Routes › GET /api/classification-rules › should list all classification rules
+
+    TypeError: ClassificationRule.find.mockReturnValue is not a function
+
+      48 |       ];
+      49 |
+    > 50 |       ClassificationRule.find.mockReturnValue({
+         |                               ^
+      51 |         sort: jest.fn().mockReturnValue({
+      52 |           limit: jest.fn().mockReturnValue({
+      53 |             exec: jest.fn().mockResolvedValue(mockRules)
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:50:31)
+
+  ● Classification Routes › GET /api/classification-rules › should filter rules by source
+
+    TypeError: ClassificationRule.find.mockReturnValue is not a function
+
+      74 |       ];
+      75 |
+    > 76 |       ClassificationRule.find.mockReturnValue({
+         |                               ^
+      77 |         sort: jest.fn().mockReturnValue({
+      78 |           limit: jest.fn().mockReturnValue({
+      79 |             exec: jest.fn().mockResolvedValue(mockRules)
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:76:31)
+
+  ● Classification Routes › GET /api/classification-rules › should search rules by appName
+
+    TypeError: ClassificationRule.find.mockReturnValue is not a function
+
+      102 |       ];
+      103 |
+    > 104 |       ClassificationRule.find.mockReturnValue({
+          |                               ^
+      105 |         sort: jest.fn().mockReturnValue({
+      106 |           limit: jest.fn().mockReturnValue({
+      107 |             exec: jest.fn().mockResolvedValue(mockRules)
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:104:31)
+
+  ● Classification Routes › GET /api/classification-rules › should return empty array when no rules found
+
+    TypeError: ClassificationRule.find.mockReturnValue is not a function
+
+      125 |
+      126 |     it('should return empty array when no rules found', async () => {
+    > 127 |       ClassificationRule.find.mockReturnValue({
+          |                               ^
+      128 |         sort: jest.fn().mockReturnValue({
+      129 |           limit: jest.fn().mockReturnValue({
+      130 |             exec: jest.fn().mockResolvedValue([])
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:127:31)
+
+  ● Classification Routes › GET /api/classification-rules › should handle database errors
+
+    TypeError: ClassificationRule.find.mockReturnValue is not a function
+
+      140 |
+      141 |     it('should handle database errors', async () => {
+    > 142 |       ClassificationRule.find.mockReturnValue({
+          |                               ^
+      143 |         sort: jest.fn().mockReturnValue({
+      144 |           limit: jest.fn().mockReturnValue({
+      145 |             exec: jest.fn().mockRejectedValue(new Error('Database connection failed'))
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:142:31)
+
+  ● Classification Routes › PATCH /api/classification-rules/:appName › should create a new rule when verified
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      166 |       };
+      167 |
+    > 168 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      169 |       ClassificationRule.findOneAndUpdate.mockResolvedValue(mockRule);
+      170 |
+      171 |       const response = await request(app)
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:168:26)
+
+  ● Classification Routes › PATCH /api/classification-rules/:appName › should return 403 when user is not verified
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      185 |       const mockUser = { _id: 'test-user-id', isAccountVerified: false };
+      186 |
+    > 187 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      188 |
+      189 |       const response = await request(app)
+      190 |         .patch('/api/classification-rules/slack')
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:187:26)
+
+  ● Classification Routes › PATCH /api/classification-rules/:appName › should return 403 when user not found
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      199 |
+      200 |     it('should return 403 when user not found', async () => {
+    > 201 |       userModel.findById.mockResolvedValue(null);
+          |                          ^
+      202 |
+      203 |       const response = await request(app)
+      204 |         .patch('/api/classification-rules/slack')
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:201:26)
+
+  ● Classification Routes › PATCH /api/classification-rules/:appName › should return 400 for invalid classification
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      213 |       const mockUser = { _id: 'test-user-id', isAccountVerified: true };
+      214 |
+    > 215 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      216 |
+      217 |       const response = await request(app)
+      218 |         .patch('/api/classification-rules/slack')
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:215:26)
+
+  ● Classification Routes › PATCH /api/classification-rules/:appName › should return 400 when classification is missing
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      228 |       const mockUser = { _id: 'test-user-id', isAccountVerified: true };
+      229 |
+    > 230 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      231 |
+      232 |       const response = await request(app)
+      233 |         .patch('/api/classification-rules/slack')
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:230:26)
+
+  ● Classification Routes › PATCH /api/classification-rules/:appName › should update existing rule
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      248 |       };
+      249 |
+    > 250 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      251 |       ClassificationRule.findOneAndUpdate.mockResolvedValue(updatedRule);
+      252 |
+      253 |       const response = await request(app)
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:250:26)
+
+  ● Classification Routes › PATCH /api/classification-rules/:appName › should handle database errors
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      270 |       const mockUser = { _id: 'test-user-id', isAccountVerified: true };
+      271 |
+    > 272 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      273 |       ClassificationRule.findOneAndUpdate.mockRejectedValue(
+      274 |         new Error('Database write failed')
+      275 |       );
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:272:26)
+
+  ● Classification Routes › DELETE /api/classification-rules/:appName › should delete a rule when verified
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      291 |       const mockUser = { _id: 'test-user-id', isAccountVerified: true };
+      292 |
+    > 293 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      294 |       ClassificationRule.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      295 |
+      296 |       const response = await request(app)
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:293:26)
+
+  ● Classification Routes › DELETE /api/classification-rules/:appName › should return 403 when user is not verified
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      305 |       const mockUser = { _id: 'test-user-id', isAccountVerified: false };
+      306 |
+    > 307 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      308 |
+      309 |       const response = await request(app)
+      310 |         .delete('/api/classification-rules/slack');
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:307:26)
+
+  ● Classification Routes › DELETE /api/classification-rules/:appName › should return 403 when user not found
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      315 |
+      316 |     it('should return 403 when user not found', async () => {
+    > 317 |       userModel.findById.mockResolvedValue(null);
+          |                          ^
+      318 |
+      319 |       const response = await request(app)
+      320 |         .delete('/api/classification-rules/slack');
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:317:26)
+
+  ● Classification Routes › DELETE /api/classification-rules/:appName › should succeed even if rule not found
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      326 |       const mockUser = { _id: 'test-user-id', isAccountVerified: true };
+      327 |
+    > 328 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      329 |       ClassificationRule.deleteOne.mockResolvedValue({ deletedCount: 0 });
+      330 |
+      331 |       const response = await request(app)
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:328:26)
+
+  ● Classification Routes › DELETE /api/classification-rules/:appName › should handle database errors
+
+    TypeError: userModel.findById.mockResolvedValue is not a function
+
+      339 |       const mockUser = { _id: 'test-user-id', isAccountVerified: true };
+      340 |
+    > 341 |       userModel.findById.mockResolvedValue(mockUser);
+          |                          ^
+      342 |       ClassificationRule.deleteOne.mockRejectedValue(
+      343 |         new Error('Database delete failed')
+      344 |       );
+
+      at Object.<anonymous> (__tests__/routes/classificationRoutes.test.js:341:26)
+

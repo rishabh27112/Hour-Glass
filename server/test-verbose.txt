@@ -1,0 +1,33 @@
+
+> server@1.0.0 test:verbose
+> NODE_OPTIONS=--experimental-vm-modules jest --verbose
+
+  console.error
+    [Brainstorm] Failed to fetch project: Cast to ObjectId failed for value "proj-123" (type string) at path "_id" for model "Project"
+
+      121 |     }
+      122 |   } catch (err) {
+    > 123 |     console.error('[Brainstorm] Failed to fetch project:', err.message);
+          |             ^
+      124 |   }
+      125 |
+      126 |   // Fetch task details if provided
+
+      at classifyBrainstormEntry (services/brainstormService.js:123:13)
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:191:22)
+
+  console.warn
+    [Brainstorm] No GROQ_API_KEY; returning ambiguous
+
+      13 |   const GROQ_KEY = process.env.GROQ_API_KEY;
+      14 |   if (!GROQ_KEY) {
+    > 15 |     console.warn('[Brainstorm] No GROQ_API_KEY; returning ambiguous');
+         |             ^
+      16 |     return { classification: 'ambiguous', confidence: 0, reasoning: 'API key not configured' };
+      17 |   }
+      18 |
+
+      at callGroqForBrainstorm (services/brainstormService.js:15:13)
+      at classifyBrainstormEntry (services/brainstormService.js:141:16)
+      at Object.<anonymous> (__tests__/services/brainstormService.test.js:191:22)
+

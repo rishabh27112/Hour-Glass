@@ -26,7 +26,7 @@ const SignUpPage = () => {
   const handleSendOtp = async () => {
     setOtpError(''); setOtpSuccess(''); setOtpLoading(true); setResendMsg('');
     try {
-      const response = await fetch('http://localhost:4000/api/auth/send-otp', {
+      const response = await fetch('${API_BASE_URL}/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -48,7 +48,7 @@ const SignUpPage = () => {
   const handleResendOtp = async () => {
     setResendLoading(true); setResendMsg('');
     try {
-      const response = await fetch('http://localhost:4000/api/auth/send-otp', {
+      const response = await fetch('${API_BASE_URL}/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -90,7 +90,7 @@ const SignUpPage = () => {
   const handleVerifyOtp = async () => {
     setOtpError(''); setOtpSuccess('');
     try {
-      const response = await fetch('http://localhost:4000/api/auth/verify-otp', {
+      const response = await fetch('${API_BASE_URL}/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp })
@@ -134,7 +134,7 @@ const SignUpPage = () => {
       return;
     }
     try {
-      const response = await fetch('http://localhost:4000/api/auth/register', {
+      const response = await fetch('${API_BASE_URL}/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

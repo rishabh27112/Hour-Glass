@@ -105,7 +105,7 @@ const ManagerDashboard = () => {
   const handleNotifyDeadlines = async () => {
     try {
       setNotifLoading(true);
-      const res = await fetch('http://localhost:4000/api/notifications/test/run-reminders-now', {
+      const res = await fetch('${API_BASE_URL}/api/notifications/test/run-reminders-now', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
       });
       const json = await res.json().catch(() => ({}));
@@ -141,7 +141,7 @@ const ManagerDashboard = () => {
     const uid = profileUser && (profileUser._id || profileUser.id) ? (profileUser._id || profileUser.id) : getCurrentUserId();
     if (!uid) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/notifications/${uid}`, { credentials: 'include' });
+      const res = await fetch(`https://hour-glass-1.onrender.com/api/notifications/${uid}`, { credentials: 'include' });
       if (!res.ok) return setNotifications([]);
       const arr = await res.json().catch(() => []);
       setNotifications(Array.isArray(arr) ? arr : []);
@@ -178,7 +178,7 @@ const ManagerDashboard = () => {
     let cancelled = false;
     const verify = async () => {
       try {
-        const res = await fetch('http://localhost:4000/api/user/data', {
+        const res = await fetch('${API_BASE_URL}/api/user/data', {
           method: 'GET',
           credentials: 'include',
         });
@@ -238,7 +238,7 @@ const ManagerDashboard = () => {
   };
   const fetchProjects = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
+      const res = await fetch('${API_BASE_URL}/api/projects', { credentials: 'include' });
       if (!res.ok) {
         throw new Error('Failed to load projects');
       }
@@ -275,7 +275,7 @@ const ManagerDashboard = () => {
     }
     try {
       const payload = { ProjectName: projectName, Description: projectDescription };
-      const res = await fetch('http://localhost:4000/api/projects', {
+      const res = await fetch('${API_BASE_URL}/api/projects', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -317,7 +317,7 @@ const ManagerDashboard = () => {
               else if (u.username) payload.username = u.username;
               else continue;
               try {
-                await fetch(`http://localhost:4000/api/projects/${created._id}/members`, {
+                await fetch(`https://hour-glass-1.onrender.com/api/projects/${created._id}/members`, {
                   method: 'POST',
                   credentials: 'include',
                   headers: { 'Content-Type': 'application/json' },
@@ -448,7 +448,7 @@ const ManagerDashboard = () => {
                 role="menuitem"
                 onClick={async () => {
                   try {
-                    await fetch('http://localhost:4000/api/auth/logout', {
+                    await fetch('${API_BASE_URL}/api/auth/logout', {
                       method: 'POST',
                       credentials: 'include',
                       headers: { 'Content-Type': 'application/json' },
@@ -924,10 +924,10 @@ const ManagerDashboard = () => {
                           if (!p || !p._id) continue;
                           try {
                             if (selectionMode === 'delete') {
-                              const r = await fetch(`http://localhost:4000/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include' });
+                              const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include' });
                               if (r.ok) successCount++; else failCount++;
                             } else {
-                              const r = await fetch(`http://localhost:4000/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include' });
+                              const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include' });
                               if (r.ok) successCount++; else failCount++;
                             }
                           } catch (err) { console.error('project action error', err); failCount++; }
