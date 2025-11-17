@@ -108,7 +108,7 @@ const ManagerDashboard = () => {
     try {
       setNotifLoading(true);
       const res = await fetch(`${API_BASE_URL}/api/notifications/test/run-reminders-now`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...buildHeaders() }, credentials: 'include'
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -143,7 +143,7 @@ const ManagerDashboard = () => {
     const uid = profileUser && (profileUser._id || profileUser.id) ? (profileUser._id || profileUser.id) : getCurrentUserId();
     if (!uid) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications/${uid}`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/api/notifications/${uid}`, { credentials: 'include', headers: buildHeaders() });
       if (!res.ok) return setNotifications([]);
       const arr = await res.json().catch(() => []);
       setNotifications(Array.isArray(arr) ? arr : []);

@@ -8,6 +8,7 @@ import {
 } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
 import API_BASE_URL from '../config/api';
+import buildHeaders from '../config/fetcher';
 
 const BinPage = () => {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ const BinPage = () => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include', headers: buildHeaders() });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
@@ -44,7 +45,7 @@ const BinPage = () => {
   // Fetch projects from server
   async function fetchProjects() {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include', headers: buildHeaders() });
       if (!res.ok) throw new Error('Failed to fetch projects');
       const arr = await res.json();
       setProjects(Array.isArray(arr) ? arr.map(p => ({
@@ -201,7 +202,7 @@ const BinPage = () => {
                       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-lg hover:bg-cyan-dark transition-colors"
                       onClick={async () => {
                         try {
-                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include' });
+                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include', headers: buildHeaders() });
                           if (r.ok) {
                             await fetchProjects(); // Refresh list
                           } else {
@@ -219,7 +220,7 @@ const BinPage = () => {
                       onClick={async () => {
                         if (!globalThis.confirm('Permanently delete this project? This cannot be undone.')) return;
                         try {
-                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include' });
+                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include', headers: buildHeaders() });
                           if (r.ok) {
                             await fetchProjects(); // Refresh list
                           } else {

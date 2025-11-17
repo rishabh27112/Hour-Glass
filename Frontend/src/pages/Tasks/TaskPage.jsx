@@ -64,8 +64,19 @@ function stopNativeTrackerAndFlush() {
 // --- End of native helpers ---
 
 export default function TaskPage() {
+  console.log('[TaskPage] Mounted. Params:', window.location.hash, window.location.pathname, window.location.search);
   const { projectId, taskId } = useParams();
+  console.log('[TaskPage] useParams:', { projectId, taskId });
   const navigate = useNavigate();
+  // Build Authorization header from stored token (fallback when cookie not present)
+  const getAuthHeaders = (extra = {}) => {
+    try {
+      const webToken = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
+      const hdrs = { ...extra };
+      if (webToken) hdrs['Authorization'] = `Bearer ${webToken}`;
+      return hdrs;
+    } catch (e) { return { ...extra }; }
+  };
   const [project, setProject] = useState(null);
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -96,7 +107,7 @@ export default function TaskPage() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include', headers: getAuthHeaders() });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {

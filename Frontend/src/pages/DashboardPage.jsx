@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './DashboardPage.module.css';
+import API_BASE_URL from '../config/api';
+import buildHeaders from '../config/fetcher';
 
 const stats=[
   {
@@ -49,6 +51,7 @@ const DashboardPage=()=>{
         const userRes = await fetch(`${API_BASE_URL}/api/user/data`, {
           method: 'GET',
           credentials: 'include',
+          headers: buildHeaders()
         });
         const userData = await userRes.json();
         if (!mounted) return;

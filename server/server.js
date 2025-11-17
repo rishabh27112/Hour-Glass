@@ -59,6 +59,7 @@ app.use(passport.session());
 
 
 // Google OAuth2 routes
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 // Add a logger specifically for the callback to capture headers/query for debugging
@@ -69,7 +70,7 @@ app.use('/api/auth/google/callback', (req, res, next) => {
 });
 
 app.get('/api/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/' }),
+    passport.authenticate('google', { failureRedirect: FRONTEND_URL.replace(/\/$/, '') + '/' }),
     async (req, res) => {
         try {
             // Successful authentication, create JWT and set cookie
@@ -80,11 +81,11 @@ app.get('/api/auth/google/callback',
                 sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
                 maxAge: 7 * 24 * 60 * 60 * 1000
             });
-            // Redirect to frontend dashboard
-            res.redirect('http://localhost:3000/dashboard');
+                // Redirect to frontend dashboard
+                res.redirect(`${FRONTEND_URL.replace(/\/$/, '')}/dashboard`);
         } catch (err) {
             console.error('Google callback error:', err);
-            res.redirect('http://localhost:3000/?google_error=1');
+                res.redirect(`${FRONTEND_URL.replace(/\/$/, '')}/?google_error=1`);
         }
     }
 );

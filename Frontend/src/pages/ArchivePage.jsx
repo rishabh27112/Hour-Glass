@@ -5,6 +5,7 @@ import {
   RiSearchLine, RiCloseLine 
 } from 'react-icons/ri';
 import API_BASE_URL from '../config/api';
+import buildHeaders from '../config/fetcher';
 
 const ArchivePage = () => {
   // --- All state and logic is preserved ---
@@ -19,7 +20,7 @@ const ArchivePage = () => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include', headers: buildHeaders() });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
@@ -42,7 +43,7 @@ const ArchivePage = () => {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include', headers: buildHeaders() });
         if (!res.ok) throw new Error('Failed');
         const arr = await res.json();
         setProjects(Array.isArray(arr) ? arr.map(p => ({
@@ -208,7 +209,7 @@ const ArchivePage = () => {
                             const r = await fetch(`${API_BASE_URL}/api/projects/${id}/restore`, {
                               method: 'PATCH',
                               credentials: 'include',
-                              headers: { 'Content-Type': 'application/json' },
+                              headers: { 'Content-Type': 'application/json', ...buildHeaders() },
                               body: JSON.stringify({}),
                             });
                             if (r.ok) {
@@ -242,11 +243,11 @@ const ArchivePage = () => {
                       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
                       onClick={async () => {
                         try {
-                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}`, { method: 'DELETE', credentials: 'include' });
+                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}`, { method: 'DELETE', credentials: 'include', headers: buildHeaders() });
                           if (r.ok) {
                             alert('Moved to Bin');
                             // Refetch projects to update UI
-                            const res2 = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
+                            const res2 = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include', headers: buildHeaders() });
                             if (res2.ok) {
                               const arr = await res2.json();
                               setProjects(Array.isArray(arr) ? arr.map(p => ({
