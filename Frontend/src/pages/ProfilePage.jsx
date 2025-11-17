@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RiArrowLeftLine } from 'react-icons/ri';
+import API_BASE_URL from '../config/api';
+import buildHeaders from '../config/fetcher';
 
 const ProfilePage = () => {
   const [user, setUser] = useState(null);
@@ -13,17 +15,27 @@ const ProfilePage = () => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('${API_BASE_URL}/api/user/data', { method: 'GET', credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, { 
+          method: 'GET', 
+          credentials: 'include',
+          headers: buildHeaders()
+        });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
-          navigate('/signin'); // Matched to other pages
+          // Clear tokens on auth failure
+          try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch (e) {}
+          try { sessionStorage.removeItem('token'); sessionStorage.removeItem('user'); } catch (e) {}
+          navigate('/login');
           return;
         }
         setUser(json.userData);
       } catch (err) {
         console.error('profile fetch error', err);
-        navigate('/signin'); // Matched to other pages
+        // Clear tokens on error
+        try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch (e) {}
+        try { sessionStorage.removeItem('token'); sessionStorage.removeItem('user'); } catch (e) {}
+        navigate('/login');
       } finally {
         if (mounted) setLoading(false);
       }

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import API_BASE_URL from '../config/api';
+import buildHeaders from '../config/fetcher';
 
 // Usage Logs (project-scoped) — opened from Project page. Reads `projectId` and optional `username` from query.
 const EmployeeDashboard = () => {
@@ -40,8 +42,8 @@ const EmployeeDashboard = () => {
       try {
         // fetch project info (optional) and entries
         const [projRes, timeRes] = await Promise.all([
-          fetch(`/api/projects/${projectId}`, { credentials: 'include' }),
-          fetch(`/api/time-entries/project/${projectId}`, { credentials: 'include' })
+          fetch(`${API_BASE_URL}/api/projects/${projectId}`, { credentials: 'include', headers: buildHeaders() }),
+          fetch(`${API_BASE_URL}/api/time-entries/project/${projectId}`, { credentials: 'include', headers: buildHeaders() })
         ]);
 
         const projJson = await projRes.json().catch(() => null);

@@ -1,6 +1,8 @@
 // src/pages/TaskPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import API_BASE_URL from '../../config/api';
+import buildHeaders from '../../config/fetcher';
 import { 
   RiArrowLeftLine, RiCloseLine, RiBrainLine, RiStopCircleLine 
 } from 'react-icons/ri';
@@ -92,20 +94,20 @@ export default function TaskPage() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('${API_BASE_URL}/api/user/data', { method: 'GET', credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include' });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
           try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
           try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
-          navigate('/signin');
+          navigate('/login');
         } else {
           setCurrentUser(json.userData);
         }
       } catch (err) {
         try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
         try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
-        navigate('/signin');
+        navigate('/login');
       }
     })();
     return () => { mounted = false; };
@@ -116,7 +118,7 @@ export default function TaskPage() {
     (async () => {
       if (!projectId) return;
       try {
-        const res = await fetch(`/api/projects/${projectId}`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, { credentials: 'include', headers: buildHeaders() });
         if (!mounted) return;
         if (res.ok) {
           const p = await res.json();
@@ -234,8 +236,8 @@ export default function TaskPage() {
     setEntriesError('');
     try {
       // Use the new project-specific endpoint that filters by user role
-      const url = `/api/time-entries/project/${encodeURIComponent(projectId)}?taskId=${encodeURIComponent(taskId)}`;
-      const res = await fetch(url, { credentials: 'include' });
+      const url = `${API_BASE_URL}/api/time-entries/project/${encodeURIComponent(projectId)}?taskId=${encodeURIComponent(taskId)}`;
+      const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
       if (res.ok) {
         const data = await res.json();
         console.debug('[TaskPage] fetchEntries response', { data });
@@ -280,9 +282,9 @@ export default function TaskPage() {
         projectId: project && project._id ? String(project._id) : String(projectId || ''),
         description: String(taskId)
       };
-      const res = await fetch('/api/time-entries', {
+      const res = await fetch(`${API_BASE_URL}/api/time-entries`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(payload)
       });
@@ -345,10 +347,10 @@ export default function TaskPage() {
     const currentStatus = task?.status || 'todo';
     if (currentStatus === 'todo' && hasRecordedTime && project?._id && task?._id) {
       try {
-        const res = await fetch(`/api/projects/${project._id}/tasks/${task._id}/status`, {
+        const res = await fetch(`${API_BASE_URL}/api/projects/${project._id}/tasks/${task._id}/status`, {
           method: 'PATCH',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: buildHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ status: 'in-progress' })
         });
         if (res.ok) {

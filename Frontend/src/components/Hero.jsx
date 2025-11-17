@@ -31,7 +31,7 @@ const Hero = () => {
                         <div className='flex items-center gap-2 '>
                             <span className='text-xl font-semibold tracking-wide'> Start tracking for free</span>
                             <span className=''>
-                                <i class="ri-arrow-right-line text-xl bg-white rounded-2xl p-1.5 group-hover:bg-[#18d4d1]
+                                <i className="ri-arrow-right-line text-xl bg-white rounded-2xl p-1.5 group-hover:bg-[#18d4d1]
                                  transition-all duration-300 ease-in-out
                                 "></i>
                             </span>

@@ -127,14 +127,14 @@ export const login = async (req, res) => {
         const normalized = String(idInput).trim().toLowerCase();
         const user = await userModel.findOne({ $or: [{ email: normalized }, { username: normalized }] });
         if (!user) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+            return res.status(401).json({ success: false, message: 'Invalid credentials - User not found' });
         }
         if (!user.isAccountVerified) {
             return res.status(403).json({ success: false, message: 'Please verify your email before logging in.' });
         }
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
+            return res.status(401).json({ success: false, message: 'Invalid credentials - Wrong password' });
         }
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
         res.cookie('token', token, {
@@ -147,7 +147,8 @@ export const login = async (req, res) => {
         const userData = { id: user._id, name: user.name, email: user.email, username: user.username };
         return res.status(200).json({ success: true, message: 'Login successful', token, user: userData });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        console.error('[Login Error]', error);
+        return res.status(500).json({ success: false, message: `Database error: ${error.message}` });
     }
 }
 

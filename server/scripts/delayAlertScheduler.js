@@ -8,14 +8,17 @@ import transporter from '../config/nodemailer.js';
 
 dotenv.config();
 
-const MONGO = process.env.MONGODB_URL;
-if (!MONGO) {
-  console.error('MONGODB_URL not set in environment');
-  process.exit(1);
-}
+// Resolve MongoDB connection string: prefer MONGO_URI, fall back to MONGODB_URL, then local default
+const MONGO = process.env.MONGO_URI || process.env.MONGODB_URL || 'mongodb://localhost:27017/hourglass';
 
 async function connect() {
-  await mongoose.connect(`${MONGO}/Loginpage`);
+  try {
+    await mongoose.connect(MONGO);
+    console.log('Delay alert scheduler connected to DB');
+  } catch (err) {
+    console.error('Delay alert scheduler DB connect error', err);
+    throw err;
+  }
 }
 
 // Run hourly and check for tasks that are due in roughly 24 hours (±30 minutes)

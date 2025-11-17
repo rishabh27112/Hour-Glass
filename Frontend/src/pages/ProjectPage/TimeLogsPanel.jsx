@@ -1,5 +1,7 @@
 // src/pages/ProjectPage/TimeLogsPanel.jsx
 import React, { useState, useEffect } from 'react';
+import API_BASE_URL from '../../config/api';
+import buildHeaders from '../../config/fetcher';
 import PropTypes from 'prop-types';
 
 const TimeLogsPanel = ({ projectId, currentUser, isManager }) => {
@@ -15,8 +17,9 @@ const TimeLogsPanel = ({ projectId, currentUser, isManager }) => {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch(`/api/time-entries/project/${projectId}`, {
-          credentials: 'include'
+        const res = await fetch(`${API_BASE_URL}/api/time-entries/project/${projectId}`, {
+          credentials: 'include',
+          headers: buildHeaders()
         });
         
         if (res.ok) {

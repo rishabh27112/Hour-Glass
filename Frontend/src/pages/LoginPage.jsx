@@ -3,9 +3,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import MainButton from '../components/MainButton';
 import Logo from '../components/Logo';
-import { FcGoogle } from 'react-icons/fc';
 import LoginBg from '../assets/login-bg.png';
 import GoogleButton from '../components/GoogleButton';
+import API_BASE_URL from '../config/api';
 
 const LoginPage = () => {
   // --- All backend logic is injected here ---
@@ -21,7 +21,7 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
     try {
-      const response = await fetch('${API_BASE_URL}/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -37,7 +37,8 @@ const LoginPage = () => {
         setError(data.message || 'Login failed');
       }
     } catch (err) {
-      setError('Login error');
+      console.error('Login error:', err);
+      setError(err.message || 'Network error - could not connect to server');
     }
     setLoading(false);
   };

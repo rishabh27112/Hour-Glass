@@ -1,6 +1,8 @@
 // src/pages/ManagerDashboard/ManagerTimeOverview.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
+import API_BASE_URL from '../../config/api';
+import buildHeaders from '../../config/fetcher';
 
 function formatSeconds(sec) {
   const s = Math.max(0, Math.floor(sec));
@@ -20,8 +22,8 @@ const ManagerTimeOverview = ({ ownedProjects }) => {
   const fetchOverview = async (projId) => {
     setLoading(true); setError('');
     try {
-      const url = projId && projId !== 'all' ? `/api/time-entries/manager/overview?projectId=${encodeURIComponent(projId)}` : '/api/time-entries/manager/overview';
-      const res = await fetch(url, { credentials: 'include' });
+      const url = projId && projId !== 'all' ? `${API_BASE_URL}/api/time-entries/manager/overview?projectId=${encodeURIComponent(projId)}` : `${API_BASE_URL}/api/time-entries/manager/overview`;
+      const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.ok) {
         setData(json.overview);

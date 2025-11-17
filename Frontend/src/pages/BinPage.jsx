@@ -7,6 +7,7 @@ import {
   RiDeleteBinLine
 } from 'react-icons/ri';
 import { useNavigate } from 'react-router-dom';
+import API_BASE_URL from '../config/api';
 
 const BinPage = () => {
   const navigate = useNavigate();
@@ -14,23 +15,23 @@ const BinPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef(null);
 
-  // Auth check: redirect to signin if unauthenticated
+  // Auth check: redirect to login if unauthenticated
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('${API_BASE_URL}/api/user/data', { method: 'GET', credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include' });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
           sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
           localStorage.removeItem('user'); localStorage.removeItem('token');
-          navigate('/signin');
+          navigate('/login');
         }
       } catch (err) {
         sessionStorage.removeItem('user'); sessionStorage.removeItem('token');
         localStorage.removeItem('user'); localStorage.removeItem('token');
-        navigate('/signin');
+        navigate('/login');
       }
     })();
     return () => { mounted = false; };
@@ -43,7 +44,7 @@ const BinPage = () => {
   // Fetch projects from server
   async function fetchProjects() {
     try {
-      const res = await fetch('${API_BASE_URL}/api/projects', { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch projects');
       const arr = await res.json();
       setProjects(Array.isArray(arr) ? arr.map(p => ({
@@ -200,7 +201,7 @@ const BinPage = () => {
                       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-lg hover:bg-cyan-dark transition-colors"
                       onClick={async () => {
                         try {
-                          const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include' });
+                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include' });
                           if (r.ok) {
                             await fetchProjects(); // Refresh list
                           } else {
@@ -218,7 +219,7 @@ const BinPage = () => {
                       onClick={async () => {
                         if (!globalThis.confirm('Permanently delete this project? This cannot be undone.')) return;
                         try {
-                          const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include' });
+                          const r = await fetch(`${API_BASE_URL}/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include' });
                           if (r.ok) {
                             await fetchProjects(); // Refresh list
                           } else {

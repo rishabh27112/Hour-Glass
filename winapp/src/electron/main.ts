@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain, session } from "electron";
 import * as path from "node:path";
+import * as fs from "node:fs";
 import activeWin from 'active-win';
 import { FileStorageManager } from './fileStorage';
 import * as https from 'node:https';
 
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -36,7 +38,14 @@ function createWindow() {
   mainWindow.loadURL("http://localhost:3000");
   mainWindow.webContents.openDevTools();
 } else {
-  mainWindow.loadFile(path.join(__dirname, "../Frontend/build/index.html"));
+	// Prefer local dist-react if present; otherwise fall back to Frontend/build
+	const distReactIndex = path.join(__dirname, "../dist-react/index.html");
+	const feBuildIndex = path.join(__dirname, "../Frontend/build/index.html");
+	if (fs.existsSync(distReactIndex)) {
+		mainWindow.loadFile(distReactIndex);
+	} else {
+		mainWindow.loadFile(feBuildIndex);
+	}
 }
 
 
@@ -256,13 +265,13 @@ class TimeTracker {
 				}
 
 				emitRendererLog('[TimeTracker] Sending payload to server', { 
-					url: "http://localhost:4000/api/time-entries",
+					url: `${API_BASE_URL}/api/time-entries`,
 					payload,
 					hasAuthToken: !!this.authToken
 				});
 
 				try {
-					const res = await fetch("http://localhost:4000/api/time-entries", {
+					const res = await fetch(`${API_BASE_URL}/api/time-entries`, {
 						method: "POST",
 						headers,
 						body: JSON.stringify(payload),

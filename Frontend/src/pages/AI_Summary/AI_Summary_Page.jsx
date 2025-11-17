@@ -1,5 +1,7 @@
 // src/pages/AI_Summary_Page.jsx
 import React, { useState, useEffect } from 'react';
+import API_BASE_URL from '../../config/api';
+import buildHeaders from '../../config/fetcher';
 import { useParams, useNavigate } from 'react-router-dom';
 import { RiArrowLeftLine } from 'react-icons/ri';
 import ManagerSummaryPanel from './ManagerSummaryPanel';
@@ -44,8 +46,8 @@ const AISummaryPage = () => {
       const name = decodeURIComponent(memberId || '');
       try {
         // Use existing server route that returns project-level entries.
-        const url = `/api/time-entries/project/${encodeURIComponent(projectId)}`;
-        const res = await fetch(url, { credentials: 'include' });
+        const url = `${API_BASE_URL}/api/time-entries/project/${encodeURIComponent(projectId)}`;
+        const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           setFetchError(data && data.msg ? data.msg : (data && data.error) ? data.error : `Server returned ${res.status}`);
@@ -121,10 +123,10 @@ const AISummaryPage = () => {
     try {
       const body = { projectId };
       if (date) body.date = date;
-      const res = await fetch('/api/time-entries/daily-summary/manager', {
+      const res = await fetch(`${API_BASE_URL}/api/time-entries/daily-summary/manager`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
@@ -148,8 +150,8 @@ const AISummaryPage = () => {
     setAiLoading(true);
     try {
       const q = date ? `?date=${encodeURIComponent(date)}` : '';
-      const url = `/api/time-entries/ai-summary/manager/${encodeURIComponent(projectId)}${q}`;
-      const res = await fetch(url, { credentials: 'include' });
+      const url = `${API_BASE_URL}/api/time-entries/ai-summary/manager/${encodeURIComponent(projectId)}${q}`;
+      const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setAiError(data && data.error ? data.error : `Server returned ${res.status}`);
@@ -330,10 +332,10 @@ const AISummaryPage = () => {
     if (!appForRule) return;
 
     try {
-      const res = await fetch(`/api/classification-rules/${encodeURIComponent(appForRule)}`, {
+      const res = await fetch(`${API_BASE_URL}/api/classification-rules/${encodeURIComponent(appForRule)}`, {
         method: 'PATCH',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ classification: newClass })
       });
       const data = await res.json().catch(() => ({}));

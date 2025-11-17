@@ -6,6 +6,8 @@ import TimeLogsPanel from './ProjectPage/TimeLogsPanel.jsx';
 import { 
   RiArrowLeftLine, RiUserAddLine, RiCloseLine, RiSearchLine, RiDeleteBinLine 
 } from 'react-icons/ri';
+import API_BASE_URL from '../config/api';
+import buildHeaders from '../config/fetcher';
 
 // --- Native time tracker helpers (All logic is 100% preserved) ---
 const getTimeTracker = () => (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
@@ -64,6 +66,15 @@ function stopNativeTrackerAndFlush() {
 // --- End of native helpers ---
 
 const ProjectPage = () => {
+  // Build Authorization header from stored token (fallback when cookie not present)
+  const getAuthHeaders = (extra = {}) => {
+    try {
+      const webToken = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
+      const hdrs = { ...extra };
+      if (webToken) hdrs['Authorization'] = `Bearer ${webToken}`;
+      return hdrs;
+    } catch (e) { return { ...extra }; }
+  };
   // --- All state and logic is 100% preserved ---
   const { id } = useParams();
   const navigate = useNavigate();
@@ -71,20 +82,20 @@ const ProjectPage = () => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('${API_BASE_URL}/api/user/data', { method: 'GET', credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, { method: 'GET', credentials: 'include', headers: getAuthHeaders() });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
-          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
-          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
-          navigate('/signin');
+          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { console.log('Session cleanup error'); }
+          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { console.log('Local cleanup error'); }
+          navigate('/login');
         } else {
           setCurrentUser(json.userData);
         }
       } catch (err) {
-        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) {}
-        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) {}
-        navigate('/signin');
+        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { console.log('Session cleanup error'); }
+        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { console.log('Local cleanup error'); }
+        navigate('/login');
       }
     })();
     return () => { mounted = false; };
@@ -224,10 +235,10 @@ const ProjectPage = () => {
       try {
         const actualTaskId = task._id || task._clientId;
         if (actualTaskId && p._id) {
-          const res = await fetch(`/api/projects/${p._id}/tasks/${actualTaskId}/status`, {
+          const res = await fetch(`${API_BASE_URL}/api/projects/${p._id}/tasks/${actualTaskId}/status`, {
             method: 'PATCH',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ status: 'in-progress' })
           });
           if (res.ok) {
@@ -269,8 +280,8 @@ const ProjectPage = () => {
           dueDate: taskDueDate ? new Date(taskDueDate).toISOString() : undefined,
           status: taskStatus,
         };
-        const res = await fetch(`/api/projects/${project._id}/tasks`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload)
+        const res = await fetch(`${API_BASE_URL}/api/projects/${project._id}/tasks`, {
+          method: 'POST', headers: getAuthHeaders({ 'Content-Type': 'application/json' }), credentials: 'include', body: JSON.stringify(payload)
         });
         const json = await res.json();
           if (res.ok) {
@@ -361,7 +372,7 @@ const ProjectPage = () => {
       else if (/^[0-9a-fA-F]{24}$/.test(String(id))) fetchId = id;
       if (!fetchId) return;
       try {
-        const res = await fetch(`/api/projects/${fetchId}`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/projects/${fetchId}`, { credentials: 'include', headers: getAuthHeaders() });
         if (!mounted) return;
         if (res.ok) {
             const p = await res.json();
@@ -607,9 +618,9 @@ const ProjectPage = () => {
     if (project && project._id) {
       try {
         const payload = buildPayload(identifier);
-        const res = await fetch(`/api/projects/${project._id}/members`, {
+        const res = await fetch(`${API_BASE_URL}/api/projects/${project._id}/members`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           credentials: 'include',
           body: JSON.stringify(payload)
         });
@@ -725,9 +736,10 @@ const ProjectPage = () => {
     if (!ok) return;
     if (project && project._id) {
       try {
-        const res = await fetch(`/api/projects/${project._id}/members/${encodeURIComponent(name)}`, {
+        const res = await fetch(`${API_BASE_URL}/api/projects/${project._id}/members/${encodeURIComponent(name)}`, {
           method: 'DELETE',
-          credentials: 'include'
+          credentials: 'include',
+          headers: getAuthHeaders()
         });
         const updatedProjectFromServer = await res.json();
         if (res.ok) {
@@ -827,10 +839,10 @@ const ProjectPage = () => {
     setDialogError('');
     try {
       let url = '';
-      if (!q) url = `/api/user/search?limit=10`;
-      else if (dialogSearchBy === 'email') url = `/api/user/search?email=${encodeURIComponent(q)}`;
-      else url = `/api/user/search?username=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { credentials: 'include' });
+      if (!q) url = `${API_BASE_URL}/api/user/search?limit=10`;
+      else if (dialogSearchBy === 'email') url = `${API_BASE_URL}/api/user/search?email=${encodeURIComponent(q)}`;
+      else url = `${API_BASE_URL}/api/user/search?username=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
       const json = await res.json();
       if (res.ok) setDialogResults(json.users || []);
       else { setDialogError((json && json.message) || 'Search failed'); setDialogResults([]); }

@@ -7,6 +7,8 @@ import {
   RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine, RiSparkling2Line
 } from 'react-icons/ri';
 import NavLogo from '../components/NavLogo';
+import API_BASE_URL from '../config/api';
+import buildHeaders from '../config/fetcher';
 
 const ManagerDashboard = () => {
   // --- All your state and logic remains 100% unchanged ---
@@ -30,10 +32,10 @@ const ManagerDashboard = () => {
     setMemberError('');
     try {
       let url = '';
-      if (!q) url = `/api/user/search?limit=10`;
-      else if (memberSearchBy === 'email') url = `/api/user/search?email=${encodeURIComponent(q)}`;
-      else url = `/api/user/search?username=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { credentials: 'include' });
+      if (!q) url = `${API_BASE_URL}/api/user/search?limit=10`;
+      else if (memberSearchBy === 'email') url = `${API_BASE_URL}/api/user/search?email=${encodeURIComponent(q)}`;
+      else url = `${API_BASE_URL}/api/user/search?username=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
       const json = await res.json().catch(() => ({}));
       console.log('member search response', json);
       if (res.ok) setMemberResults(json.users || []);
@@ -105,7 +107,7 @@ const ManagerDashboard = () => {
   const handleNotifyDeadlines = async () => {
     try {
       setNotifLoading(true);
-      const res = await fetch('${API_BASE_URL}/api/notifications/test/run-reminders-now', {
+      const res = await fetch(`${API_BASE_URL}/api/notifications/test/run-reminders-now`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include'
       });
       const json = await res.json().catch(() => ({}));
@@ -141,7 +143,7 @@ const ManagerDashboard = () => {
     const uid = profileUser && (profileUser._id || profileUser.id) ? (profileUser._id || profileUser.id) : getCurrentUserId();
     if (!uid) return;
     try {
-      const res = await fetch(`https://hour-glass-1.onrender.com/api/notifications/${uid}`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/api/notifications/${uid}`, { credentials: 'include' });
       if (!res.ok) return setNotifications([]);
       const arr = await res.json().catch(() => []);
       setNotifications(Array.isArray(arr) ? arr : []);
@@ -178,22 +180,23 @@ const ManagerDashboard = () => {
     let cancelled = false;
     const verify = async () => {
       try {
-        const res = await fetch('${API_BASE_URL}/api/user/data', {
+        const res = await fetch(`${API_BASE_URL}/api/user/data`, {
           method: 'GET',
           credentials: 'include',
+          headers: buildHeaders()
         });
         const json = await res.json();
         if (!json || !json.success || !json.userData) {
-          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
-          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
-          if (!cancelled) navigate('/signin');
+          try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { console.log('Session cleanup error'); }
+          try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { console.log('Local cleanup error'); }
+          if (!cancelled) navigate('/login');
         } else {
           setProfileUser(json.userData);
         }
       } catch (err) {
-        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
-        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
-        if (!cancelled) navigate('/signin');
+        try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { console.log('Session cleanup error'); }
+        try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { console.log('Local cleanup error'); }
+        if (!cancelled) navigate('/login');
       }
     };
     verify();
@@ -238,7 +241,7 @@ const ManagerDashboard = () => {
   };
   const fetchProjects = async () => {
     try {
-      const res = await fetch('${API_BASE_URL}/api/projects', { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
       if (!res.ok) {
         throw new Error('Failed to load projects');
       }
@@ -275,7 +278,7 @@ const ManagerDashboard = () => {
     }
     try {
       const payload = { ProjectName: projectName, Description: projectDescription };
-      const res = await fetch('${API_BASE_URL}/api/projects', {
+      const res = await fetch(`${API_BASE_URL}/api/projects`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -317,7 +320,7 @@ const ManagerDashboard = () => {
               else if (u.username) payload.username = u.username;
               else continue;
               try {
-                await fetch(`https://hour-glass-1.onrender.com/api/projects/${created._id}/members`, {
+                await fetch(`${API_BASE_URL}/api/projects/${created._id}/members`, {
                   method: 'POST',
                   credentials: 'include',
                   headers: { 'Content-Type': 'application/json' },
@@ -448,16 +451,16 @@ const ManagerDashboard = () => {
                 role="menuitem"
                 onClick={async () => {
                   try {
-                    await fetch('${API_BASE_URL}/api/auth/logout', {
+                    await fetch(`${API_BASE_URL}/api/auth/logout`, {
                       method: 'POST',
                       credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: buildHeaders(),
                     });
                   } catch (err) { console.warn('logout failed', err); }
-                  try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { }
-                  try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { }
+                  try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { console.log('Session cleanup error'); }
+                  try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { console.log('Local cleanup error'); }
                   setProfileOpen(false);
-                  navigate('/signin');
+                  navigate('/login');
                 }}
               >
                 <RiLogoutBoxRLine className="inline-block mr-2" />
@@ -924,10 +927,10 @@ const ManagerDashboard = () => {
                           if (!p || !p._id) continue;
                           try {
                             if (selectionMode === 'delete') {
-                              const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include' });
+                              const r = await fetch(`${API_BASE_URL}/api/projects/${p._id}`, { method: 'DELETE', credentials: 'include' });
                               if (r.ok) successCount++; else failCount++;
                             } else {
-                              const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include' });
+                              const r = await fetch(`${API_BASE_URL}/api/projects/${p._id}/archive`, { method: 'PATCH', credentials: 'include' });
                               if (r.ok) successCount++; else failCount++;
                             }
                           } catch (err) { console.error('project action error', err); failCount++; }
