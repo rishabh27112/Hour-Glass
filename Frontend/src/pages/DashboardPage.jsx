@@ -33,7 +33,7 @@ const DashboardPage=()=>{
     let mounted = true;
     const checkAuth = async()=>{
       try {
-        const res = await fetch('http://localhost:4000/api/auth/is-auth', {
+        const res = await fetch('${API_BASE_URL}/api/auth/is-auth', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' }
@@ -46,7 +46,7 @@ const DashboardPage=()=>{
           return;
         }
         // Authenticated via cookie; fetch user data from server
-        const userRes = await fetch('http://localhost:4000/api/user/data', {
+        const userRes = await fetch('${API_BASE_URL}/api/user/data', {
           method: 'GET',
           credentials: 'include',
         });
@@ -99,7 +99,7 @@ const DashboardPage=()=>{
   const handleLogout = async () => {
     try {
       // attempt server logout to clear httpOnly cookies
-      await fetch('http://localhost:4000/api/auth/logout', { method: 'POST', credentials: 'include' });
+      await fetch('${API_BASE_URL}/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (err) {
       console.warn('Server logout failed', err);
     }

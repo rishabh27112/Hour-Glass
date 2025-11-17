@@ -1,26 +1,12 @@
 import OpenAI from "openai";
 import ClassificationRule from "../models/classificationRule.model.js";
+import { normalizeAppName } from "../utils/nameNormalizer.js";
 
 // Initialize Groq
 const client = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1",
 });
-
-/**
- * Normalizes an application name for consistent lookups.
- * 1. Converts to lowercase.
- * 2. Removes the .exe extension.
- * 3. Removes common paths, focusing on the app name.
- */
-function normalizeAppName(appName) {
-  if (!appName) return 'unknown';
-  
-  // Get just the executable/app name from a path
-  const app = appName.split('\\').pop().split('/').pop();
-  
-  return app.toLowerCase().replace('.exe', '').trim();
-}
 
 /**
  * Calls the Groq API to get a classification for an ambiguous app.
@@ -102,26 +88,32 @@ async function getAIClassification(activity, normalizedName) {
  * @returns {string} - 'billable' or 'non-billable'
  */
 export const classifyActivity = async (activity) => {
-  // If no activity provided, return ambiguous rather than force non-billable.
-  if (!activity) return 'ambiguous';
+  try {
+    // If no activity provided, return ambiguous rather than force non-billable.
+    if (!activity) return 'ambiguous';
 
-  // If appname is missing but apptitle present, we still want to try AI classification.
-  const appNameToNormalize = activity.appname || activity.apptitle || 'unknown';
-  const normalizedName = normalizeAppName(appNameToNormalize);
+    // If appname is missing but apptitle present, we still want to try AI classification.
+    const appNameToNormalize = activity.appname || activity.apptitle || 'unknown';
+    const normalizedName = normalizeAppName(appNameToNormalize);
 
-  // 1. Check our database for an existing rule
-  const rule = await ClassificationRule.findOne({ appName: normalizedName });
+    // 1. Check our database for an existing rule
+    const rule = await ClassificationRule.findOne({ appName: normalizedName });
 
-  if (rule) {
-    // 2. Found a rule in the DB
-    if (rule.classification === 'ambiguous') {
-      // It's ambiguous (like Chrome), so call the AI to disambiguate at runtime.
-      return await getAIClassification(activity, normalizedName);
+    if (rule) {
+      // 2. Found a rule in the DB
+      if (rule.classification === 'ambiguous') {
+        // It's ambiguous (like Chrome), so call the AI to disambiguate at runtime.
+        return await getAIClassification(activity, normalizedName);
+      }
+      // Found a clear rule (e.g., 'billable' or 'non-billable'), so return it.
+      return rule.classification;
     }
-    // Found a clear rule (e.g., 'billable' or 'non-billable'), so return it.
-    return rule.classification;
-  }
 
-  // 3. No rule found. Call the AI to classify. Caller should handle 'ambiguous' return value.
-  return await getAIClassification(activity, normalizedName);
+    // 3. No rule found. Call the AI to classify. Caller should handle 'ambiguous' return value.
+    return await getAIClassification(activity, normalizedName);
+  } catch (error) {
+    console.error('[ClassificationService] Error during classification:', error.message);
+    // On any database or other unexpected error, default to non-billable
+    return 'non-billable';
+  }
 };

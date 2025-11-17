@@ -19,7 +19,7 @@ const BinPage = () => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('http://localhost:4000/api/user/data', { method: 'GET', credentials: 'include' });
+        const res = await fetch('${API_BASE_URL}/api/user/data', { method: 'GET', credentials: 'include' });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
@@ -43,7 +43,7 @@ const BinPage = () => {
   // Fetch projects from server
   async function fetchProjects() {
     try {
-      const res = await fetch('http://localhost:4000/api/projects', { credentials: 'include' });
+      const res = await fetch('${API_BASE_URL}/api/projects', { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch projects');
       const arr = await res.json();
       setProjects(Array.isArray(arr) ? arr.map(p => ({
@@ -200,7 +200,7 @@ const BinPage = () => {
                       className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-cyan text-brand-bg font-semibold py-2 px-4 rounded-lg hover:bg-cyan-dark transition-colors"
                       onClick={async () => {
                         try {
-                          const r = await fetch(`http://localhost:4000/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include' });
+                          const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${project._id}/restore-deleted`, { method: 'PATCH', credentials: 'include' });
                           if (r.ok) {
                             await fetchProjects(); // Refresh list
                           } else {
@@ -218,7 +218,7 @@ const BinPage = () => {
                       onClick={async () => {
                         if (!globalThis.confirm('Permanently delete this project? This cannot be undone.')) return;
                         try {
-                          const r = await fetch(`http://localhost:4000/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include' });
+                          const r = await fetch(`https://hour-glass-1.onrender.com/api/projects/${project._id}/permanent`, { method: 'DELETE', credentials: 'include' });
                           if (r.ok) {
                             await fetchProjects(); // Refresh list
                           } else {

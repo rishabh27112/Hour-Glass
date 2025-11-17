@@ -13,7 +13,7 @@ const ProfilePage = () => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('http://localhost:4000/api/user/data', { method: 'GET', credentials: 'include' });
+        const res = await fetch('${API_BASE_URL}/api/user/data', { method: 'GET', credentials: 'include' });
         const json = await res.json();
         if (!mounted) return;
         if (!json || !json.success || !json.userData) {
