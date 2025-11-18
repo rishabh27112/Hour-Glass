@@ -8,15 +8,20 @@ import { classifyBrainstormEntry } from '../services/brainstormService.js';
 const router = express.Router();
 
 /**
- * POST /api/brainstorm - Create a new brainstorm entry and classify it
- * Body: { projectId, taskId?, description }
+ * POST /api/brainstorm - Create brainstorm entry/entries and classify them
+ * Body: { projectId, taskId?, description } OR { projectId, taskId?, descriptions: [] }
  */
 router.post('/', userAuth, async (req, res) => {
   try {
-    const { projectId, taskId, description } = req.body;
+    const { projectId, taskId, description, descriptions } = req.body;
     
-    if (!projectId || !description) {
-      return res.status(400).json({ msg: 'projectId and description are required' });
+    // Support both single description and multiple descriptions
+    const descList = descriptions && Array.isArray(descriptions) 
+      ? descriptions 
+      : (description ? [description] : []);
+    
+    if (!projectId || descList.length === 0) {
+      return res.status(400).json({ msg: 'projectId and description(s) are required' });
     }
     
     // Verify user has access to the project
@@ -34,30 +39,54 @@ router.post('/', userAuth, async (req, res) => {
     if (!currentUser) return res.status(401).json({ msg: 'User not found' });
     const username = currentUser.username;
     
-    // Classify the brainstorm entry
-    const classResult = await classifyBrainstormEntry(description, projectId, taskId);
+    // Process all descriptions
+    const results = [];
+    for (const desc of descList) {
+      if (!desc || !desc.trim()) continue;
+      
+      // Classify the brainstorm entry
+      const classResult = await classifyBrainstormEntry(desc, projectId, taskId);
+      
+      // Create entry
+      const entry = new BrainstormEntry({
+        userId: username,
+        project: projectId,
+        taskId: taskId || undefined,
+        description: desc.trim(),
+        classification: classResult.classification,
+        confidence: classResult.confidence,
+        reasoning: classResult.reasoning
+      });
+      
+      const savedEntry = await entry.save();
+      const populatedEntry = await savedEntry.populate('project', 'ProjectName');
+      
+      results.push({
+        entry: populatedEntry,
+        classification: classResult.classification,
+        confidence: classResult.confidence,
+        reasoning: classResult.reasoning
+      });
+    }
     
-    // Create entry
-    const entry = new BrainstormEntry({
-      userId: username,
-      project: projectId,
-      taskId: taskId || undefined,
-      description: description.trim(),
-      classification: classResult.classification,
-      confidence: classResult.confidence,
-      reasoning: classResult.reasoning
-    });
-    
-    const savedEntry = await entry.save();
-    const populatedEntry = await savedEntry.populate('project', 'ProjectName');
-    
-    res.status(201).json({
-      ok: true,
-      entry: populatedEntry,
-      classification: classResult.classification,
-      confidence: classResult.confidence,
-      reasoning: classResult.reasoning
-    });
+    // Return single or multiple based on input
+    if (descriptions && Array.isArray(descriptions)) {
+      res.status(201).json({
+        ok: true,
+        count: results.length,
+        entries: results
+      });
+    } else {
+      // Single entry - maintain backward compatibility
+      const result = results[0];
+      res.status(201).json({
+        ok: true,
+        entry: result.entry,
+        classification: result.classification,
+        confidence: result.confidence,
+        reasoning: result.reasoning
+      });
+    }
   } catch (err) {
     console.error('[Brainstorm POST] error:', err);
     res.status(500).json({ error: String(err.message) });
