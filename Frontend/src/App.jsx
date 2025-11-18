@@ -11,6 +11,7 @@ import BinPage from './pages/BinPage';
 import ProjectPage from './pages/ProjectPage';
 import TaskPage from './pages/Tasks/TaskPage';
 import AISummaryPage from './pages/AI_Summary/AI_Summary_Page';
+import ProjectSummaryPage from './pages/Project_Summary/Project_Summary_Page';
 
 const App = () => {
   return (
@@ -28,6 +29,7 @@ const App = () => {
           <Route path="/projects/:id" element={<ProjectPage />} />
           <Route path="/projects/:projectId/tasks/:taskId" element={<TaskPage />} />
           <Route path="/ai-summary/:projectId/:memberId" element={<AISummaryPage />} />
+          <Route path="/project-summary/:projectId" element={<ProjectSummaryPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

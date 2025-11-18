@@ -720,7 +720,7 @@ const ManagerDashboard = () => {
 
           <div className="flex-1 p-3 overflow-y-auto">
             {/* Manager Time Overview (employee-wise aggregated entries) */}
-            <ManagerTimeOverview ownedProjects={projects.filter(p => (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))} />
+            <ManagerTimeOverview ownedProjects={projects.filter(p => (!p.archived && !p.deleted) && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))} />
 
 
             {isAddingProject && (
@@ -875,10 +875,10 @@ const ManagerDashboard = () => {
                         <strong className="text-gray-200">Selected members:</strong>
                         {addedMembers && addedMembers.length > 0 ? (
                           <ul className="mt-2 space-y-2">
-                            {addedMembers.map((m, i) => (
+                                {addedMembers.map((m, i) => (
                               <li key={m._id || m.username || m.email} className="flex justify-between items-center text-sm">
                                 {m.name || m.username || m.email}
-                                <button typeF="button" className="bg-red-600 text-white font-semibold py-1 px-2 rounded-md text-xs" onClick={() => removeAddedMember(i)}>Remove</button>
+                                    <button type="button" className="bg-red-600 text-white font-semibold py-1 px-2 rounded-md text-xs" onClick={() => removeAddedMember(i)}>Remove</button>
                               </li>
                             ))}
                           </ul>
@@ -1015,8 +1015,7 @@ const ManagerDashboard = () => {
   "
   onClick={(e) => {
     e.stopPropagation();
-    console.log('AI Summary clicked for project:', project.name);
-    alert(`AI Summary for ${project.name}\n\nThis feature will provide AI-generated insights...`);
+    navigate(`/project-summary/${project._id || realIndex}`);
   }}
   title="Generate AI Summary"
 >
