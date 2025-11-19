@@ -11,6 +11,24 @@ import API_BASE_URL from '../config/api';
 import buildHeaders from '../config/fetcher';
 
 const ManagerDashboard = () => {
+  // Capture auth_token from URL (Google OAuth redirect) and persist it
+  // Runs once very early before other effects needing token.
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const authToken = params.get('auth_token');
+      if (authToken) {
+        // Store token in both storages for consistency
+        localStorage.setItem('token', authToken);
+        sessionStorage.setItem('token', authToken);
+        // Clean URL (remove token param to avoid leaking in copy/share)
+        const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {
+      // silent
+    }
+  }, []);
   // --- All your state and logic remains 100% unchanged ---
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [projectName, setProjectName] = useState('');
