@@ -1,1 +1,0 @@
-module.exports = (req, res, next) => { req.userId = 'test-user-id'; next(); };
