@@ -55,7 +55,7 @@ function createWindow() {
 
 }
 
-class SystemResourceMonitor {
+export class SystemResourceMonitor {
   private currentWindow: { title: string; owner: { name: string } } | null = null;
   private monitorInterval: NodeJS.Timeout | null = null;
 
@@ -90,7 +90,7 @@ class SystemResourceMonitor {
 }
 
 
-interface TimeEntry {
+export interface TimeEntry {
 	apptitle: string;
 	appname: string;
 	startTime: Date;
@@ -98,7 +98,7 @@ interface TimeEntry {
 	duration: number;
 }
 
-class TimeTracker {
+export class TimeTracker {
 	private entries: TimeEntry[] = [];
 	private currentEntry: TimeEntry | null = null;
 	private trackingInterval: NodeJS.Timeout | null = null;
@@ -118,9 +118,9 @@ class TimeTracker {
 	// Minimum duration threshold in milliseconds (5 seconds)
 	private readonly MIN_DURATION_MS = 5000;
 
-	constructor(sys:SystemResourceMonitor) {
+	constructor(sys:SystemResourceMonitor, storage?: FileStorageManager) {
 		this.sm = sys;
-		this.storage = new FileStorageManager();
+		this.storage = storage ?? new FileStorageManager();
 		this.user_id = null;
 		this.project_id = null;
 		this.task_id = null;
@@ -601,99 +601,96 @@ class TimeTracker {
 }
 
 
-const monitor = new SystemResourceMonitor();
+if (process.env.NODE_ENV !== 'test') {
+	const monitor = new SystemResourceMonitor();
+	const tracker = new TimeTracker(monitor);
 
-const tracker = new TimeTracker(monitor);
+	ipcMain.handle("getCurrentWindow", () => {
+		return monitor.getCurrentWindowInfo();
+	});
+	ipcMain.handle("getCurrentWindow:start", () => {
+		monitor.startMonitoring();
+	});
+	ipcMain.handle("getCurrentWindow:stop", () => {
+		monitor.stopMonitoring();
+	});
 
+	ipcMain.handle('TimeTracker:start', async (event, usr: string, proj: string, task: string, intervalMs?: number) => {
+		console.log('[IPC] TimeTracker:start called with:', { usr, proj, task, intervalMs });
+		emitRendererLog('[IPC] TimeTracker:start called', { usr, proj, task, intervalMs });
+		// Normalize IDs to primitive strings
+		const userId = usr?.toString();
+		const projectId = proj?.toString();
+		const taskId = task?.toString();
+		try {
+			tracker.startTracking(userId, projectId, taskId, intervalMs ?? 200);
+			console.log('[IPC] TimeTracker:start completed');
+			emitRendererLog('[IPC] TimeTracker:start completed');
+			return { ok: true };
+		} catch (err) {
+			console.error('[IPC] TimeTracker:start failed', err);
+			emitRendererLog('[IPC] TimeTracker:start failed', { error: String(err) });
+			return { ok: false, error: String(err) };
+		}
+	});
 
-ipcMain.handle("getCurrentWindow", () => {
-	return monitor.getCurrentWindowInfo();
-})
-ipcMain.handle("getCurrentWindow:start", () => {
-	monitor.startMonitoring();
-});
-ipcMain.handle("getCurrentWindow:stop", () => {
-	monitor.stopMonitoring();
-});
+	ipcMain.handle('TimeTracker:stop', async () => {
+		console.log('[IPC] TimeTracker:stop called');
+		emitRendererLog('[IPC] TimeTracker:stop called');
+		await tracker.stopTracking();
+		console.log('[IPC] TimeTracker:stop completed');
+		emitRendererLog('[IPC] TimeTracker:stop completed');
+	});
+	ipcMain.handle('TimeTracker:sendData', async () => {
+		console.log('[IPC] TimeTracker:sendData called');
+		emitRendererLog('[IPC] TimeTracker:sendData called');
+		await tracker.sendTrackingData();
+		console.log('[IPC] TimeTracker:sendData completed');
+		emitRendererLog('[IPC] TimeTracker:sendData completed');
+	});
+	// Provide a simple status endpoint for debugging
+	ipcMain.handle('TimeTracker:status', async () => {
+		try {
+			return {
+				running: !!(tracker as any)?._running,
+				entriesInMemory: (tracker as any)?.entries?.length ?? 0,
+			};
+		} catch (err) {
+			return { running: false, error: String(err) };
+		}
+	});
+	ipcMain.handle('TimeTracker:saveData', async () => {
+		await tracker.saveTrackingData();
+		emitRendererLog('[IPC] TimeTracker:saveData called');
+	});
+	ipcMain.handle('TimeTracker:printEntries', () => {
+		tracker.printEntries();
+		emitRendererLog('[IPC] TimeTracker:printEntries called');
+	});
+	ipcMain.handle('TimeTracker:isStorageEmpty', async () => {
+		return await tracker.isStorageEmpty();
+	});
+	ipcMain.handle('TimeTracker:readStoredEntries', async () => {
+		return await tracker.readStoredEntries();
+	});
+	ipcMain.handle('TimeTracker:clearStorage', async () => {
+		await tracker.clearStorage();
+	});
 
+	// Optionally pass JWT token from renderer to main so uploads can authenticate
+	ipcMain.handle('TimeTracker:setAuthToken', (event, token: string) => {
+		tracker.setAuthToken(token);
+	});
 
+	app.on("ready", createWindow);
 
-ipcMain.handle('TimeTracker:start', async (event, usr: string, proj: string, task: string, intervalMs?: number) => {
-	console.log('[IPC] TimeTracker:start called with:', { usr, proj, task, intervalMs });
-	emitRendererLog('[IPC] TimeTracker:start called', { usr, proj, task, intervalMs });
-	// Normalize IDs to primitive strings
-	const userId = usr?.toString();
-	const projectId = proj?.toString();
-	const taskId = task?.toString();
-	try {
-		tracker.startTracking(userId, projectId, taskId, intervalMs ?? 200);
-		console.log('[IPC] TimeTracker:start completed');
-		emitRendererLog('[IPC] TimeTracker:start completed');
-		return { ok: true };
-	} catch (err) {
-		console.error('[IPC] TimeTracker:start failed', err);
-		emitRendererLog('[IPC] TimeTracker:start failed', { error: String(err) });
-		return { ok: false, error: String(err) };
-	}
-});
+	app.on("window-all-closed", async () => {
+		await tracker.stopTracking();
+		monitor.stopMonitoring();
+		if (process.platform !== "darwin") app.quit();
+	});
 
-
-ipcMain.handle('TimeTracker:stop', async () => {
-	console.log('[IPC] TimeTracker:stop called');
-	emitRendererLog('[IPC] TimeTracker:stop called');
-	await tracker.stopTracking();
-	console.log('[IPC] TimeTracker:stop completed');
-	emitRendererLog('[IPC] TimeTracker:stop completed');
-});
-ipcMain.handle('TimeTracker:sendData', async () => {
-	console.log('[IPC] TimeTracker:sendData called');
-	emitRendererLog('[IPC] TimeTracker:sendData called');
-	await tracker.sendTrackingData();
-	console.log('[IPC] TimeTracker:sendData completed');
-	emitRendererLog('[IPC] TimeTracker:sendData completed');
-});
-// Provide a simple status endpoint for debugging
-ipcMain.handle('TimeTracker:status', async () => {
-	try {
-		return {
-			running: !!(tracker as any)?._running,
-			entriesInMemory: (tracker as any)?.entries?.length ?? 0,
-		};
-	} catch (err) {
-		return { running: false, error: String(err) };
-	}
-});
-ipcMain.handle('TimeTracker:saveData', async () => {
-	await tracker.saveTrackingData();
-	emitRendererLog('[IPC] TimeTracker:saveData called');
-});
-ipcMain.handle('TimeTracker:printEntries', () => {
-	tracker.printEntries();
-	emitRendererLog('[IPC] TimeTracker:printEntries called');
-});
-ipcMain.handle('TimeTracker:isStorageEmpty', async () => {
-	return await tracker.isStorageEmpty();
-});
-ipcMain.handle('TimeTracker:readStoredEntries', async () => {
-	return await tracker.readStoredEntries();
-});
-ipcMain.handle('TimeTracker:clearStorage', async () => {
-	await tracker.clearStorage();
-});
-
-// Optionally pass JWT token from renderer to main so uploads can authenticate
-ipcMain.handle('TimeTracker:setAuthToken', (event, token: string) => {
-    tracker.setAuthToken(token);
-});
-
-app.on("ready", createWindow);
-
-app.on("window-all-closed", async () => {
-	await tracker.stopTracking();
-	monitor.stopMonitoring();
-	if (process.platform !== "darwin") app.quit();
-});
-
-app.on("activate", () => {
-	if (mainWindow === null) createWindow();
-});
+	app.on("activate", () => {
+		if (mainWindow === null) createWindow();
+	});
+}
