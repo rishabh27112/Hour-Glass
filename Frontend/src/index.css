@@ -33,3 +33,173 @@ html {
   scrollbar-width: thin; /* Can be 'auto', 'thin', or 'none' */
   scrollbar-color: #635c5c #2c2c2c; /* thumb track */
 }
+
+/* --- Responsive helpers (non-invasive globals) --- */
+/* Make images fluid so they don't overflow on small viewports */
+img,
+picture,
+video,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Make tables horizontally scrollable on small screens */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure forms and buttons are not wider than their containers */
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
+}
+
+/* Utility to make any fixed-width element adapt slightly at small sizes
+   (keeps original styles intact while improving small-screen behavior) */
+@media (max-width: 640px) {
+  .reduce-fixed-width {
+    max-width: 100% !important;
+    width: auto !important;
+  }
+}
+
+/* Optional: ensure long text wraps inside cards and table cells */
+.break-word {
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* --- Targeted small-screen overrides to avoid layout overflow --- */
+@media (max-width: 768px) {
+  /* Override the Tailwind generated class for tables with a large min-width */
+  .min-w-\[700px\] {
+    min-width: 100% !important;
+  }
+
+  /* Make fixed width dt labels and similar utilities adapt on small screens */
+  .w-32,
+  .w-48,
+  .w-28 {
+    width: auto !important;
+    min-width: 0 !important;
+    flex-basis: auto !important;
+  }
+
+  /* Allow truncated cells to wrap on mobile instead of collapsing layouts */
+  .truncate {
+    overflow: visible !important;
+    white-space: normal !important;
+    text-overflow: clip !important;
+  }
+
+  /* Buttons and controls should shrink to fit */
+  button,
+  .w-fit {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 420px) {
+  /* Small devices: ensure the main grid stacks and paddings reduce nicely */
+  .p-4 {
+    padding: 0.5rem !important;
+  }
+  .md\:p-8 {
+    padding: 0.5rem !important;
+  }
+  .text-3xl {
+    font-size: 1.25rem !important;
+  }
+}
+
+/* --- Additional targeted overrides for common fixed-width utilities --- */
+@media (max-width: 768px) {
+  /* Make sidebar width utilities collapse to full width on smaller screens */
+  .w-60,
+  .w-64,
+  .w-56,
+  .w-72,
+  .w-28 {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex-basis: 100% !important;
+  }
+
+  /* Keep the collapsed sidebar narrow (w-16) so it doesn't cover main content */
+  .w-16 {
+    width: 4rem !important;
+    max-width: 4rem !important;
+    min-width: 4rem !important;
+    flex-basis: 4rem !important;
+  }
+
+  /* Make popover/menu widths adapt (profile menu, tooltips) */
+  .w-56 {
+    max-width: 90% !important;
+  }
+
+  /* Ensure small widgets with a min-width do not force overflow */
+  .min-w-\[200px\],
+  .min-w-\[700px\] {
+    min-width: 100% !important;
+  }
+
+  /* When elements are absolutely positioned (menus), allow them to fit the viewport */
+  .absolute.w-56,
+  .absolute.w-60 {
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    right: auto !important;
+    max-width: 95% !important;
+  }
+}
+
+/* Slightly larger breakpoint for tablets where sidebars should also collapse */
+@media (max-width: 1024px) {
+  .lg\:col-span-2,
+  .lg\:col-span-1 {
+    grid-column: auto !important;
+  }
+  .lg\:overflow-y-auto {
+    overflow-y: visible !important;
+  }
+}
+
+/* Stack dashboard sidebar and main content on small screens when a fixed two-column flex layout is used */
+@media (max-width: 768px) {
+  /* Target the two-column flex container used on dashboard pages */
+  .flex.flex-1.overflow-hidden {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  /* Make the left sidebar span full width when expanded, but keep collapsed icon bar narrow */
+  .flex.flex-1.overflow-hidden > .relative.bg-surface {
+    width: 100% !important;
+    max-width: 100% !important;
+    position: relative !important;
+    z-index: 5 !important;
+  }
+
+  /* Ensure the main content area below the sidebar shows up and takes full width */
+  .flex.flex-1.overflow-hidden > .flex-1 {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-basis: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Reduce excessive heights so mobile shows scrollable content */
+  .h-screen {
+    min-height: 100vh !important;
+    height: auto !important;
+  }
+}
