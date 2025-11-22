@@ -3,8 +3,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import API_BASE_URL from '../../config/api';
 import buildHeaders from '../../config/fetcher';
+import { formatSecondsHm } from '../../utils/time';
 
-function formatSeconds(sec) {
+function formatSecondsHms(sec) {
   const s = Math.max(0, Math.floor(sec));
   const hrs = Math.floor(s / 3600);
   const mins = Math.floor((s % 3600) / 60);
@@ -89,7 +90,9 @@ const ManagerTimeOverview = ({ ownedProjects }) => {
         {summaryCards.map(c => (
           <div key={c.label} className={`${c.bg} ${c.border} border rounded-lg p-3`}> 
             <div className={`text-${c.color}-400 text-xs font-semibold`}>{c.label}</div>
-            <div className="text-white text-lg font-bold mt-1">{formatSeconds(c.value)}</div>
+            <div className="text-white text-lg font-bold mt-1">
+              {c.label === 'Billable' ? formatSecondsHm(c.value) : formatSecondsHms(c.value)}
+            </div>
           </div>
         ))}
       </div>
@@ -122,10 +125,10 @@ const ManagerTimeOverview = ({ ownedProjects }) => {
                           {isExpanded ? '▼' : '▶'} {emp.username}
                         </button>
                       </td>
-                      <td className="py-2 px-2 text-green-400">{formatSeconds(emp.billable)}</td>
-                      <td className="py-2 px-2 text-red-400">{formatSeconds(emp.nonBillable)}</td>
-                      <td className="py-2 px-2 text-yellow-400">{formatSeconds(emp.ambiguous)}</td>
-                      <td className="py-2 px-2 text-white font-semibold">{formatSeconds(emp.totalTime)}</td>
+                      <td className="py-2 px-2 text-green-400">{formatSecondsHm(emp.billable)}</td>
+                      <td className="py-2 px-2 text-red-400">{formatSecondsHms(emp.nonBillable)}</td>
+                      <td className="py-2 px-2 text-yellow-400">{formatSecondsHms(emp.ambiguous)}</td>
+                      <td className="py-2 px-2 text-white font-semibold">{formatSecondsHms(emp.totalTime)}</td>
                       <td className="py-2 px-2 text-gray-300">{emp.projects.length}</td>
                     </tr>
                     {isExpanded && (
@@ -136,11 +139,11 @@ const ManagerTimeOverview = ({ ownedProjects }) => {
                               <div key={pr.projectId} className="border border-surface rounded-md p-2 text-xs">
                                 <div className="font-semibold text-gray-200 truncate" title={pr.name}>{pr.name}</div>
                                 <div className="mt-1 flex flex-wrap gap-2">
-                                  <span className="px-2 py-0.5 rounded bg-green-900/40 text-green-400">{formatSeconds(pr.billable)} Billable</span>
-                                  <span className="px-2 py-0.5 rounded bg-red-900/40 text-red-400">{formatSeconds(pr.nonBillable)} Non</span>
-                                  <span className="px-2 py-0.5 rounded bg-yellow-900/40 text-yellow-400">{formatSeconds(pr.ambiguous)} Ambig</span>
+                                  <span className="px-2 py-0.5 rounded bg-green-900/40 text-green-400">{formatSecondsHm(pr.billable)} Billable</span>
+                                  <span className="px-2 py-0.5 rounded bg-red-900/40 text-red-400">{formatSecondsHms(pr.nonBillable)} Non</span>
+                                  <span className="px-2 py-0.5 rounded bg-yellow-900/40 text-yellow-400">{formatSecondsHms(pr.ambiguous)} Ambig</span>
                                 </div>
-                                <div className="mt-1 text-gray-300">Total: {formatSeconds(pr.totalTime)}</div>
+                                <div className="mt-1 text-gray-300">Total: {formatSecondsHms(pr.totalTime)}</div>
                               </div>
                             ))}
                           </div>

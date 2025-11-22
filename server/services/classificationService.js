@@ -38,10 +38,10 @@ async function getAIClassification(activity, normalizedName) {
 
     // Robust parsing: look for the word 'billable' or 'non-billable' in the AI output.
     let classification = 'ambiguous';
-    if (/\bbillable\b/.test(raw) && !/non-?billable/.test(raw)) {
-      classification = 'billable';
-    } else if (/\bnon-?billable\b/.test(raw) && !/\bbillable\b/.test(raw)) {
+    if (/\bnon-?billable\b/.test(raw)) {
       classification = 'non-billable';
+    } else if (/\bbillable\b/.test(raw)) {
+      classification = 'billable';
     } else {
       // If parsing fails, don't force a 'non-billable' conclusion. Mark ambiguous so callers can decide.
       console.warn('[AI] Unexpected classification response, marking as ambiguous:', raw.slice(0,200));

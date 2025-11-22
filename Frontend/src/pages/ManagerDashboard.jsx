@@ -1,16 +1,33 @@
 // src/pages/ManagerDashboard.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import ManagerTimeOverview from './ManagerDashboard/ManagerTimeOverview.jsx';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   RiSearchLine, RiCloseLine, RiAddLine, RiArchiveLine, RiDeleteBinLine,
-  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine, RiSparkling2Line
+  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine
 } from 'react-icons/ri';
 import NavLogo from '../components/NavLogo';
 import API_BASE_URL from '../config/api';
 import buildHeaders from '../config/fetcher';
 
 const ManagerDashboard = () => {
+  // Capture auth_token from URL (Google OAuth redirect) and persist it
+  // Runs once very early before other effects needing token.
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const authToken = params.get('auth_token');
+      if (authToken) {
+        // Store token in both storages for consistency
+        localStorage.setItem('token', authToken);
+        sessionStorage.setItem('token', authToken);
+        // Clean URL (remove token param to avoid leaking in copy/share)
+        const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {
+      // silent
+    }
+  }, []);
   // --- All your state and logic remains 100% unchanged ---
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [projectName, setProjectName] = useState('');
@@ -719,10 +736,6 @@ const ManagerDashboard = () => {
 
 
           <div className="flex-1 p-3 overflow-y-auto">
-            {/* Manager Time Overview (employee-wise aggregated entries) */}
-            <ManagerTimeOverview ownedProjects={projects.filter(p => (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))} />
-
-
             {isAddingProject && (
               <div className="mb-4 p-4 bg-surface rounded-lg shadow-lg relative">
                 <button
@@ -875,10 +888,10 @@ const ManagerDashboard = () => {
                         <strong className="text-gray-200">Selected members:</strong>
                         {addedMembers && addedMembers.length > 0 ? (
                           <ul className="mt-2 space-y-2">
-                            {addedMembers.map((m, i) => (
+                                {addedMembers.map((m, i) => (
                               <li key={m._id || m.username || m.email} className="flex justify-between items-center text-sm">
                                 {m.name || m.username || m.email}
-                                <button typeF="button" className="bg-red-600 text-white font-semibold py-1 px-2 rounded-md text-xs" onClick={() => removeAddedMember(i)}>Remove</button>
+                                    <button type="button" className="bg-red-600 text-white font-semibold py-1 px-2 rounded-md text-xs" onClick={() => removeAddedMember(i)}>Remove</button>
                               </li>
                             ))}
                           </ul>
@@ -1015,13 +1028,11 @@ const ManagerDashboard = () => {
   "
   onClick={(e) => {
     e.stopPropagation();
-    console.log('AI Summary clicked for project:', project.name);
-    alert(`AI Summary for ${project.name}\n\nThis feature will provide AI-generated insights...`);
+    navigate(`/project-summary/${project._id || realIndex}`);
   }}
-  title="Generate AI Summary"
+  title="Generate Report"
 >
-  <RiSparkling2Line className="text-lg" />
-  <span>AI Summary</span>
+  <span>Report</span>
 </button>
                         </li>
                       );

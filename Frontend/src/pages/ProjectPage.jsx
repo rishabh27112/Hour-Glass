@@ -564,7 +564,7 @@ const ProjectPage = () => {
                   const projId = project?._id || project?.id || 'unknown';
                   navigate(`/ai-summary/${projId}/${encodeURIComponent(displayName)}`);
                 }}
-                title={canUseAISummary ? "Generate AI Summary" : "You don't have permission to view AI Summary"}
+                title={canUseAISummary ? "Generate Report" : "You don't have permission to view Report"}
                 disabled={!canUseAISummary}
                 className={
                   `flex items-center gap-1 py-1 px-2 rounded-md text-xs font-semibold shadow-md transition-all duration-200 ease-in-out ` +
@@ -574,8 +574,7 @@ const ProjectPage = () => {
                   )
                 }
               >
-                <span>✨</span>
-                <span>AI</span>
+                <span>Report</span>
               </button>
               {/* Usage button removed — employee app details now shown in AI Summary page */}
               {canDelete && (
@@ -893,20 +892,7 @@ const ProjectPage = () => {
           <h2 className="text-3xl font-bold text-white text-center flex-1">{project.name}</h2>
           
           <div className="flex-1 flex justify-end gap-2">
-            <button 
-              type="button" 
-              className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors text-sm"
-              onClick={() => { alert('AI Summary feature coming soon!'); }}
-            >
-              AI Summary
-            </button>
-            <button 
-              type="button" 
-              className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors text-sm"
-              onClick={() => { alert('Report generation feature coming soon!'); }}
-            >
-              Generate Report
-            </button>
+            {/* Buttons removed */}
           </div>
         </div>
 

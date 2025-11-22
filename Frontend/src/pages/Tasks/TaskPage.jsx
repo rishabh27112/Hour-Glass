@@ -81,6 +81,7 @@ export default function TaskPage() {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isManager, setIsManager] = useState(false);
   // Timer state (milliseconds)
   const [baseMs, setBaseMs] = useState(0); // accumulated time when timer is stopped
   const [runningSince, setRunningSince] = useState(null); // timestamp (ms) when timer was started
@@ -136,6 +137,24 @@ export default function TaskPage() {
         if (res.ok) {
           const p = await res.json();
           setProject(p);
+          
+          // Check if current user is manager or project creator
+          if (currentUser && p) {
+            const isManagerFlag = currentUser.role === 'manager' || currentUser.isManager === true;
+            
+            let isCreator = false;
+            if (p.createdBy) {
+              const creatorId = typeof p.createdBy === 'object' 
+                ? (p.createdBy.username || p.createdBy.email || p.createdBy._id)
+                : String(p.createdBy);
+              
+              const userId = currentUser.username || currentUser.email || currentUser._id;
+              isCreator = String(creatorId).toLowerCase() === String(userId).toLowerCase();
+            }
+            
+            setIsManager(isManagerFlag || isCreator);
+          }
+          
           const found = (p.tasks || []).find(t => String(t._id) === String(taskId) || String(t._clientId) === String(taskId));
           setTask(found || null);
         } else {
@@ -148,7 +167,7 @@ export default function TaskPage() {
       }
     })();
     return () => { mounted = false; };
-  }, [projectId, taskId]);
+  }, [projectId, taskId, currentUser]);
 
   // initialize timer state when task loads
   useEffect(()=>{
@@ -546,6 +565,50 @@ export default function TaskPage() {
     return entries.reduce((sum, e) => sum + (e.appointment?.duration || 0), 0);
   };
 
+  // Update app classification (billable/non-billable/ambiguous)
+  const updateAppClassification = async (appname, newClass) => {
+    try {
+      // Find current classification
+      const appEntries = groupedEntries[appname];
+      const currentEntry = appEntries && appEntries[0];
+      const currentIsBillable = currentEntry?.appointment?.isBillable;
+      const currentCategory = currentEntry?.appointment?.suggestedCategory;
+      
+      let currentClass = 'ambiguous';
+      if (currentIsBillable) {
+        currentClass = 'billable';
+      } else if (currentCategory === 'non-billable') {
+        currentClass = 'non-billable';
+      }
+      
+      // Check if already in the desired state
+      if (currentClass === newClass) {
+        alert(`"${appname}" is already classified as ${newClass}`);
+        return;
+      }
+      
+      const res = await fetch(`${API_BASE_URL}/api/classification-rules/${encodeURIComponent(appname)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...buildHeaders() },
+        body: JSON.stringify({ classification: newClass })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // Refresh entries to show updated classification
+        alert(`"${appname}" is now classified as ${newClass}`);
+        loadTimeEntries();
+      } else {
+        const msg = data && (data.msg || data.error) ? (data.msg || data.error) : `Server returned ${res.status}`;
+        console.warn('Failed to update classification', msg);
+        alert(`Failed to update classification: ${msg}`);
+      }
+    } catch (err) {
+      console.error('Failed to update classification', err);
+      alert('Failed to update classification');
+    }
+  };
+
   const assigneeDisplay = (() => {
     if (!task) return null;
     const a = task.assignee || task.assignedTo || task.assigneeName;
@@ -616,7 +679,17 @@ export default function TaskPage() {
                 </div>
                 <div className="flex flex-col sm:flex-row">
                   <dt className="w-32 flex-shrink-0 font-semibold text-gray-400">Status</dt>
-                  <dd className="text-gray-200 capitalize">{task.status || 'todo'}</dd>
+                  <dd className="capitalize">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                      (task.status || 'todo') === 'completed' 
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/50' 
+                        : (task.status || 'todo') === 'in-progress' 
+                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' 
+                        : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                    }`}>
+                      {task.status || 'todo'}
+                    </span>
+                  </dd>
                 </div>
                 <div className="flex flex-col sm:flex-row">
                   <dt className="w-32 flex-shrink-0 font-semibold text-gray-400">Assignee</dt>
@@ -675,6 +748,21 @@ export default function TaskPage() {
                     <dd className="text-2xl font-bold text-cyan">{task.billableRate && displayMs > 0 ? `₹${(task.billableRate * (displayMs / 3600000)).toFixed(2)}` : '—'}</dd>
                   </div>
                 </dl>
+                <div className="mt-4">
+                  <button
+                    onClick={() => {
+                      try {
+                        const memberId = encodeURIComponent(assigneeDisplay || '');
+                        const billableSec = (timeBreakdown && timeBreakdown.billable) || 0;
+                        const hours = Math.round((billableSec / 3600) * 100) / 100;
+                        navigate(`/ai-summary/${projectId}/${memberId}`, { state: { billableHours: hours, billableSeconds: billableSec } });
+                      } catch (e) { console.warn('Failed to open AI Summary', e); }
+                    }}
+                    className="mt-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-500"
+                  >
+                    Open AI Summary for Assignee
+                  </button>
+                </div>
               </div>
               
               <div className="border-t border-surface-light pt-4 mt-6">
@@ -803,23 +891,84 @@ export default function TaskPage() {
                             const totalDuration = calculateTotalDuration(entries);
                             return (
                               <div key={appName} className="bg-surface-light rounded-lg overflow-hidden border border-surface">
-                                <div 
-                                  onClick={() => toggleApp(appName)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleApp(appName); }}
-                                  role="button"
-                                  tabIndex={0}
-                                  className="p-3 bg-surface cursor-pointer flex justify-between items-center"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-cyan text-lg">{isExpanded ? '▼' : '▶'}</span>
-                                    <span className="font-semibold text-white">{appName}</span>
-                                    <span className="text-xs text-gray-400">
-                                      ({entries.length} session{entries.length !== 1 ? 's' : ''})
+                                <div className="p-3 bg-surface">
+                                  <div 
+                                    onClick={() => toggleApp(appName)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleApp(appName); }}
+                                    role="button"
+                                    tabIndex={0}
+                                    className="cursor-pointer flex justify-between items-center mb-3"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-cyan text-lg">{isExpanded ? '▼' : '▶'}</span>
+                                      {(() => {
+                                        const firstEntry = entries[0];
+                                        const isBillable = firstEntry?.appointment?.isBillable;
+                                        const category = firstEntry?.appointment?.suggestedCategory;
+                                        let dotColor = 'bg-yellow-400'; // ambiguous
+                                        if (isBillable) dotColor = 'bg-green-400';
+                                        else if (category === 'non-billable') dotColor = 'bg-red-400';
+                                        return <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} title={isBillable ? 'Billable' : category === 'non-billable' ? 'Non-billable' : 'Ambiguous'}></span>;
+                                      })()}
+                                      <span className="font-semibold text-white">{appName}</span>
+                                      <span className="text-xs text-gray-400">
+                                        ({entries.length} session{entries.length !== 1 ? 's' : ''})
+                                      </span>
+                                    </div>
+                                    <span className="text-sm text-gray-300">
+                                      Total: {formatMs(totalDuration * 1000)}
                                     </span>
                                   </div>
-                                  <span className="text-sm text-gray-300">
-                                    Total: {formatMs(totalDuration * 1000)}
-                                  </span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if (!isManager) return;
+                                        updateAppClassification(appName, 'billable'); 
+                                      }}
+                                      disabled={!isManager}
+                                      className={`flex-1 text-xs px-3 py-2 rounded font-semibold transition-colors ${
+                                        isManager 
+                                          ? 'bg-green-600 hover:bg-green-500 text-white cursor-pointer'
+                                          : 'bg-green-600/40 text-gray-400 cursor-not-allowed opacity-50'
+                                      }`}
+                                      title={isManager ? "Mark as Billable" : "Only managers can change classification"}
+                                    >
+                                      Billable
+                                    </button>
+                                    <button
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if (!isManager) return;
+                                        updateAppClassification(appName, 'non-billable'); 
+                                      }}
+                                      disabled={!isManager}
+                                      className={`flex-1 text-xs px-3 py-2 rounded font-semibold transition-colors ${
+                                        isManager 
+                                          ? 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
+                                          : 'bg-red-600/40 text-gray-400 cursor-not-allowed opacity-50'
+                                      }`}
+                                      title={isManager ? "Mark as Non-billable" : "Only managers can change classification"}
+                                    >
+                                      Non-billable
+                                    </button>
+                                    <button
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if (!isManager) return;
+                                        updateAppClassification(appName, 'ambiguous'); 
+                                      }}
+                                      disabled={!isManager}
+                                      className={`flex-1 text-xs px-3 py-2 rounded font-semibold transition-colors ${
+                                        isManager 
+                                          ? 'bg-yellow-500 hover:bg-yellow-400 text-black cursor-pointer'
+                                          : 'bg-yellow-500/40 text-gray-400 cursor-not-allowed opacity-50'
+                                      }`}
+                                      title={isManager ? "Mark as Ambiguous" : "Only managers can change classification"}
+                                    >
+                                      Ambiguous
+                                    </button>
+                                  </div>
                                 </div>
                                 
                                 {isExpanded && (
