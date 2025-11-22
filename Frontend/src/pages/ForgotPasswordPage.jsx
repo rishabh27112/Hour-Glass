@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import MainButton from '../components/MainButton';
 import LoginBg from '../assets/login-bg.png';
+import API_BASE_URL from '../config/api';
 
 const ForgotPasswordPage = () => {
   // --- All backend logic is injected here ---
@@ -24,12 +25,16 @@ const ForgotPasswordPage = () => {
     if (!email) { setError('Email is required'); return; }
     setLoading(true);
     try {
+      console.log('Sending reset OTP to:', email);
+      console.log('API URL:', `${API_BASE_URL}/api/auth/send-reset-otp`);
       const response = await fetch(`${API_BASE_URL}/api/auth/send-reset-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response data:', data);
       if (data.success) {
         setOtpSent(true);
         setSuccess('OTP sent to your email.');
@@ -37,7 +42,8 @@ const ForgotPasswordPage = () => {
         setError(data.message || 'Failed to send OTP');
       }
     } catch (err) {
-      setError('Send OTP error');
+      console.error('Send OTP error:', err);
+      setError('Send OTP error: ' + err.message);
     }
     setLoading(false);
   };

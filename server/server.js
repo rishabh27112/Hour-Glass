@@ -63,7 +63,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/api/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: FRONTEND_URL.replace(/\/$/, '') + '/' }),
+    passport.authenticate('google', { failureRedirect: FRONTEND_URL.replace(/\/$/, '') + '/login?error=auth_failed' }),
     async (req, res) => {
         try {
             // Successful authentication, create JWT and set cookie
@@ -74,13 +74,13 @@ app.get('/api/auth/google/callback',
                 sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
                 maxAge: 7 * 24 * 60 * 60 * 1000
             });
-            // Redirect to frontend dashboard and also append token so SPA can persist it (fallback if cookie blocked)
-            // Token is still in httpOnly cookie for normal auth; query param helps storing in localStorage for header usage.
-            const redirectUrl = `${FRONTEND_URL.replace(/\/$/, '')}/dashboard?auth_token=${encodeURIComponent(token)}`;
+            // Redirect to oauth-callback.html which will use postMessage to send token to parent window
+            // This avoids COOP issues and provides a cleaner popup flow
+            const redirectUrl = `${FRONTEND_URL.replace(/\/$/, '')}/oauth-callback.html?auth_token=${encodeURIComponent(token)}`;
             res.redirect(redirectUrl);
         } catch (err) {
             console.error('Google callback error:', err);
-                res.redirect(`${FRONTEND_URL.replace(/\/$/, '')}/?google_error=1`);
+            res.redirect(`${FRONTEND_URL.replace(/\/$/, '')}/login?error=callback_error`);
         }
     }
 );

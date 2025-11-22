@@ -101,6 +101,8 @@ export default function TaskPage() {
   const [brainstormDisplayMs, setBrainstormDisplayMs] = useState(0);
   const brainstormIntervalRef = useRef(null);
   const brainstormStorageKey = `hg_brainstorm_${projectId}_${taskId}`;
+  const [brainstormEntries, setBrainstormEntries] = useState([]);
+  const [brainstormLoading, setBrainstormLoading] = useState(false);
 
   // Get current user
   useEffect(() => {
@@ -241,6 +243,34 @@ export default function TaskPage() {
       }
     };
   }, [brainstormStorageKey]);
+
+  // Fetch brainstorm entries from backend
+  const fetchBrainstormEntries = React.useCallback(async () => {
+    if (!project || !project._id) return;
+    setBrainstormLoading(true);
+    try {
+      const url = `${API_BASE_URL}/api/brainstorm?projectId=${encodeURIComponent(project._id)}&taskId=${encodeURIComponent(taskId)}`;
+      const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[TaskPage] Brainstorm entries fetched:', data);
+        setBrainstormEntries(data.entries || []);
+      } else {
+        console.error('Failed to load brainstorm entries', res.status);
+      }
+    } catch (err) {
+      console.error('load brainstorm entries error', err);
+    } finally {
+      setBrainstormLoading(false);
+    }
+  }, [project, taskId]);
+
+  // Fetch brainstorm entries on mount and when task changes
+  useEffect(() => {
+    if (task && project) {
+      fetchBrainstormEntries();
+    }
+  }, [task, project, fetchBrainstormEntries]);
 
   // Centralized fetch for time entries (used for polling and refresh after posts)
   const fetchEntries = React.useCallback(async () => {
@@ -956,6 +986,58 @@ export default function TaskPage() {
                 </>
               )}
             </div>
+
+            {/* Brainstorm Sessions Table */}
+            <div className="bg-surface rounded-lg shadow-md p-6 mt-6">
+              <h3 className="text-2xl font-semibold text-white mb-4">Brainstorm Sessions</h3>
+              {brainstormLoading ? (
+                <div className="text-gray-400">Loading brainstorm sessions…</div>
+              ) : brainstormEntries && brainstormEntries.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="border-b border-surface-light">
+                      <tr>
+                        <th className="p-2 text-xs text-gray-400">Description</th>
+                        <th className="p-2 text-xs text-gray-400">Classification</th>
+                        <th className="p-2 text-xs text-gray-400">Confidence</th>
+                        <th className="p-2 text-xs text-gray-400">Reasoning</th>
+                        <th className="p-2 text-xs text-gray-400">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {brainstormEntries.map((entry) => {
+                        const classification = entry.classification || 'ambiguous';
+                        let badgeClass = 'bg-yellow-900/50 text-yellow-400 border-yellow-700';
+                        if (classification === 'billable') badgeClass = 'bg-green-900/50 text-green-400 border-green-700';
+                        else if (classification === 'non-billable') badgeClass = 'bg-red-900/50 text-red-400 border-red-700';
+                        
+                        return (
+                          <tr key={entry._id} className="border-b border-surface-light">
+                            <td className="p-2 text-sm text-gray-300">{entry.description || '-'}</td>
+                            <td className="p-2 text-sm">
+                              <span className={`text-xs px-2 py-1 rounded border ${badgeClass}`}>
+                                {classification}
+                              </span>
+                            </td>
+                            <td className="p-2 text-sm text-gray-300">
+                              {entry.confidence != null ? `${Math.round(entry.confidence * 100)}%` : '-'}
+                            </td>
+                            <td className="p-2 text-sm text-gray-300 max-w-xs truncate" title={entry.reasoning}>
+                              {entry.reasoning || '-'}
+                            </td>
+                            <td className="p-2 text-sm text-gray-300">
+                              {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-4 text-gray-500 italic">No brainstorm sessions yet. Click "Start Brainstorming" to begin!</div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -996,7 +1078,7 @@ export default function TaskPage() {
                 Cancel
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const desc = brainstormDescription.trim();
                   if (!desc) {
                     alert('Please enter a description for your brainstorming session');
@@ -1016,6 +1098,30 @@ export default function TaskPage() {
                   setIsBrainstorming(true);
                   setShowBrainstormDialog(false);
                   console.log('[TaskPage] Brainstorming started with description:', desc);
+
+                  // --- POST to backend ---
+                  try {
+                    const res = await fetch(`${API_BASE_URL}/api/brainstorm`, {
+                      method: 'POST',
+                      headers: buildHeaders({ 'Content-Type': 'application/json' }),
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        projectId: project && project._id ? String(project._id) : String(projectId || ''),
+                        taskId: task && task._id ? String(task._id) : String(taskId || ''),
+                        description: desc
+                      })
+                    });
+                    const json = await res.json();
+                    if (!res.ok) {
+                      console.warn('[TaskPage] Failed to POST brainstorm entry', res.status, json);
+                    } else {
+                      console.log('[TaskPage] Brainstorm entry created:', json);
+                      // Refresh brainstorm table after successful POST
+                      await fetchBrainstormEntries();
+                    }
+                  } catch (err) {
+                    console.error('[TaskPage] Error posting brainstorm entry:', err);
+                  }
                 }}
                 className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 shadow-md transition-all"
               >

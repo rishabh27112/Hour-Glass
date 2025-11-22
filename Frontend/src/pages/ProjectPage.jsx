@@ -263,6 +263,13 @@ const ProjectPage = () => {
   const handleAddTaskSubmit = async () => {
     const title = (taskTitle || '').trim();
     if (!title) { setTaskError('Title is required'); return; }
+    // Check for duplicate task name (case-insensitive, trimmed)
+    const existingTasks = (project && Array.isArray(project.tasks)) ? project.tasks : [];
+    const duplicate = existingTasks.some(t => (t.title || t.name || '').trim().toLowerCase() === title.toLowerCase());
+    if (duplicate) {
+      setTaskError('A task with this name already exists.');
+      return;
+    }
     setTaskLoading(true); setTaskError('');
     try {
       const normalizedEmployees = (cleanedEmployees || []).map((s) => String(s).trim().toLowerCase());

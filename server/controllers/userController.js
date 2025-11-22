@@ -1,4 +1,5 @@
 import userModel from "../models/userModel.js";
+import Project from "../models/ProjectModel.js";
 
 export const getUserData = async(req, res) => {
     try{
@@ -10,18 +11,31 @@ export const getUserData = async(req, res) => {
              return res.json({success: false, message: 'User not Found'});
         }
 
+        // Determine if user is a manager by checking if they've created any projects
+        const projectCount = await Project.countDocuments({ createdBy: userId });
+        const isManager = projectCount > 0;
+
+        // Match the format returned by login endpoint for consistency
         return res.json({
             success:true,
             userData:{
+                id: user._id,
+                _id: user._id, // Include for backwards compatibility
                 name: user.name,
                 email: user.email,
-                username: user.username
+                username: user.username,
+                isAccountVerified: user.isAccountVerified,
+                googleId: user.googleId,
+                // Dynamically set based on project ownership
+                role: isManager ? 'manager' : 'employee',
+                isManager: isManager
             }
         });
     }  
 
     catch(error){
-        
+        console.error('getUserData error:', error);
+        return res.status(500).json({success: false, message: 'Server error'});
     }
 }
 

@@ -159,24 +159,40 @@ const ManagerDashboard = () => {
 
   const fetchNotifications = async () => {
     const uid = profileUser && (profileUser._id || profileUser.id) ? (profileUser._id || profileUser.id) : getCurrentUserId();
-    if (!uid) return;
+    if (!uid) {
+      console.log('[fetchNotifications] No user ID available, skipping fetch');
+      return;
+    }
+    console.log('[fetchNotifications] Fetching notifications for user:', uid);
     try {
       const res = await fetch(`${API_BASE_URL}/api/notifications/${uid}`, { credentials: 'include', headers: buildHeaders() });
-      if (!res.ok) return setNotifications([]);
+      console.log('[fetchNotifications] Response status:', res.status);
+      if (!res.ok) {
+        console.warn('[fetchNotifications] Request failed with status:', res.status);
+        return setNotifications([]);
+      }
       const arr = await res.json().catch(() => []);
+      console.log('[fetchNotifications] Received notifications:', Array.isArray(arr) ? arr.length : 'invalid format');
       setNotifications(Array.isArray(arr) ? arr : []);
     } catch (err) {
-      console.error('fetchNotifications error', err);
+      console.error('[fetchNotifications] Error:', err);
       setNotifications([]);
     }
   };
 
   // start polling notifications when profileUser is available
   useEffect(() => {
-    if (!profileUser) return undefined;
+    if (!profileUser) {
+      console.log('[Notifications] Waiting for profileUser to be set...');
+      return undefined;
+    }
+    console.log('[Notifications] ProfileUser loaded, starting notification polling for:', profileUser._id || profileUser.id);
     fetchNotifications();
     notifPollRef.current = setInterval(fetchNotifications, 60 * 1000);
-    return () => { if (notifPollRef.current) clearInterval(notifPollRef.current); };
+    return () => { 
+      console.log('[Notifications] Cleaning up notification polling');
+      if (notifPollRef.current) clearInterval(notifPollRef.current); 
+    };
   }, [profileUser]);
   const [selectionMode, setSelectionMode] = useState('none');
   const [selected, setSelected] = useState([]);
@@ -196,6 +212,9 @@ const ManagerDashboard = () => {
   const currentUserIds = React.useMemo(() => getUserIdentifiers(profileUser || currentUser), [profileUser, currentUser]);
   useEffect(() => {
     let cancelled = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
     const verify = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/user/data`, {
@@ -205,13 +224,35 @@ const ManagerDashboard = () => {
         });
         const json = await res.json();
         if (!json || !json.success || !json.userData) {
+          // Retry a few times in case of race condition with Google OAuth
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.log(`Retrying user data fetch (${retryCount}/${maxRetries})...`);
+            setTimeout(() => { if (!cancelled) verify(); }, 1000);
+            return;
+          }
           try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { console.log('Session cleanup error'); }
           try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { console.log('Local cleanup error'); }
           if (!cancelled) navigate('/login');
         } else {
-          setProfileUser(json.userData);
+          const userData = json.userData;
+          setProfileUser(userData);
+          // Store user data in both storages for consistency
+          try {
+            sessionStorage.setItem('user', JSON.stringify(userData));
+            localStorage.setItem('user', JSON.stringify(userData));
+          } catch (e) {
+            console.log('Failed to store user data', e);
+          }
         }
       } catch (err) {
+        // Retry on network errors
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retrying user data fetch after error (${retryCount}/${maxRetries})...`, err.message);
+          setTimeout(() => { if (!cancelled) verify(); }, 1000);
+          return;
+        }
         try { sessionStorage.removeItem('user'); sessionStorage.removeItem('token'); } catch (e) { console.log('Session cleanup error'); }
         try { localStorage.removeItem('user'); localStorage.removeItem('token'); } catch (e) { console.log('Local cleanup error'); }
         if (!cancelled) navigate('/login');

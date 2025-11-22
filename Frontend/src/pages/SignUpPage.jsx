@@ -5,6 +5,7 @@ import MainButton from '../components/MainButton';
 import Logo from '../components/Logo';
 import GoogleButton from '../components/GoogleButton';
 import LoginBg from '../assets/login-bg.png';
+import API_BASE_URL from '../config/api';
 
 const SignUpPage = () => {
   // --- All backend logic is injected here ---
@@ -26,12 +27,16 @@ const SignUpPage = () => {
   const handleSendOtp = async () => {
     setOtpError(''); setOtpSuccess(''); setOtpLoading(true); setResendMsg('');
     try {
+      console.log('Sending OTP to:', email);
+      console.log('API URL:', `${API_BASE_URL}/api/auth/send-otp`);
       const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response data:', data);
       if (data.success) {
         setOtpSent(true);
         setOtpSuccess('OTP sent to your email.');
@@ -39,7 +44,8 @@ const SignUpPage = () => {
         setOtpError(data.message || 'Failed to send OTP');
       }
     } catch (error) {
-      setOtpError('Send OTP error');
+      console.error('Send OTP error:', error);
+      setOtpError('Send OTP error: ' + error.message);
     }
     setOtpLoading(false);
   };
@@ -48,15 +54,18 @@ const SignUpPage = () => {
   const handleResendOtp = async () => {
     setResendLoading(true); setResendMsg('');
     try {
+      console.log('Resending OTP to:', email);
       const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
       const data = await response.json();
+      console.log('Resend response:', data);
       setResendMsg(data.message);
     } catch (error) {
-      setResendMsg('Resend OTP error');
+      console.error('Resend OTP error:', error);
+      setResendMsg('Resend OTP error: ' + error.message);
     }
     setResendLoading(false);
   };

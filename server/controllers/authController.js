@@ -41,8 +41,10 @@ export const sendOtp = async (req, res) => {
             text: `Your OTP is ${otp}. It is valid for 10 minutes.`
         };
         await transporter.sendMail(mailOptions);
+        console.log(`OTP sent successfully to ${emailLower}`);
         return res.json({ success: true, message: 'OTP sent to your email.' });
     } catch (error) {
+        console.error('Error in sendOtp:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -246,9 +248,11 @@ export const sendResetOtp = async (req, res)=>{
             text:`Your OTP for resetting your password is ${otp}. Use this OTP to proceed with resetting your password.`
         };
         await transporter.sendMail(mailOptions);
+        console.log(`Password reset OTP sent successfully to ${user.email}`);
         return res.json({success: true, message: 'OTP sent to your email'});
     }
     catch(error){
+        console.error('Error in forgotPassword:', error);
         res.json({success: false, message: error.message});
     }
 }
