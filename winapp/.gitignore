@@ -24,3 +24,8 @@ dist-react
 *.njsproj
 *.sln
 *.sw?
+*test*
+*TEST*
+stryker.conf*
+reports
+coverage

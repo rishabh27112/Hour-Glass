@@ -1,10 +1,9 @@
 // src/pages/ManagerDashboard.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import ManagerTimeOverview from './ManagerDashboard/ManagerTimeOverview.jsx';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   RiSearchLine, RiCloseLine, RiAddLine, RiArchiveLine, RiDeleteBinLine,
-  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine, RiSparkling2Line
+  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine
 } from 'react-icons/ri';
 import NavLogo from '../components/NavLogo';
 import API_BASE_URL from '../config/api';
@@ -778,10 +777,6 @@ const ManagerDashboard = () => {
 
 
           <div className="flex-1 p-3 overflow-y-auto">
-            {/* Manager Time Overview (employee-wise aggregated entries) */}
-            <ManagerTimeOverview ownedProjects={projects.filter(p => (!p.archived && !p.deleted) && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))} />
-
-
             {isAddingProject && (
               <div className="mb-4 p-4 bg-surface rounded-lg shadow-lg relative">
                 <button
@@ -1076,10 +1071,9 @@ const ManagerDashboard = () => {
     e.stopPropagation();
     navigate(`/project-summary/${project._id || realIndex}`);
   }}
-  title="Generate AI Summary"
+  title="Generate Report"
 >
-  <RiSparkling2Line className="text-lg" />
-  <span>AI Summary</span>
+  <span>Report</span>
 </button>
                         </li>
                       );

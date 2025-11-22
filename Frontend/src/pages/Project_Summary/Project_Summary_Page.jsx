@@ -22,7 +22,35 @@ const ProjectSummaryPage = () => {
   const [projectBudget, setProjectBudget] = useState('');
   const [projectStartDate, setProjectStartDate] = useState('');
   const [projectEndDate, setProjectEndDate] = useState('');
-  const [hourlyRate, setHourlyRate] = useState(0);
+  const [memberRates, setMemberRates] = useState({});
+  const [projectMembers, setProjectMembers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [project, setProject] = useState(null);
+  const [isManager, setIsManager] = useState(false);
+  const [tasks, setTasks] = useState([]);
+
+  // Fetch current user and check permissions
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const userRes = await fetch(`${API_BASE_URL}/api/user/data`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: buildHeaders()
+        });
+        const userData = await userRes.json();
+        if (!mounted) return;
+        
+        if (userData && userData.success && userData.userData) {
+          setCurrentUser(userData.userData);
+        }
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Try to resolve project name from cached projects in session storage set by Dashboard
   useEffect(() => {
@@ -38,6 +66,58 @@ const ProjectSummaryPage = () => {
       // ignore parse errors
     }
   }, [projectId]);
+
+  // Fetch project members and determine manager status
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}`, { credentials: 'include', headers: buildHeaders() });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !mounted) return;
+        
+        const members = data.members || [];
+        const projectTasks = data.tasks || [];
+        if (mounted) {
+          setProject(data);
+          setProjectMembers(members);
+          setTasks(projectTasks);
+          
+          // Check if current user is manager or project creator
+          if (currentUser && data) {
+            const isManagerFlag = currentUser.role === 'manager' || currentUser.isManager === true;
+            
+            let isCreator = false;
+            if (data.createdBy) {
+              const creatorId = typeof data.createdBy === 'object' 
+                ? (data.createdBy.username || data.createdBy.email || data.createdBy._id)
+                : String(data.createdBy);
+              
+              const userId = currentUser.username || currentUser.email || currentUser._id;
+              isCreator = String(creatorId).toLowerCase() === String(userId).toLowerCase();
+            }
+            
+            setIsManager(isManagerFlag || isCreator);
+          }
+          
+          // Initialize rates for new members
+          setMemberRates(prev => {
+            const updated = { ...prev };
+            members.forEach(m => {
+              const key = m.username || m.email || m._id || '';
+              if (key && !updated[key]) {
+                updated[key] = 0;
+              }
+            });
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching project members:', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [projectId, currentUser]);
 
   // Fetch all time entries for the project
   useEffect(() => {
@@ -122,17 +202,31 @@ const ProjectSummaryPage = () => {
   // Member payment table data
   const memberPaymentData = useMemo(() => {
     const memberMap = {};
+    
+    // First, add all project members
+    for (const member of projectMembers || []) {
+      const key = member.username || member.email || member._id || '';
+      if (key && !memberMap[key]) {
+        memberMap[key] = { 
+          username: member.username || member.email || member.name || key,
+          displayName: member.name || member.username || member.email || key,
+          billableSeconds: 0 
+        };
+      }
+    }
+    
+    // Then, add billable hours from time entries
     for (const iv of flattened || []) {
       const username = iv.username || 'Unknown';
       if (!memberMap[username]) {
-        memberMap[username] = { username, billableSeconds: 0 };
+        memberMap[username] = { username, displayName: username, billableSeconds: 0 };
       }
       if (iv.isBillable) {
         memberMap[username].billableSeconds += iv.duration || 0;
       }
     }
     return Object.values(memberMap).sort((a, b) => b.billableSeconds - a.billableSeconds);
-  }, [flattened]);
+  }, [flattened, projectMembers]);
 
   // Manager AI summary (project-level)
   const postDailySummary = async (date) => {
@@ -210,16 +304,8 @@ const ProjectSummaryPage = () => {
           <div className="w-28" />
         </div>
 
-        {/* Manager Summary Controls */}
+        {/* Manager Summary Controls (date selector removed) */}
         <div className="flex-shrink-0 flex items-center justify-end gap-3 mb-4">
-          <label htmlFor="proj-ai-summary-date" className="text-sm text-gray-300">Date:</label>
-          <input
-            id="proj-ai-summary-date"
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-surface text-gray-200 py-2 px-3 rounded-lg border border-surface"
-          />
           <button
             onClick={() => postDailySummary(selectedDate)}
             className="bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg hover:brightness-90"
@@ -263,21 +349,12 @@ const ProjectSummaryPage = () => {
           {/* Left Column */}
           <div className="lg:col-span-1 space-y-6 lg:overflow-y-auto pb-4 pr-2">
             {/* Member Payment Table */}
-            <section className="bg-surface rounded-lg shadow-md p-6">
+            <section className="bg-surface rounded-lg shadow-md p-6 relative">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-semibold text-white">Member Payment</h2>
+                {/* Default Rate/hour input removed */}
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-400">Rate/hour:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={hourlyRate}
-                    onChange={(e) => setHourlyRate(Number(e.target.value || 0))}
-                    placeholder="0"
-                    className="w-24 bg-surface-light text-gray-200 placeholder-gray-500 py-1 px-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface text-sm"
-                  />
-                  <span className="text-sm text-gray-400">INR</span>
+                  {/* Default Rate/hour input removed */}
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -294,12 +371,36 @@ const ProjectSummaryPage = () => {
                     {memberPaymentData && memberPaymentData.length > 0 ? (
                       memberPaymentData.map((member) => {
                         const hours = member.billableSeconds / 3600;
-                        const totalPay = hours * hourlyRate;
+                        const rate = memberRates[member.username] || 0;
+                        const totalPay = hours * rate;
                         return (
                           <tr key={member.username} className="border-b border-surface-light hover:bg-surface-light transition-colors">
-                            <td className="py-3 px-4 text-white font-medium">{member.username}</td>
+                            <td className="py-3 px-4 text-white font-medium">{member.displayName || member.username}</td>
                             <td className="py-3 px-4 text-cyan text-right">{hours.toFixed(2)} hrs</td>
-                            <td className="py-3 px-4 text-gray-300 text-right">₹{hourlyRate.toFixed(2)}</td>
+                            <td className="py-3 px-4 text-gray-300 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={rate}
+                                onChange={(e) => {
+                                  if (!isManager) return;
+                                  const newRate = Number(e.target.value || 0);
+                                  setMemberRates(prev => ({
+                                    ...prev,
+                                    [member.username]: newRate
+                                  }));
+                                }}
+                                placeholder="0"
+                                disabled={!isManager}
+                                title={isManager ? "Enter hourly rate" : "Only managers can edit rates"}
+                                className={`w-20 py-1 px-2 rounded border text-sm text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                  isManager
+                                    ? 'bg-surface text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan border-surface-light cursor-text'
+                                    : 'bg-surface/50 text-gray-400 placeholder-gray-500 border-surface-light cursor-not-allowed opacity-60'
+                                }`}
+                              />
+                            </td>
                             <td className="py-3 px-4 text-white font-semibold text-right">₹{totalPay.toFixed(2)}</td>
                           </tr>
                         );
@@ -310,29 +411,43 @@ const ProjectSummaryPage = () => {
                       </tr>
                     )}
                   </tbody>
-                  {memberPaymentData && memberPaymentData.length > 0 && (
-                    <tfoot className="border-t-2 border-cyan">
-                      <tr>
-                        <td className="py-3 px-4 text-white font-bold">Total</td>
-                        <td className="py-3 px-4 text-cyan font-bold text-right">
-                          {(() => {
-                            const totalSeconds = memberPaymentData.reduce((sum, m) => sum + m.billableSeconds, 0);
-                            return (totalSeconds / 3600).toFixed(2);
-                          })()} hrs
-                        </td>
-                        <td className="py-3 px-4"></td>
-                        <td className="py-3 px-4 text-white font-bold text-right">
-                          ₹{(() => {
-                            const totalSeconds = memberPaymentData.reduce((sum, m) => sum + m.billableSeconds, 0);
-                            const totalHours = totalSeconds / 3600;
-                            return (totalHours * hourlyRate).toFixed(2);
-                          })()}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  )}
                 </table>
               </div>
+              
+              {/* Grand Total Box at Bottom Right */}
+              {memberPaymentData && memberPaymentData.length > 0 && (
+                <div className="mt-6 flex flex-col items-end gap-3">
+                  <div className="bg-cyan text-brand-bg rounded-lg shadow-lg p-4 min-w-[200px]">
+                    <div className="text-sm font-semibold mb-1">Grand Total</div>
+                    <div className="text-3xl font-bold">
+                      ₹{(() => {
+                        return memberPaymentData.reduce((sum, m) => {
+                          const hours = m.billableSeconds / 3600;
+                          const rate = memberRates[m.username] || 0;
+                          return sum + (hours * rate);
+                        }, 0).toFixed(2);
+                      })()}
+                    </div>
+                  </div>
+                  {projectBudget && Number(projectBudget) > 0 && (
+                    <div className="bg-surface-light text-gray-200 rounded-lg shadow-lg p-4 min-w-[200px] border border-surface">
+                      <div className="text-sm font-semibold mb-1">Remaining Budget</div>
+                      <div className="text-2xl font-bold text-cyan">
+                        ₹{(() => {
+                          const budget = Number(projectBudget) || 0;
+                          const grandTotal = memberPaymentData.reduce((sum, m) => {
+                            const hours = m.billableSeconds / 3600;
+                            const rate = memberRates[m.username] || 0;
+                            return sum + (hours * rate);
+                          }, 0);
+                          const remaining = budget - grandTotal;
+                          return remaining.toFixed(2);
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           </div>
 
@@ -349,9 +464,18 @@ const ProjectSummaryPage = () => {
                     min="0"
                     step="0.01"
                     value={projectBudget}
-                    onChange={(e) => setProjectBudget(e.target.value)}
+                    onChange={(e) => {
+                      if (!isManager) return;
+                      setProjectBudget(e.target.value);
+                    }}
                     placeholder="Enter project budget"
-                    className="w-full bg-surface-light text-gray-200 placeholder-gray-500 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface"
+                    disabled={!isManager}
+                    title={isManager ? "Enter project budget" : "Only managers can edit budget"}
+                    className={`w-full py-2 px-3 rounded-lg border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                      isManager
+                        ? 'bg-surface-light text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text'
+                        : 'bg-surface-light/50 text-gray-400 placeholder-gray-500 border-surface-light cursor-not-allowed opacity-60'
+                    }`}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -360,8 +484,17 @@ const ProjectSummaryPage = () => {
                     <input
                       type="date"
                       value={projectStartDate}
-                      onChange={(e) => setProjectStartDate(e.target.value)}
-                      className="w-full bg-surface-light text-gray-200 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface"
+                      onChange={(e) => {
+                        if (!isManager) return;
+                        setProjectStartDate(e.target.value);
+                      }}
+                      disabled={!isManager}
+                      title={isManager ? "Set project start date" : "Only managers can edit dates"}
+                      className={`w-full py-2 px-3 rounded-lg border ${
+                        isManager
+                          ? 'bg-surface-light text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text'
+                          : 'bg-surface-light/50 text-gray-400 border-surface-light cursor-not-allowed opacity-60'
+                      }`}
                     />
                   </div>
                   <div>
@@ -369,8 +502,17 @@ const ProjectSummaryPage = () => {
                     <input
                       type="date"
                       value={projectEndDate}
-                      onChange={(e) => setProjectEndDate(e.target.value)}
-                      className="w-full bg-surface-light text-gray-200 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface"
+                      onChange={(e) => {
+                        if (!isManager) return;
+                        setProjectEndDate(e.target.value);
+                      }}
+                      disabled={!isManager}
+                      title={isManager ? "Set project end date" : "Only managers can edit dates"}
+                      className={`w-full py-2 px-3 rounded-lg border ${
+                        isManager
+                          ? 'bg-surface-light text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text'
+                          : 'bg-surface-light/50 text-gray-400 border-surface-light cursor-not-allowed opacity-60'
+                      }`}
                     />
                   </div>
                 </div>
@@ -414,42 +556,77 @@ const ProjectSummaryPage = () => {
                   </div>
                 </div>
               </div>
-              {projectBudget && (
-                <div className="mt-4 bg-surface-light p-4 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="text-sm font-semibold text-gray-400">Budget Status</div>
-                      <div className="text-lg font-bold text-white mt-1">₹{projectBudget}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-400">Remaining</div>
-                      <div className="text-lg font-bold text-cyan mt-1">
-                        ₹{(() => {
-                          const budget = Number(projectBudget) || 0;
-                          const billableSec = (totals && totals.billable) || 0;
-                          const spent = (billableSec / 3600) * 0; // Rate would need to be added
-                          return (budget - spent).toFixed(2);
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Budget Status box removed as requested */}
             </section>
 
             {/* Remaining Tasks Section */}
             <section className="bg-surface rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-semibold text-white mb-4">Project Tasks</h2>
-              <div className="bg-surface-light p-4 rounded-lg">
-                <div className="text-sm font-semibold text-gray-400 mb-2">Remaining Tasks</div>
-                <textarea
-                  rows="6"
-                  placeholder="List remaining tasks for this project..."
-                  className="w-full bg-surface text-gray-200 placeholder-gray-500 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface resize-none"
-                />
-                <div className="mt-3 text-xs text-gray-400">
-                  Track pending tasks, milestones, or action items for this project
-                </div>
+              <h2 className="text-2xl font-semibold text-white mb-4">Remaining Tasks</h2>
+              <div className="space-y-2">
+                {(() => {
+                  const incompleteTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'completed');
+                  
+                  if (incompleteTasks.length === 0) {
+                    return (
+                      <div className="bg-surface-light p-4 rounded-lg text-center text-gray-400">
+                        No remaining tasks
+                      </div>
+                    );
+                  }
+                  
+                  return incompleteTasks.map((task, index) => {
+                    const assigneeName = (() => {
+                      if (!task.assignedTo && !task.assignee) return 'Unassigned';
+                      const assignee = task.assignedTo || task.assignee;
+                      if (typeof assignee === 'object') {
+                        return assignee.username || assignee.email || assignee.name || 'Unassigned';
+                      }
+                      return String(assignee);
+                    })();
+                    
+                    const statusColor = {
+                      'todo': 'bg-gray-500',
+                      'in-progress': 'bg-yellow-500',
+                      'review': 'bg-blue-500',
+                    }[task.status] || 'bg-gray-500';
+                    
+                    const statusLabel = {
+                      'todo': 'To Do',
+                      'in-progress': 'In Progress',
+                      'review': 'Review',
+                    }[task.status] || task.status || 'To Do';
+                    
+                    return (
+                      <div key={task._id || index} className="bg-surface-light p-4 rounded-lg hover:bg-surface transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-white font-semibold text-base mb-1 truncate">
+                              {task.title || task.name || 'Untitled Task'}
+                            </h3>
+                            {task.description && (
+                              <p className="text-gray-400 text-sm mb-2 line-clamp-2">
+                                {task.description}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                              <span className="flex items-center gap-1">
+                                <span className="font-semibold">Assigned:</span> {assigneeName}
+                              </span>
+                              {task.dueDate && (
+                                <span className="flex items-center gap-1">
+                                  <span className="font-semibold">Due:</span> {new Date(task.dueDate).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className={`${statusColor} text-white text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </section>
           </div>

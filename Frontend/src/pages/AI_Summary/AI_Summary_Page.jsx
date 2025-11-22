@@ -23,6 +23,65 @@ const AISummaryPage = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [linkedBillableSeconds, setLinkedBillableSeconds] = useState(null); // from TaskPage if provided
+  const [currentUser, setCurrentUser] = useState(null);
+  const [project, setProject] = useState(null);
+  const [isManager, setIsManager] = useState(false);
+
+  // Fetch current user and project info
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        // Fetch current user
+        const userRes = await fetch(`${API_BASE_URL}/api/user/data`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: buildHeaders()
+        });
+        const userData = await userRes.json();
+        if (!mounted) return;
+        
+        if (userData && userData.success && userData.userData) {
+          setCurrentUser(userData.userData);
+        }
+
+        // Fetch project details
+        const projectRes = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: buildHeaders()
+        });
+        const projectData = await projectRes.json();
+        if (!mounted) return;
+        
+        if (projectRes.ok && projectData) {
+          setProject(projectData);
+          
+          // Check if current user is manager/creator
+          if (userData && userData.userData) {
+            const user = userData.userData;
+            const isManagerFlag = user.role === 'manager' || user.isManager === true;
+            
+            // Check if user is project creator
+            let isCreator = false;
+            if (projectData.createdBy) {
+              const creatorId = typeof projectData.createdBy === 'object' 
+                ? (projectData.createdBy.username || projectData.createdBy.email || projectData.createdBy._id)
+                : String(projectData.createdBy);
+              
+              const userId = user.username || user.email || user._id;
+              isCreator = String(creatorId).toLowerCase() === String(userId).toLowerCase();
+            }
+            
+            setIsManager(isManagerFlag || isCreator);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user/project data:', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [projectId]);
 
   useEffect(() => {
     setMemberName(decodeURIComponent(memberId || ''));
@@ -285,7 +344,27 @@ const AISummaryPage = () => {
       appMap[app].sessions.push(iv);
       appMap[app].totalDuration += iv.duration || 0;
     });
-    return Object.values(appMap).sort((a, b) => b.totalDuration - a.totalDuration);
+    
+    // Sort by category first (billable, ambiguous, non-billable), then by duration within each category
+    return Object.values(appMap).sort((a, b) => {
+      // Determine category priority (1=billable, 2=ambiguous, 3=non-billable)
+      const getCategoryPriority = (app) => {
+        if (app.isBillable) return 1;
+        if ((app.suggestedCategory || '').toLowerCase().startsWith('non')) return 3;
+        return 2; // ambiguous
+      };
+      
+      const priorityA = getCategoryPriority(a);
+      const priorityB = getCategoryPriority(b);
+      
+      // First sort by category priority
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Within same category, sort by duration (descending)
+      return b.totalDuration - a.totalDuration;
+    });
   }, [flattened]);
 
   // --- Loading State ---
@@ -313,16 +392,8 @@ const AISummaryPage = () => {
           <div className="w-28"></div> {/* Spacer to balance header */}
         </div>
 
-        {/* Manager Summary Controls */}
+        {/* Manager Summary Controls (date selector removed) */}
         <div className="flex-shrink-0 flex items-center justify-end gap-3 mb-4">
-          <label htmlFor="ai-summary-date" className="text-sm text-gray-300">Date:</label>
-          <input
-            id="ai-summary-date"
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-surface text-gray-200 py-2 px-3 rounded-lg border border-surface"
-          />
           <button
             onClick={() => postDailySummary(selectedDate)}
             className="bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg hover:brightness-90"
@@ -387,7 +458,7 @@ const AISummaryPage = () => {
                 return (
                   <div className="bg-surface-light p-4 rounded-lg">
                     <div className="flex gap-3 items-end p-3 overflow-x-auto min-h-[240px]">
-                      {dataToShow.map((d) => (
+                      {dataToShow.filter(d => d.hours > 0).map((d) => (
                         <div key={d.date} className="flex flex-col items-center flex-shrink-0 w-10">
                           <div className="text-xs font-medium text-cyan mb-1">{d.hours.toFixed(1)}</div>
                           <div 
@@ -405,56 +476,81 @@ const AISummaryPage = () => {
               })()}
             </section>
 
-            {/* Usage Logs Section */}
+            {/* Application Usage Bar Chart */}
             <section className="bg-surface rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-semibold text-white mb-4">Usage Logs</h2>
-              <div className="space-y-3">
+              <h2 className="text-2xl font-semibold text-white mb-4">Application Usage</h2>
+              <div className="bg-surface-light p-4 rounded-lg">
                 {appUsageLogs && appUsageLogs.length > 0 ? (
-                  appUsageLogs.map((app) => {
-                    let statusClass = 'bg-yellow-700 text-black';
-                    let statusLabel = 'Ambiguous';
-                    if (app.isBillable) {
-                      statusClass = 'bg-green-700 text-white';
-                      statusLabel = 'Billable';
-                    } else if ((app.suggestedCategory || '').toLowerCase().startsWith('non')) {
-                      statusClass = 'bg-red-700 text-white';
-                      statusLabel = 'Non-billable';
-                    }
+                  <div className="flex flex-col gap-4">
+                    {/* Chart */}
+                    <div className="flex gap-2 items-end justify-start overflow-x-auto pb-2 min-h-[280px]">
+                      {(() => {
+                        // Calculate max hours for scaling
+                        const maxHours = Math.max(1, ...appUsageLogs.map(app => app.totalDuration / 3600));
+                        
+                        return appUsageLogs.map((app) => {
+                          // Determine bar color based on category
+                          let barColor = 'bg-yellow-500'; // ambiguous
+                          if (app.isBillable) {
+                            barColor = 'bg-green-500';
+                          } else if ((app.suggestedCategory || '').toLowerCase().startsWith('non')) {
+                            barColor = 'bg-red-500';
+                          }
 
-                    return (
-                      <div key={app.appname} className="bg-surface-light p-4 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              {(() => {
-                                let dotColor = 'bg-yellow-400'; // ambiguous
-                                if (app.isBillable) dotColor = 'bg-green-400';
-                                else if ((app.suggestedCategory || '').toLowerCase().startsWith('non')) dotColor = 'bg-red-400';
-                                return <span className={`w-2.5 h-2.5 rounded-full ${dotColor} flex-shrink-0`} title={app.isBillable ? 'Billable' : (app.suggestedCategory || '').toLowerCase().startsWith('non') ? 'Non-billable' : 'Ambiguous'}></span>;
-                              })()}
-                              <h3 className="text-lg font-semibold text-white truncate" title={app.appname}>
-                                {app.appname}
-                              </h3>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className={`text-xs px-2 py-1 rounded ${statusClass}`}>
-                                {statusLabel}
-                              </span>
-                              <span className="text-sm text-gray-400">
+                          const hours = app.totalDuration / 3600;
+                          const heightPercent = (hours / maxHours) * 100;
+                          const heightPx = Math.max(20, (heightPercent / 100) * 200); // min 20px, max 200px
+
+                          return (
+                            <div 
+                              key={app.appname} 
+                              className="flex flex-col items-center flex-shrink-0 min-w-[80px] max-w-[120px]"
+                            >
+                              {/* Sessions count */}
+                              <div className="text-xs text-gray-400 mb-0.5">
                                 {app.sessions.length} session{app.sessions.length !== 1 ? 's' : ''}
-                              </span>
-                              <span className="text-sm text-gray-400">•</span>
-                              <span className="text-sm text-cyan">
-                                {formatSecondsHm(app.totalDuration)}
-                              </span>
+                              </div>
+                              
+                              {/* Hours label */}
+                              <div className="text-xs font-medium text-cyan mb-1">
+                                {hours.toFixed(1)}h
+                              </div>
+                              
+                              {/* Bar */}
+                              <div 
+                                className={`w-full ${barColor} rounded-t-md hover:brightness-110 transition-all duration-200 cursor-pointer`}
+                                style={{ height: `${heightPx}px` }}
+                                title={`${app.appname}: ${formatSecondsHm(app.totalDuration)} (${app.sessions.length} session${app.sessions.length !== 1 ? 's' : ''})`}
+                              />
+                              
+                              {/* App name label */}
+                              <div className="text-xs text-gray-300 mt-2 text-center break-words w-full line-clamp-2">
+                                {app.appname}
+                              </div>
                             </div>
-                          </div>
-                        </div>
+                          );
+                        });
+                      })()}
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex items-center justify-center gap-6 pt-4 border-t border-surface">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-green-500 rounded"></div>
+                        <span className="text-xs text-gray-300">Billable</span>
                       </div>
-                    );
-                  })
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-500 rounded"></div>
+                        <span className="text-xs text-gray-300">Non-billable</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                        <span className="text-xs text-gray-300">Ambiguous</span>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-gray-400 text-center py-4">No usage data available</div>
+                  <div className="text-gray-400 text-center py-8">No usage data available</div>
                 )}
               </div>
             </section>
@@ -489,12 +585,30 @@ const AISummaryPage = () => {
               <div className="bg-surface-light p-4 rounded-lg">
                 <div className="mb-2 font-semibold text-gray-300">Rate per hour (INR)</div>
                 <input 
-                  type="number" 
-                  min="0" 
-                  step="0.01" 
+                  type="text" 
                   value={ratePerHour} 
-                  onChange={(e) => setRatePerHour(Number(e.target.value || 0))} 
-                  className="w-full bg-surface text-gray-200 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface"
+                  onChange={(e) => {
+                    if (!isManager) return; // Only managers can edit
+                    const val = e.target.value;
+                    // Allow empty string, numbers, and decimal point
+                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                      setRatePerHour(val === '' ? 0 : Number(val) || 0);
+                    }
+                  }} 
+                  onBlur={(e) => {
+                    if (!isManager) return; // Only managers can edit
+                    // Clean up the value on blur
+                    const val = e.target.value;
+                    setRatePerHour(val === '' || val === '.' ? 0 : Number(val) || 0);
+                  }}
+                  placeholder="0"
+                  disabled={!isManager}
+                  title={isManager ? "Enter rate per hour" : "Only managers can edit the rate"}
+                  className={`w-full py-2 px-3 rounded-lg border ${
+                    isManager 
+                      ? 'bg-surface text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text' 
+                      : 'bg-surface/50 text-gray-400 border-surface-light cursor-not-allowed opacity-60'
+                  }`}
                 />
                 <div className="mt-4 text-xl font-bold text-white">
                   {(() => {
