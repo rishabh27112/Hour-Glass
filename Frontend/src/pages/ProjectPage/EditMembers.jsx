@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import styles from '../ProjectPage.module.css';
 
 function EditMembers({ project, onAdd, currentMode, setCurrentMode, onOpenAddDialog }) {
   const [showMenu, setShowMenu] = useState(false);
