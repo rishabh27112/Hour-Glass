@@ -1,11 +1,12 @@
 import { app, BrowserWindow, ipcMain, session } from "electron";
+
 import * as path from "node:path";
 import * as fs from "node:fs";
 import activeWin from 'active-win';
 import { FileStorageManager } from './fileStorage';
 import * as https from 'node:https';
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.API_BASE_URL || 'https://hour-glass-1.onrender.com';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -30,11 +31,16 @@ function createWindow() {
 	mainWindow = new BrowserWindow({
 		width: 1000,
 		height: 700,
+		autoHideMenuBar: true,
+		icon: path.join(__dirname, "../public/logo.ico"),
 		webPreferences: {
 			preload: path.join(__dirname, "preload.js"),
 		},
-		icon: path.join(__dirname, "../../../Frontend/public/favicon.ico")
 	});
+
+	// Hide the default application menu bar
+	mainWindow.setMenuBarVisibility(false);
+	mainWindow.removeMenu();
 
 	if (process.env.NODE_ENV === "development") {
 		mainWindow.loadURL("http://localhost:3000");

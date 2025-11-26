@@ -1,21 +1,22 @@
 {
-  "name": "winapp",
+  "name": "hourglass",
   "private": true,
   "version": "0.0.0",
   "main": "dist-electron/main.js",
   "build": {
-    "appId": "com.winapp.desktop",
+    "appId": "com.hourglass.desktop",
     "productName": "Hour Glass",
-    "icon": "../../../Frontend/public/logo.svg",
     "asar": false,
     "directories": {
       "output": "build"
     },
     "files": [
       "dist-electron",
-      "dist-react"
+      "dist-react",
+      "public"
     ],
     "win": {
+      "icon": "public/logo.ico",
       "target": ["portable"]
     },
     "nsis": {

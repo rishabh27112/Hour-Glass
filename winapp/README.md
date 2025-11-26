@@ -4,12 +4,15 @@ You will need to install typescript, install it using\
 
 ## Testing 
 After it is installed you can test it using \
+`cross-env API_BASE_URL=http://localhost:4000 npm run dev`\
+or\
 `npm run dev`
 > this command wont build the entire application, rather it will only get the base ready to test the functionality of the app. \
 
 ## To build the App for windows
 
 Now that the testing is done and you want to build the application, run \
+`npm run build`\
 `npm run dist:win`\
 
 This may take some time, and if you are getting some errors one common way to fix it is by running the script as administrator.
