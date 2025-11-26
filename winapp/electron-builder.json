@@ -2,6 +2,8 @@
     "appId": "com.hourglass.app",
     "productName": "Hour Glass",
     "icon": "../Frontend/piblic/logo.svg",
+    "asar": false,
+
     "directories": {
         "output": "build"
     },

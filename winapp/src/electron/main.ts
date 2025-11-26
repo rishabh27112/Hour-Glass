@@ -26,33 +26,44 @@ function emitRendererLog(message: string, data?: any) {
 }
 
 function createWindow() {
+	console.log('[Electron] __dirname at runtime:', __dirname);
 	mainWindow = new BrowserWindow({
 		width: 1000,
 		height: 700,
 		webPreferences: {
 			preload: path.join(__dirname, "preload.js"),
 		},
+		icon: path.join(__dirname, "../../../Frontend/public/favicon.ico")
 	});
 
 	if (process.env.NODE_ENV === "development") {
-  mainWindow.loadURL("http://localhost:3000");
-  mainWindow.webContents.openDevTools();
-} else {
-	// Prefer local dist-react if present; otherwise fall back to Frontend/build
-	const distReactIndex = path.join(__dirname, "../dist-react/index.html");
-	const feBuildIndex = path.join(__dirname, "../Frontend/build/index.html");
-	if (fs.existsSync(distReactIndex)) {
-		mainWindow.loadFile(distReactIndex);
+		mainWindow.loadURL("http://localhost:3000");
+		mainWindow.webContents.openDevTools();
 	} else {
-		mainWindow.loadFile(feBuildIndex);
+		// In production (including packaged), load the CRA bundle from dist-react
+		// resolved relative to the compiled main.js file. When packaged, __dirname
+		// points inside app.asar, so ../dist-react/index.html is available there.
+		const distReactIndex = path.join(__dirname, "../dist-react/index.html");
+		console.log('[Electron] Attempting to load UI from:', distReactIndex, 'exists:', fs.existsSync(distReactIndex));
+		mainWindow.loadFile(distReactIndex);
 	}
-}
 
+	// Debug what actually gets loaded in packaged/dev builds
+	mainWindow.webContents.on('did-finish-load', () => {
+		try {
+			console.log('[Electron] did-finish-load URL:', mainWindow?.webContents.getURL());
+		} catch (e) {
+			console.log('[Electron] did-finish-load but could not read URL:', e);
+		}
+	});
+
+	mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+		console.error('[Electron] did-fail-load', { errorCode, errorDescription, validatedURL });
+	});
 
 	mainWindow.on("closed", () => {
 		mainWindow = null;
 	});
-
 }
 
 export class SystemResourceMonitor {

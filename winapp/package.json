@@ -3,12 +3,34 @@
   "private": true,
   "version": "0.0.0",
   "main": "dist-electron/main.js",
+  "build": {
+    "appId": "com.winapp.desktop",
+    "productName": "Hour Glass",
+    "icon": "../../../Frontend/public/logo.svg",
+    "asar": false,
+    "directories": {
+      "output": "build"
+    },
+    "files": [
+      "dist-electron",
+      "dist-react"
+    ],
+    "win": {
+      "target": ["portable"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
   "scripts": {
     "transpile:electron": "tsc -p src/electron/tsconfig.json",
     "dev:react": "cd ../Frontend && npm start",
     "dev:electron": "npm run transpile:electron && cross-env NODE_ENV=development electron .",
     "dev": "npm-run-all --parallel dev:react dev:electron",
-    "build": "cd ../Frontend && npm run build && npm run transpile:electron",
+    "sync-frontend": "node sync-frontend-build.js",
+    "build": "cd ../Frontend && npm run build && cd ../winapp && npm run sync-frontend && npm run transpile:electron",
     "start": "cross-env NODE_ENV=production electron .",
     "dist:win": "npm run build && electron-builder --win --x64",
     "test": "vitest",
