@@ -6,9 +6,23 @@ import activeWin from 'active-win';
 import { FileStorageManager } from './fileStorage';
 import * as https from 'node:https';
 
-const API_BASE_URL = process.env.API_BASE_URL || 'https://hour-glass-1.onrender.com';
+const API_BASE_URL = 'https://hour-glass-1.onrender.com';
 
 let mainWindow: BrowserWindow | null = null;
+
+function debugCheckServerConnectivity() {
+	try {
+		fetch(API_BASE_URL, { method: 'HEAD' })
+			.then(res => {
+				console.log('[TimeTracker] Server connectivity check', API_BASE_URL, 'status:', res.status);
+			})
+			.catch(err => {
+				console.error('[TimeTracker] Server connectivity check FAILED', API_BASE_URL, 'error:', String(err));
+			});
+	} catch (err) {
+		console.error('[TimeTracker] Server connectivity check FAILED (sync error)', API_BASE_URL, 'error:', String(err));
+	}
+}
 
 // Helper to emit a log message to renderer (and console). Renderer can subscribe via IPC.
 function emitRendererLog(message: string, data?: any) {
@@ -37,6 +51,8 @@ function createWindow() {
 			preload: path.join(__dirname, "preload.js"),
 		},
 	});
+
+	debugCheckServerConnectivity();
 
 	// Hide the default application menu bar
 	mainWindow.setMenuBarVisibility(false);
