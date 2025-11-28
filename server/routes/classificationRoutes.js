@@ -39,35 +39,38 @@ router.patch('/:appName', userAuth, async (req, res) => {
     const rule = await ClassificationRule.findOneAndUpdate({ appName }, { classification, source: 'manual', notes }, { upsert: true, new: true, setDefaultsOnInsert: true });
 
     // Also apply this manual override to existing TimeEntry appointments that match this appName
-    try {
-      const entries = await TimeEntry.find({ 'appointments.appname': appName }).populate('project', 'isBillable').exec();
-      let changed = 0;
-      for (const e of entries) {
-        let modified = false;
-        const appts = e.appointments || [];
-        for (const apt of appts) {
-          if (!apt) continue;
-          if ((apt.appname || '') === appName) {
-            apt.suggestedCategory = classification;
-            // If classification is 'billable', respect the project's isBillable flag if available
-            if (classification === 'billable') {
-              apt.isBillable = !!(e.project && e.project.isBillable);
-            } else {
-              apt.isBillable = false;
+    // Run in background to avoid request timeout
+    (async () => {
+      try {
+        const entries = await TimeEntry.find({ 'appointments.appname': appName }).populate('project', 'isBillable').exec();
+        let changed = 0;
+        for (const e of entries) {
+          let modified = false;
+          const appts = e.appointments || [];
+          for (const apt of appts) {
+            if (!apt) continue;
+            if ((apt.appname || '') === appName) {
+              apt.suggestedCategory = classification;
+              // If classification is 'billable', respect the project's isBillable flag if available
+              if (classification === 'billable') {
+                apt.isBillable = !!(e.project && e.project.isBillable);
+              } else {
+                apt.isBillable = false;
+              }
+              modified = true;
             }
-            modified = true;
+          }
+          if (modified) {
+            await e.save();
+            changed++;
           }
         }
-        if (modified) {
-          await e.save();
-          changed++;
-        }
+        console.log(`Applied classification rule for app ${appName} to ${changed} time entries`);
+      } catch (applyErr) {
+        console.error('Failed to apply classification rule to existing entries', applyErr);
+        // Don't fail the request — rule was persisted; log the error for investigation
       }
-      console.log(`Applied classification rule for app ${appName} to ${changed} time entries`);
-    } catch (applyErr) {
-      console.error('Failed to apply classification rule to existing entries', applyErr);
-      // Don't fail the request — rule was persisted; log the error for investigation
-    }
+    })();
 
     res.json(rule);
   } catch (err) {

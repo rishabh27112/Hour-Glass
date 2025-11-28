@@ -49,6 +49,7 @@ describe('MainButton Component', () => {
     
     // 2. Check visual class for disabled state (Tailwind class)
     expect(button).toHaveClass('disabled:opacity-50');
+    expect(button).toHaveClass('disabled:cursor-not-allowed');
     
     // 3. Ensure click doesn't fire (standard HTML behavior)
     // Note: fireEvent in JSDOM sometimes bypasses disabled checks, 
@@ -64,5 +65,14 @@ describe('MainButton Component', () => {
     // using querySelector since it has no text content
     const gradientSpan = container.querySelector('.bg-gradient-to-r');
     expect(gradientSpan).toBeInTheDocument();
+  });
+
+  it('has correct hover and transition classes', () => {
+    render(<MainButton txt="Hover Test" />);
+    const button = screen.getByRole('button');
+    expect(button).toHaveClass('hover:translate-y-0.5');
+    expect(button).toHaveClass('transition-all');
+    expect(button).toHaveClass('duration-300');
+    expect(button).toHaveClass('ease-in-out');
   });
 });

@@ -17,3 +17,20 @@ export const getUserNotifications = async (req, res) => {
     res.status(500).json({ msg: "Server error" });
   }
 };
+
+export const clearNotifications = async (req, res) => {
+  try {
+    const authUserId = req.userId || (req.user && (req.user._id || req.user.id));
+    if (!authUserId) return res.status(401).json({ msg: 'Not authenticated' });
+    
+    if (req.params.userId && String(req.params.userId) !== String(authUserId)) {
+      return res.status(403).json({ msg: 'Forbidden' });
+    }
+
+    await Notification.deleteMany({ recipient: authUserId });
+    res.json({ success: true, msg: 'Notifications cleared' });
+  } catch (err) {
+    console.error("Error clearing notifications:", err);
+    res.status(500).json({ msg: "Server error" });
+  }
+};

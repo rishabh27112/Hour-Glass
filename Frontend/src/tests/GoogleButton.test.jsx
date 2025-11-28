@@ -51,6 +51,44 @@ describe('GoogleButton Component', () => {
     expect(button).not.toBeDisabled();
   });
 
+  it('opens popup with correct dimensions and URL', () => {
+    // Setup window dimensions for deterministic calculation
+    Object.defineProperty(window, 'screenX', { value: 0, writable: true });
+    Object.defineProperty(window, 'screenY', { value: 0, writable: true });
+    Object.defineProperty(window, 'outerWidth', { value: 1024, writable: true });
+    Object.defineProperty(window, 'outerHeight', { value: 768, writable: true });
+
+    openMock.mockReturnValue({ closed: false });
+    render(<GoogleButton />);
+    fireEvent.click(screen.getByRole('button'));
+
+    const width = 600;
+    const height = 700;
+    const left = (1024 - 600) / 2; // 212
+    const top = (768 - 700) / 2.5; // 27.2
+
+    expect(openMock).toHaveBeenCalledWith(
+      'http://mock-api.com/api/auth/google',
+      'hg_google_oauth',
+      expect.stringContaining(`width=${width}`)
+    );
+    expect(openMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.stringContaining(`height=${height}`)
+    );
+    expect(openMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.stringContaining(`left=${left}`)
+    );
+    expect(openMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.stringContaining(`top=${top}`)
+    );
+  });
+
   it('handles popup blocked scenario (window.open returns null)', () => {
     openMock.mockReturnValue(null); // Simulate blocked popup
 

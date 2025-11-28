@@ -1,6 +1,6 @@
 import express from "express";
 import Notification from "../models/NotificationModel.js";
-import { getUserNotifications } from "../controllers/notificationcontroller.js";
+import { getUserNotifications, clearNotifications } from "../controllers/notificationcontroller.js";
 import userAuth  from "../middleware/userAuth.js"; // authentication middleware
 import runNotificationJob from "../cron/notificationJob.js";
 import sendEmail from "../utils/sendEmail.js";
@@ -12,6 +12,9 @@ console.log('[router] notificationRoutes loaded');
 
 // GET /api/notifications/:userId - fetch notifications for a user
 router.get('/:userId', userAuth, getUserNotifications);
+
+// DELETE /api/notifications/:userId - clear all notifications for a user
+router.delete('/:userId', userAuth, clearNotifications);
 
 // Test route to trigger the notification job manually
 router.post("/test/run-reminders-now", async (req, res) => {

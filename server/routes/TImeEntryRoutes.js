@@ -217,7 +217,7 @@ router.get('/project/:projectId', userAuth, async (req, res) => {
 
         // Filter appointments by taskId if provided
         let appointments = entry.appointments || [];
-        if (taskId) {
+        if (taskId !== undefined && taskId !== null) {
           appointments = appointments.filter(apt => apt.taskId === taskId);
         }
 
@@ -279,7 +279,7 @@ router.get('/project/:projectId', userAuth, async (req, res) => {
 
       const filteredEntries = entries.map(entry => {
         let appointments = entry.appointments || [];
-        if (taskId) {
+        if (taskId !== undefined && taskId !== null) {
           appointments = appointments.filter(apt => apt.taskId === taskId);
         }
 

@@ -57,23 +57,32 @@ const AISummaryPage = () => {
         if (projectRes.ok && projectData) {
           setProject(projectData);
           
-          // Check if current user is manager/creator
+          // Check if current user is manager/creator (made more robust)
           if (userData && userData.userData) {
             const user = userData.userData;
+
+            // Basic manager role flags
             const isManagerFlag = user.role === 'manager' || user.isManager === true;
-            
-            // Check if user is project creator
+
+            // Determine if current user is the project creator by comparing IDs where possible
             let isCreator = false;
-            if (projectData.createdBy) {
-              const creatorId = typeof projectData.createdBy === 'object' 
-                ? (projectData.createdBy.username || projectData.createdBy.email || projectData.createdBy._id)
-                : String(projectData.createdBy);
-              
-              const userId = user.username || user.email || user._id;
-              isCreator = String(creatorId).toLowerCase() === String(userId).toLowerCase();
+            try {
+              if (projectData && projectData.createdBy) {
+                const creator = projectData.createdBy;
+                // Prefer _id/id comparison when available, fallback to username/email
+                const creatorId = (typeof creator === 'object')
+                  ? (creator._id || creator.id || creator.username || creator.email)
+                  : creator;
+                const userId = user._id || user.id || user.username || user.email;
+                if (creatorId && userId) {
+                  isCreator = String(creatorId).toLowerCase() === String(userId).toLowerCase();
+                }
+              }
+            } catch (e) {
+              // swallow; fallback will be false
             }
-            
-            setIsManager(isManagerFlag || isCreator);
+
+            setIsManager(Boolean(isManagerFlag || isCreator));
           }
         }
       } catch (err) {
@@ -603,6 +612,7 @@ const AISummaryPage = () => {
                   }}
                   placeholder="0"
                   disabled={!isManager}
+                  readOnly={!isManager}
                   title={isManager ? "Enter rate per hour" : "Only managers can edit the rate"}
                   className={`w-full py-2 px-3 rounded-lg border ${
                     isManager 

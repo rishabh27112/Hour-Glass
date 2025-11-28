@@ -402,6 +402,22 @@ const ManagerDashboard = () => {
       alert('Network error while creating project');
     }
   };
+  const handleClearNotifications = async () => {
+    const uid = profileUser && (profileUser._id || profileUser.id) ? (profileUser._id || profileUser.id) : getCurrentUserId();
+    if (!uid) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/notifications/${uid}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: buildHeaders()
+      });
+      if (res.ok) {
+        setNotifications([]);
+      }
+    } catch (err) {
+      console.error('Failed to clear notifications', err);
+    }
+  };
   // --- End of logic ---
 
 
@@ -451,12 +467,22 @@ const ManagerDashboard = () => {
 
                 <div className="flex justify-between items-center px-3 py-2 border-b border-surface">
                   <h3 className="font-semibold text-white">Notifications</h3>
-                  <button
-                    className="text-gray-400 hover:text-white text-xl"
-                    onClick={() => setNotifOpen(false)}
-                  >
-                    <RiCloseLine />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {notifications.length > 0 && (
+                      <button
+                        className="text-xs text-cyan hover:text-white underline"
+                        onClick={handleClearNotifications}
+                      >
+                        Clear All
+                      </button>
+                    )}
+                    <button
+                      className="text-gray-400 hover:text-white text-xl"
+                      onClick={() => setNotifOpen(false)}
+                    >
+                      <RiCloseLine />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-y-auto">

@@ -1,4 +1,4 @@
-// src/pages/TaskPage.jsx
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API_BASE_URL from '../../config/api';
@@ -7,19 +7,22 @@ import {
   RiArrowLeftLine, RiCloseLine, RiBrainLine, RiStopCircleLine 
 } from 'react-icons/ri';
 
-// --- Native time tracker helpers (All logic is 100% preserved) ---
-const getTimeTracker = () => (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+const getTimeTracker=()=>(globalThis && globalThis.TimeTracker)?globalThis.TimeTracker:null;
 
-function startNativeTrackerForTask(project, task, taskId, currentUser) {
+function startNativeTrackerForTask(project, task, taskId, currentUser) 
+{
   console.log('[TaskPage] startNativeTrackerForTask called:', { project: project?._id, taskId });
   const tt = getTimeTracker();
   console.log('[TaskPage] TimeTracker available:', !!tt);
-  if (!tt || typeof tt.start !== 'function') {
+  if (!tt || typeof tt.start !== 'function')
+    {
     console.warn('[TaskPage] TimeTracker.start not available');
     return;
   }
-  try {
-    try {
+  try 
+  {
+    try 
+    {
       const webToken = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
       if (webToken && typeof tt.setAuthToken === 'function') {
         console.log('[TaskPage] Setting auth token');
@@ -28,8 +31,7 @@ function startNativeTrackerForTask(project, task, taskId, currentUser) {
     } catch {}
     const projId = (project && project._id) ? String(project._id) : '';
     // Use task title from startTimer call
-    // const taskTitle = (task && (task.title || task.name)) || 'Task';
-    const userStr = (currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
+    const userStr=(currentUser && (currentUser.username || currentUser.email || currentUser._id || currentUser.name)) || '';
     console.log('[TaskPage] Calling TimeTracker.start with:', { user: userStr, project: projId, taskId });
     // Pass task title and ID separately
     tt.start(String(userStr), String(projId), String(taskId), 200); 
@@ -61,7 +63,6 @@ function stopNativeTrackerAndFlush() {
     console.error('[TaskPage] TimeTracker.stop/sendData failed:', e);
   }
 }
-// --- End of native helpers ---
 
 export default function TaskPage() {
   console.log('[TaskPage] Mounted. Params:', window.location.hash, window.location.pathname, window.location.search);
@@ -140,7 +141,6 @@ export default function TaskPage() {
           const p = await res.json();
           setProject(p);
           
-          // Check if current user is manager or project creator
           if (currentUser && p) {
             const isManagerFlag = currentUser.role === 'manager' || currentUser.isManager === true;
             
@@ -177,8 +177,7 @@ export default function TaskPage() {
     
     const initial = Number(task.timeSpent) || 0;
     setBaseMs(initial);
-    
-    // set assignee to current logged-in user if not assigned
+
     try {
       const rawUser = sessionStorage.getItem('user') || localStorage.getItem('user');
       if (rawUser) {
@@ -201,20 +200,24 @@ export default function TaskPage() {
           console.log('[TaskPage] Restoring running timer from sessionStorage', { runningSince: parsed.runningSince });
           setRunningSince(parsed.runningSince);
           
-          // Check if native tracker is still running
           const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
-          if (tt && typeof tt.status === 'function') {
+          if (tt && typeof tt.status === 'function') 
+            {
             tt.status().then(status => {
               console.log('[TaskPage] Native tracker status on restore:', status);
               // If tracker stopped but timer was running, restart it
-              if (!status || !status.running) {
+              if (!status || !status.running) 
+                {
                 console.log('[TaskPage] Restarting native tracker after page navigation');
-                if (typeof tt.start === 'function') {
+                if (typeof tt.start === 'function') 
+                  {
                   const token = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
-                  if (token && typeof tt.setAuthToken === 'function') {
+                  if (token && typeof tt.setAuthToken === 'function') 
+                  {
                     tt.setAuthToken(token);
                   }
                   const pId = project && project._id ? String(project._id) : String(projectId || '');
+
                   tt.start('', pId, String(taskId), 200).then(res => {
                     console.log('[TaskPage] Native tracker restarted:', res);
                   });
@@ -224,11 +227,14 @@ export default function TaskPage() {
           }
         }
         // if accumulated stored (optional), prefer it
-        if (parsed && typeof parsed.accumulated === 'number') {
+        if (parsed && typeof parsed.accumulated === 'number') 
+        {
           setBaseMs(parsed.accumulated);
         }
       }
-    } catch (e) {
+    } 
+    catch (e) 
+    {
       console.warn('Could not parse persisted timer state', e);
     }
   }, [task, storageKey, project, projectId, taskId]);
@@ -263,30 +269,39 @@ export default function TaskPage() {
     };
   }, [brainstormStorageKey]);
 
-  // Fetch brainstorm entries from backend
-  const fetchBrainstormEntries = React.useCallback(async () => {
-    if (!project || !project._id) return;
+  const fetchBrainstormEntries=React.useCallback(async () => {
+
+    if (!project || !project._id) 
+    return;
+
     setBrainstormLoading(true);
     try {
-      const url = `${API_BASE_URL}/api/brainstorm?projectId=${encodeURIComponent(project._id)}&taskId=${encodeURIComponent(taskId)}`;
-      const res = await fetch(url, { credentials: 'include', headers: buildHeaders() });
-      if (res.ok) {
+      const url=`${API_BASE_URL}/api/brainstorm?projectId=${encodeURIComponent(project._id)}&taskId=${encodeURIComponent(taskId)}`;
+      const res=await fetch(url,{credentials:'include',headers:buildHeaders()});
+      if (res.ok) 
+      {
         const data = await res.json();
         console.log('[TaskPage] Brainstorm entries fetched:', data);
         setBrainstormEntries(data.entries || []);
-      } else {
+      } 
+      else 
+      {
         console.error('Failed to load brainstorm entries', res.status);
       }
-    } catch (err) {
+    } 
+    catch (err)
+    {
       console.error('load brainstorm entries error', err);
-    } finally {
+    } 
+    finally 
+    {
       setBrainstormLoading(false);
     }
   }, [project, taskId]);
 
-  // Fetch brainstorm entries on mount and when task changes
-  useEffect(() => {
-    if (task && project) {
+  useEffect(()=>{
+    if (task && project) 
+    {
       fetchBrainstormEntries();
     }
   }, [task, project, fetchBrainstormEntries]);
@@ -385,7 +400,7 @@ export default function TaskPage() {
 
   // manage interval to update visible timer
   useEffect(() => {
-    // clear previous
+  
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -399,82 +414,114 @@ export default function TaskPage() {
     }
     tick();
     intervalRef.current = setInterval(tick, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    return ()=>{
+      if (intervalRef.current) 
+      clearInterval(intervalRef.current);
     };
   }, [runningSince, baseMs]);
 
-  const startTimerInternal = async () => {
-    if (runningSince) return; // already running
-    const now = Date.now();
+  const startTimerInternal = async()=>{
+
+    if (runningSince)
+      return; 
+
+    const now=Date.now();
     setRunningSince(now);
-    // persist
-    try {
+    try 
+    {
       sessionStorage.setItem(storageKey, JSON.stringify({ runningSince: now, accumulated: baseMs }));
-    } catch (e) { console.warn('Failed to persist running state', e); }
+    } 
+    catch(e) 
+    { 
+    console.warn('Failed to persist running state', e); 
+    }
 
     // Check if task has billable time and update status to in-progress if currently todo
-    const hasRecordedTime = baseMs > 0;
-    const currentStatus = task?.status || 'todo';
-    if (currentStatus === 'todo' && hasRecordedTime && project?._id && task?._id) {
-      try {
+    const hasRecordedTime=baseMs>0;
+    const currentStatus=task?.status||'todo';
+    if (currentStatus==='todo' && hasRecordedTime && project?._id && task?._id) 
+      {
+      try
+      {
         const res = await fetch(`${API_BASE_URL}/api/projects/${project._id}/tasks/${task._id}/status`, {
           method: 'PATCH',
           credentials: 'include',
           headers: buildHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ status: 'in-progress' })
         });
-        if (res.ok) {
+        if (res.ok) 
+          {
           const updatedProject = await res.json();
           setProject(updatedProject);
-          const updatedTask = (updatedProject.tasks || []).find(t => String(t._id) === String(taskId) || String(t.clientId) === String(taskId));
-          if (updatedTask) {
+          const updatedTask=(updatedProject.tasks || []).find(t=>String(t._id)===String(taskId) || String(t.clientId)===String(taskId));
+          if (updatedTask) 
+          {
             setTask(updatedTask);
           }
           console.log('Task status updated to in-progress');
         }
-      } catch (err) {
+      } 
+      catch(err) 
+      {
         console.error('Failed to update task status:', err);
       }
     }
 
     // Start native tracker if available
     console.log('[TaskPage] Starting native tracker...');
-    try {
-      const tt = (globalThis && globalThis.TimeTracker) ? globalThis.TimeTracker : null;
+    try 
+    {
+      const tt = (globalThis && globalThis.TimeTracker)?globalThis.TimeTracker:null;
       console.log('[TaskPage] TimeTracker available:', !!tt);
-      if (tt && typeof tt.start === 'function') {
+
+      if (tt && typeof tt.start === 'function') 
+        {
         const token = (globalThis.localStorage && globalThis.localStorage.getItem('token')) || (globalThis.sessionStorage && globalThis.sessionStorage.getItem('token')) || '';
-        if (token && typeof tt.setAuthToken === 'function') {
+        if (token && typeof tt.setAuthToken === 'function') 
+        {
           console.log('[TaskPage] Setting auth token');
           tt.setAuthToken(token);
         }
+
         const pId = project && project._id ? String(project._id) : String(projectId || '');
-        console.log('[TaskPage] Calling TimeTracker.start with:', { project: pId, taskId });
-        const startRes = await tt.start('', pId, String(taskId), 200);
+
+        console.log('Taskpage Calling TimeTracker.start with:', { project: pId, taskId });
+
+        const startRes=await tt.start('', pId, String(taskId), 200);
+
         console.log('[TaskPage] TimeTracker.start returned:', startRes);
-        if (!startRes || startRes.ok === false) {
+
+        if (!startRes || startRes.ok === false) 
+        {
           console.warn('[TaskPage] Native tracker reported failure to start', startRes);
         }
         // if the preload exposes a status helper, query it and log
-        if (typeof tt.status === 'function') {
+        if (typeof tt.status==='function') 
+        {
           const s = await tt.status();
           console.log('[TaskPage] TimeTracker.status:', s);
         }
         console.log('[TaskPage] TimeTracker.start called successfully');
-      } else {
+      } 
+      else 
+      {
         console.warn('[TaskPage] TimeTracker.start not available');
       }
-    } catch (err) { 
+    } 
+    catch(err)
+    { 
       console.error('[TaskPage] Native tracker start failed:', err); 
     }
   };
 
-  const stopTimerInternal = () => {
-    if (!runningSince) return;
-    const now = Date.now();
-    const delta = now - runningSince;
-    const newBase = baseMs + delta;
+  const stopTimerInternal=()=>{
+
+    if (!runningSince)
+      return;
+
+    const now=Date.now();
+    const delta=now-runningSince;
+    const newBase=baseMs+delta;
     setBaseMs(newBase);
     setRunningSince(null);
     // update task local state so UI reflects new timeSpent
@@ -628,6 +675,8 @@ export default function TaskPage() {
         // Refresh entries to show updated classification
         alert(`"${appname}" is now classified as ${newClass}`);
         loadTimeEntries();
+        // Reload again after 2 seconds to catch background updates
+        setTimeout(loadTimeEntries, 2000);
       } else {
         const msg = data && (data.msg || data.error) ? (data.msg || data.error) : `Server returned ${res.status}`;
         console.warn('Failed to update classification', msg);
