@@ -10,6 +10,18 @@ const projectSchema = new mongoose.Schema({
     enum: ['active', 'archived', 'deleted'],
     default: 'active',
   },
+  budget: { type: Number, default: 0, min: 0 },
+  startDate: { type: Date },
+  endDate: { type: Date },
+  memberRates: {
+    type: Map,
+    of: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    default: {},
+  },
   
   // NOTE: moved deleted into `status: 'deleted'` instead of a boolean flag
   members: [
@@ -24,7 +36,7 @@ const projectSchema = new mongoose.Schema({
       title: { type: String, required: true, trim: true },
       description: { type: String, trim: true, default: '' },
       assignee: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: false },
-      status: { type: String, enum: ['todo', 'in-progress', 'done'], default: 'todo' },
+      status: { type: String, enum: ['todo', 'in-progress', 'incomplete', 'done'], default: 'todo' },
       dueDate: { type: Date, required: false },
       isDelayed: { type: Boolean, default: false },
       delayAlertSent: { type: Boolean, default: false },
@@ -37,6 +49,13 @@ const projectSchema = new mongoose.Schema({
     required: true,
   },
 }, { timestamps: true });
+
+projectSchema.pre('save', function handleDefaultStart(next) {
+  if (!this.startDate) {
+    this.startDate = this.createdAt || Date.now();
+  }
+  next();
+});
 
 // Ensure each user cannot create two projects with the same name
 projectSchema.index({ createdBy: 1, ProjectName: 1 }, { unique: true, background: true });

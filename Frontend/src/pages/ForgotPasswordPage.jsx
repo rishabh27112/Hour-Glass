@@ -13,24 +13,41 @@ const ForgotPasswordPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({ email: '', otp: '', newPassword: '', confirmPassword: '' });
   const [success, setSuccess] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const navigate = useNavigate();
+  let primaryActionLabel = 'Send OTP';
+  if (loading) {
+    primaryActionLabel = 'Processing...';
+  } else if (otpSent) {
+    primaryActionLabel = 'Verify OTP';
+  }
 
   // Step 1: Send OTP
   const handleSendOtp = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
-    if (!email) { setError('Email is required'); return; }
+    setFieldErrors((prev) => ({ ...prev, email: '' }));
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setFieldErrors((prev) => ({ ...prev, email: 'Email is required' }));
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setFieldErrors((prev) => ({ ...prev, email: 'Enter a valid email address' }));
+      return;
+    }
     setLoading(true);
     try {
-      console.log('Sending reset OTP to:', email);
+      console.log('Sending reset OTP to:', trimmedEmail);
       console.log('API URL:', `${API_BASE_URL}/api/auth/send-reset-otp`);
       const response = await fetch(`${API_BASE_URL}/api/auth/send-reset-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email: trimmedEmail })
       });
       console.log('Response status:', response.status);
       const data = await response.json();
@@ -39,11 +56,11 @@ const ForgotPasswordPage = () => {
         setOtpSent(true);
         setSuccess('OTP sent to your email.');
       } else {
-        setError(data.message || 'Failed to send OTP');
+        setFieldErrors((prev) => ({ ...prev, email: data.message || 'Failed to send OTP' }));
       }
     } catch (err) {
       console.error('Send OTP error:', err);
-      setError('Send OTP error: ' + err.message);
+      setFieldErrors((prev) => ({ ...prev, email: 'Send OTP error: ' + err.message }));
     }
     setLoading(false);
   };
@@ -72,7 +89,11 @@ const ForgotPasswordPage = () => {
   const handleVerifyOtp = (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
-    if (!otp) { setError('OTP is required'); return; }
+    setFieldErrors((prev) => ({ ...prev, otp: '' }));
+    if (!otp.trim()) {
+      setFieldErrors((prev) => ({ ...prev, otp: 'OTP is required' }));
+      return;
+    }
     setSuccess('OTP entered. Proceed to reset password.');
     setStep(2);
   };
@@ -81,11 +102,21 @@ const ForgotPasswordPage = () => {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setError(''); setSuccess('');
-    if (!newPassword || !confirmPassword) {
-      setError('All fields are required'); return;
+    setFieldErrors((prev) => ({ ...prev, newPassword: '', confirmPassword: '' }));
+    if (!newPassword.trim()) {
+      setFieldErrors((prev) => ({ ...prev, newPassword: 'New password is required' }));
+      return;
+    }
+    if (!confirmPassword.trim()) {
+      setFieldErrors((prev) => ({ ...prev, confirmPassword: 'Confirm password is required' }));
+      return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match'); return;
+      setFieldErrors((prev) => ({
+        ...prev,
+        confirmPassword: 'Passwords do not match'
+      }));
+      return;
     }
     setLoading(true);
     try {
@@ -99,7 +130,9 @@ const ForgotPasswordPage = () => {
         setSuccess('Password reset successful! Redirecting to login...');
         setTimeout(() => navigate('/login'), 1500);
       } else {
-        setError(data.message || 'Reset failed');
+        const msg = data.message || 'Reset failed';
+        setError(msg);
+        setFieldErrors((prev) => ({ ...prev, newPassword: msg }));
       }
     } catch (err) {
       setError('Reset error');
@@ -137,38 +170,52 @@ const ForgotPasswordPage = () => {
         {step === 1 && (
           <form className="space-y-4 pt-2" onSubmit={otpSent ? handleVerifyOtp : handleSendOtp}>
             <div>
-              <label className="block text-lg font-medium text-gray-200 tracking-wide">
+              <label htmlFor="forgot-email" className="block text-lg font-medium text-gray-200 tracking-wide">
                 Email address
               </label>
               <div className="mt-1">
                 <input
+                  id="forgot-email"
                   type="email"
                   required
                   className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={e => {
+                    setEmail(e.target.value);
+                    if (fieldErrors.email) {
+                      setFieldErrors(prev => ({ ...prev, email: '' }));
+                    }
+                  }}
                   disabled={otpSent} // Disables email input after OTP is sent
                 />
               </div>
+              {fieldErrors.email && <p className="mt-2 text-sm text-red-400">{fieldErrors.email}</p>}
             </div>
 
             {/* OTP Input (appears after OTP is sent) */}
             {otpSent && (
               <div>
-                <label className="block text-sm font-medium text-gray-200 tracking-wide">
+                <label htmlFor="forgot-otp" className="block text-sm font-medium text-gray-200 tracking-wide">
                   OTP
                 </label>
                 <div className="mt-1">
                   <input
+                    id="forgot-otp"
                     type="text"
                     required
                     className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
                     placeholder="Enter OTP"
                     value={otp}
-                    onChange={e => setOtp(e.target.value)}
+                    onChange={e => {
+                      setOtp(e.target.value);
+                      if (fieldErrors.otp) {
+                        setFieldErrors(prev => ({ ...prev, otp: '' }));
+                      }
+                    }}
                   />
                 </div>
+                {fieldErrors.otp && <p className="mt-2 text-sm text-red-400">{fieldErrors.otp}</p>}
               </div>
             )}
 
@@ -178,7 +225,7 @@ const ForgotPasswordPage = () => {
 
             <div>
               <MainButton
-                txt={loading ? 'Processing...' : otpSent ? 'Verify OTP' : 'Send OTP'}
+                txt={primaryActionLabel}
                 disabled={loading}
                 type="submit"
               />
@@ -190,35 +237,49 @@ const ForgotPasswordPage = () => {
         {step === 2 && (
           <form className="space-y-4 pt-2" onSubmit={handleResetPassword}>
             <div>
-              <label className="block text-sm font-medium text-gray-200 tracking-wide">
+              <label htmlFor="forgot-new-password" className="block text-sm font-medium text-gray-200 tracking-wide">
                 New Password
               </label>
               <div className="mt-1">
                 <input
+                  id="forgot-new-password"
                   type="password"
                   required
                   className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
                   placeholder="••••••••"
                   value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
+                  onChange={e => {
+                    setNewPassword(e.target.value);
+                    if (fieldErrors.newPassword) {
+                      setFieldErrors(prev => ({ ...prev, newPassword: '' }));
+                    }
+                  }}
                 />
               </div>
+              {fieldErrors.newPassword && <p className="mt-2 text-sm text-red-400">{fieldErrors.newPassword}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-200 tracking-wide">
+              <label htmlFor="forgot-confirm-password" className="block text-sm font-medium text-gray-200 tracking-wide">
                 Confirm New Password
               </label>
               <div className="mt-1">
                 <input
+                  id="forgot-confirm-password"
                   type="password"
                   required
                   className="w-full bg-[#3a3a3a]/80 text-gray-200 placeholder-gray-400 py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#18d4d1] border border-[#3a3a3a] font-medium"
                   placeholder="••••••••"
                   value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
+                  onChange={e => {
+                    setConfirmPassword(e.target.value);
+                    if (fieldErrors.confirmPassword) {
+                      setFieldErrors(prev => ({ ...prev, confirmPassword: '' }));
+                    }
+                  }}
                 />
               </div>
+              {fieldErrors.confirmPassword && <p className="mt-2 text-sm text-red-400">{fieldErrors.confirmPassword}</p>}
             </div>
 
             {/* Error & Success Messages */}

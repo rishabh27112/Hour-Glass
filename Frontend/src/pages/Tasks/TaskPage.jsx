@@ -104,6 +104,8 @@ export default function TaskPage() {
   const brainstormStorageKey = `hg_brainstorm_${projectId}_${taskId}`;
   const [brainstormEntries, setBrainstormEntries] = useState([]);
   const [brainstormLoading, setBrainstormLoading] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
 
   // Get current user
   useEffect(() => {
@@ -340,7 +342,7 @@ export default function TaskPage() {
   }, [task, projectId, taskId, hasInitialEntriesLoaded, timeEntries]);
 
   // Helper to post a brainstorm entry to backend and refresh entries
-  const postBrainstormEntry = async (startMs, endMs, description) => {
+  const postBrainstormEntry = React.useCallback(async (startMs, endMs, description) => {
     try {
       const payload = {
         appointment: {
@@ -373,7 +375,40 @@ export default function TaskPage() {
     } catch (err) {
       console.error('Error posting brainstorming entry', err);
     }
-  };
+  }, [project, projectId, taskId, fetchEntries]);
+
+  const stopBrainstormSession = React.useCallback(async ({ showSummaryAlert = true } = {}) => {
+    if (!isBrainstorming) return;
+    try {
+      if (brainstormIntervalRef.current) {
+        clearInterval(brainstormIntervalRef.current);
+        brainstormIntervalRef.current = null;
+      }
+      const now = Date.now();
+      let startMs = now;
+      try {
+        const raw = sessionStorage.getItem(brainstormStorageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.runningSince) startMs = Number(parsed.runningSince);
+        }
+      } catch (e) {
+        console.debug('Brainstorm stop: parse storage failed', e);
+      }
+      sessionStorage.removeItem(brainstormStorageKey);
+      setIsBrainstorming(false);
+      setBrainstormDisplayMs(0);
+      console.log('[TaskPage] Brainstorming stopped. Posting entry.');
+      await postBrainstormEntry(startMs, now, brainstormDescription);
+      if (showSummaryAlert && brainstormDescription) {
+        alert(`Brainstorming session ended!\n\nDescription: ${brainstormDescription}`);
+      }
+    } catch (err) {
+      console.error('Error stopping brainstorming session', err);
+    } finally {
+      setBrainstormDescription('');
+    }
+  }, [brainstormDescription, brainstormStorageKey, isBrainstorming, postBrainstormEntry]);
 
   // Polling effect for live updates
   useEffect(() => {
@@ -405,6 +440,10 @@ export default function TaskPage() {
   }, [runningSince, baseMs]);
 
   const startTimerInternal = async () => {
+    if ((task?.status || 'todo') === 'done') {
+      alert('Task is already completed. Timer cannot be started.');
+      return;
+    }
     if (runningSince) return; // already running
     const now = Date.now();
     setRunningSince(now);
@@ -655,7 +694,61 @@ export default function TaskPage() {
   const userIdentifiers = currentUser ? [currentUser.username, currentUser.email, currentUser._id].filter(Boolean).map((s) => String(s).toLowerCase()) : [];
   const isAssigned = userIdentifiers.length > 0 && userIdentifiers.includes(String(assigneeDisplay || '').toLowerCase());
   const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-  const canStartStop = Boolean(isAssigned);
+  const isTaskCompleted = (task?.status || 'todo') === 'done';
+  const canStartStop = Boolean(isAssigned) && !isTaskCompleted;
+  const canCompleteTask = Boolean(isAssigned);
+
+  const updateTaskStatus = async (newStatus) => {
+    if (!canCompleteTask) {
+      alert('Only the assigned member can update task status.');
+      return;
+    }
+    if (!project?._id || !task?._id) return;
+    setStatusUpdating(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/projects/${project._id}/tasks/${task._id}/status`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        const updatedProject = await res.json();
+        setProject(updatedProject);
+        const updatedTask = (updatedProject.tasks || []).find(t => String(t._id) === String(taskId) || String(t.clientId) === String(taskId));
+        if (updatedTask) {
+          setTask(updatedTask);
+        }
+        if (newStatus === 'done') {
+          if (runningSince) {
+            stopTimerInternal();
+          }
+          if (isBrainstorming) {
+            await stopBrainstormSession({ showSummaryAlert: false });
+          }
+        }
+      } else {
+        const errText = await res.text();
+        alert(`Failed to update status: ${errText || res.status}`);
+      }
+    } catch (err) {
+      console.error('Failed to update task status', err);
+      alert('Failed to update task status.');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isTaskCompleted) return;
+    setShowBrainstormDialog(false);
+    if (runningSince) {
+      stopTimerInternal();
+    }
+    if (isBrainstorming) {
+      stopBrainstormSession({ showSummaryAlert: false });
+    }
+  }, [isTaskCompleted, runningSince, isBrainstorming, stopBrainstormSession, stopTimerInternal]);
 
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-brand-bg text-gray-200">
@@ -721,6 +814,50 @@ export default function TaskPage() {
                     </span>
                   </dd>
                 </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!canCompleteTask || isTaskCompleted || statusUpdating) return;
+                      setConfirmCompleteOpen(true);
+                    }}
+                    disabled={!canCompleteTask || isTaskCompleted || statusUpdating}
+                    title={!canCompleteTask ? 'Only the assigned member can complete this task.' : ''}
+                    className="mt-2 inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isTaskCompleted ? 'Task Completed' : statusUpdating ? 'Marking…' : 'Task Complete'}
+                  </button>
+                </div>
+                      {confirmCompleteOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+                          <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-2xl border border-surface-light">
+                            <h3 className="text-xl font-semibold text-white mb-2">Complete this task?</h3>
+                            <p className="text-sm text-gray-300 mb-4">
+                              Completing this task is irreversible. Make sure everything is done before confirming.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                              <button
+                                type="button"
+                                className="px-4 py-2 rounded-md border border-surface-light text-gray-300 hover:text-white"
+                                onClick={() => setConfirmCompleteOpen(false)}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                className="px-4 py-2 rounded-md bg-red-600 text-white font-semibold hover:bg-red-500"
+                                onClick={async () => {
+                                  await updateTaskStatus('done');
+                                  setConfirmCompleteOpen(false);
+                                }}
+                                disabled={statusUpdating}
+                              >
+                                {statusUpdating ? 'Finishing…' : 'Yes, complete task'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                 <div className="flex flex-col sm:flex-row">
                   <dt className="w-32 flex-shrink-0 font-semibold text-gray-400">Assignee</dt>
                   <dd className="text-gray-200">{assigneeDisplay || 'Unassigned'}</dd>
@@ -739,7 +876,7 @@ export default function TaskPage() {
                 <button
                   onClick={startTimerInternal}
                   disabled={!!runningSince || !canStartStop}
-                  title={canStartStop ? 'Start timer' : 'Only the assigned member can start this timer'}
+                  title={isTaskCompleted ? 'Task already completed' : canStartStop ? 'Start timer' : 'Only the assigned member can start this timer'}
                   className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Start
@@ -747,7 +884,7 @@ export default function TaskPage() {
                 <button
                   onClick={stopTimerInternal}
                   disabled={!runningSince || !canStartStop}
-                  title={canStartStop ? 'Stop timer' : 'Only the assigned member can stop this timer'}
+                  title={isTaskCompleted ? 'Task already completed' : canStartStop ? 'Stop timer' : 'Only the assigned member can stop this timer'}
                   className="bg-cyan text-brand-bg font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Stop
@@ -760,9 +897,11 @@ export default function TaskPage() {
               </div>
               {!canStartStop && (
                 <div className="text-sm text-gray-400 mt-1">
-                  {isManagerFlag
-                    ? 'Managers cannot start/stop timers — only the assigned member may.'
-                    : 'Only the assigned member may start/stop this timer.'}
+                  {isTaskCompleted
+                    ? 'Task marked as completed. Timer controls are disabled.'
+                    : isManagerFlag
+                      ? 'Managers cannot start/stop timers — only the assigned member may.'
+                      : 'Only the assigned member may start/stop this timer.'}
                 </div>
               )}
               
@@ -790,7 +929,7 @@ export default function TaskPage() {
                     }}
                     className="mt-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-500"
                   >
-                    Open AI Summary for Assignee
+                    Invoice Report
                   </button>
                 </div>
               </div>
@@ -827,47 +966,22 @@ export default function TaskPage() {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setShowBrainstormDialog(true)}
-                    disabled={isBrainstorming}
+                    onClick={() => {
+                      if (isTaskCompleted) return;
+                      setShowBrainstormDialog(true);
+                    }}
+                    disabled={isBrainstorming || isTaskCompleted}
                     className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 shadow-md transition-all duration-200 ease-in-out  disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Start brainstorming session"
+                    title={isTaskCompleted ? 'Task completed. Brainstorming is locked.' : isBrainstorming ? 'Brainstorming session already running.' : 'Start brainstorming session'}
                   >
                     <RiBrainLine />
                     Start Brainstorming
                   </button>
                   <button
-                    onClick={async () => {
-                      try {
-                        if (brainstormIntervalRef.current) {
-                          clearInterval(brainstormIntervalRef.current);
-                          brainstormIntervalRef.current = null;
-                        }
-                        const now = Date.now();
-                        let startMs = now;
-                        try {
-                          const raw = sessionStorage.getItem(brainstormStorageKey);
-                          if (raw) {
-                            const parsed = JSON.parse(raw);
-                            if (parsed && parsed.runningSince) startMs = Number(parsed.runningSince);
-                          }
-                        } catch (e) {
-                          console.debug('Brainstorm stop: parse storage failed', e);
-                        }
-                        sessionStorage.removeItem(brainstormStorageKey);
-                        setIsBrainstorming(false);
-                        setBrainstormDisplayMs(0);
-                        console.log('[TaskPage] Brainstorming stopped. Posting entry.');
-                        await postBrainstormEntry(startMs, now, brainstormDescription);
-                        if (brainstormDescription) {
-                          alert(`Brainstorming session ended!\n\nDescription: ${brainstormDescription}`);
-                        }
-                      } finally {
-                        setBrainstormDescription('');
-                      }
-                    }}
-                    disabled={!isBrainstorming}
+                    onClick={async () => { await stopBrainstormSession({ showSummaryAlert: true }); }}
+                    disabled={!isBrainstorming || isTaskCompleted}
                     className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-gray-800 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-500 hover:to-yellow-400 shadow-md transition-all duration-200 ease-in-out  disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Stop brainstorming session"
+                    title={isTaskCompleted ? 'Task completed. Brainstorming is locked.' : 'Stop brainstorming session'}
                   >
                     <RiStopCircleLine />
                     Stop {isBrainstorming ? `(${formatMs(brainstormDisplayMs)})` : ''}
@@ -1145,6 +1259,10 @@ export default function TaskPage() {
               </button>
               <button
                 onClick={async () => {
+                  if (isTaskCompleted) {
+                    alert('This task is already completed. Brainstorming is disabled.');
+                    return;
+                  }
                   const desc = brainstormDescription.trim();
                   if (!desc) {
                     alert('Please enter a description for your brainstorming session');
@@ -1189,7 +1307,9 @@ export default function TaskPage() {
                     console.error('[TaskPage] Error posting brainstorm entry:', err);
                   }
                 }}
-                className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 shadow-md transition-all"
+                disabled={isTaskCompleted}
+                title={isTaskCompleted ? 'Task completed. Brainstorming is disabled.' : 'Start brainstorming session'}
+                className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Start Brainstorming
               </button>

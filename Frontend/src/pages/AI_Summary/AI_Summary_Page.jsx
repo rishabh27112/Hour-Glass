@@ -16,16 +16,13 @@ const AISummaryPage = () => {
   const [hoursPerDay, setHoursPerDay] = useState([]);
   const [fetchError, setFetchError] = useState('');
   const [ratePerHour, setRatePerHour] = useState(0);
-  const [brainstormTotal, setBrainstormTotal] = useState(0);
   const [entries, setEntries] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [aiSummary, setAiSummary] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [linkedBillableSeconds, setLinkedBillableSeconds] = useState(null); // from TaskPage if provided
-  const [currentUser, setCurrentUser] = useState(null);
-  const [project, setProject] = useState(null);
-  const [isManager, setIsManager] = useState(false);
+  const [canEditRate, setCanEditRate] = useState(false);
 
   // Fetch current user and project info
   useEffect(() => {
@@ -40,10 +37,6 @@ const AISummaryPage = () => {
         });
         const userData = await userRes.json();
         if (!mounted) return;
-        
-        if (userData && userData.success && userData.userData) {
-          setCurrentUser(userData.userData);
-        }
 
         // Fetch project details
         const projectRes = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, {
@@ -55,12 +48,9 @@ const AISummaryPage = () => {
         if (!mounted) return;
         
         if (projectRes.ok && projectData) {
-          setProject(projectData);
-          
           // Check if current user is manager/creator
           if (userData && userData.userData) {
             const user = userData.userData;
-            const isManagerFlag = user.role === 'manager' || user.isManager === true;
             
             // Check if user is project creator
             let isCreator = false;
@@ -73,11 +63,14 @@ const AISummaryPage = () => {
               isCreator = String(creatorId).toLowerCase() === String(userId).toLowerCase();
             }
             
-            setIsManager(isManagerFlag || isCreator);
+            setCanEditRate(isCreator);
           }
         }
       } catch (err) {
         console.error('Error fetching user/project data:', err);
+        if (mounted) {
+          setCanEditRate(false);
+        }
       }
     })();
     return () => { mounted = false; };
@@ -272,6 +265,55 @@ const AISummaryPage = () => {
     return { flattened: flat, totals: { billable, nonbill, ambiguous, total } };
   }, [entries]);
 
+  const brainstormingStats = React.useMemo(() => {
+    let totalSeconds = 0;
+    const sessionIds = new Set();
+    let classification = '';
+
+    for (const row of flattened || []) {
+      const name = (row.appname || '').toLowerCase();
+      const title = (row.apptitle || '').toLowerCase();
+      const isBrainstorm = name.includes('brainstorm') || title.includes('brainstorm');
+      if (!isBrainstorm) continue;
+
+      const duration = Number(row.duration) || 0;
+      totalSeconds += duration;
+      sessionIds.add(row.id);
+
+      if (!classification) {
+        if (row.isBillable) classification = 'billable';
+        else if ((row.suggestedCategory || '').toLowerCase().includes('non')) classification = 'non-billable';
+        else classification = 'ambiguous';
+      }
+    }
+
+    const toHours = (seconds) => Math.round(((seconds / 3600) || 0) * 100) / 100;
+    const category = classification || 'ambiguous';
+    let classificationAccent = 'text-amber-300';
+    if (category === 'billable') classificationAccent = 'text-emerald-300';
+    else if (category === 'non-billable') classificationAccent = 'text-rose-300';
+    return {
+      totalSeconds,
+      totalHours: toHours(totalSeconds),
+      sessionCount: sessionIds.size,
+      classification: category,
+      classificationAccent
+    };
+  }, [flattened]);
+
+  const brainstormingSessionLabel = React.useMemo(() => {
+    if (brainstormingStats.sessionCount > 0) {
+      const suffix = brainstormingStats.sessionCount === 1 ? '' : 's';
+      return `Derived from ${brainstormingStats.sessionCount} logged session${suffix}`;
+    }
+    return 'No brainstorming sessions logged yet';
+  }, [brainstormingStats.sessionCount]);
+
+  const brainstormAvgPerDay = React.useMemo(() => {
+    const dayCount = Math.max(1, hoursPerDay.length || 1);
+    return Math.round(((brainstormingStats.totalHours || 0) / dayCount) * 100) / 100;
+  }, [brainstormingStats.totalHours, hoursPerDay]);
+
   // Compute average hours per day from the time-lapse (session intervals) table for this member
   const avgFromIntervals = React.useMemo(() => {
     try {
@@ -367,6 +409,26 @@ const AISummaryPage = () => {
     });
   }, [flattened]);
 
+  // Compute total billable hours per day from flattened intervals
+  const billablePerDay = React.useMemo(() => {
+    const dayMap = {};
+    for (const iv of flattened || []) {
+      if (!iv || !iv.startTime || !iv.isBillable) continue;
+      const d = new Date(iv.startTime);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = d.toISOString().slice(0, 10);
+      dayMap[key] = (dayMap[key] || 0) + (Number(iv.duration) || 0);
+    }
+    // Convert to array of {date, hours, seconds} sorted by date
+    return Object.keys(dayMap)
+      .sort()
+      .map((date) => {
+        const seconds = Number(dayMap[date] || 0);
+        const hours = Math.round(((seconds / 3600) || 0) * 100) / 100;
+        return { date, hours, seconds };
+      });
+  }, [flattened]);
+
   // --- Loading State ---
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-brand-bg text-gray-200">
@@ -387,7 +449,7 @@ const AISummaryPage = () => {
             <span>Back</span>
           </button>
           <h1 className="text-3xl font-bold text-center  text-white ">
-            ✨ AI Summary for {memberName}
+            AI Summary for {memberName}
           </h1>
           <div className="w-28"></div> {/* Spacer to balance header */}
         </div>
@@ -438,34 +500,31 @@ const AISummaryPage = () => {
           {/* Left Column */}
           <div className="lg:col-span-1 space-y-6 lg:overflow-y-auto pb-4 pr-2">
             
-            {/* Histogram Section (Billable only) */}
+            {/* Billable per-day Bar Chart */}
             <section className="bg-surface rounded-lg shadow-md p-6">
               <h2 className="text-2xl font-semibold text-white mb-4">Billable hours per day</h2>
               {(() => {
-                const dataToShow = hoursPerDay.length === 0 ? (() => {
-                  const arr = [];
-                  const now = new Date();
-                  for (let i = 6; i >= 0; i--) {
-                    const d = new Date(now);
-                    d.setDate(now.getDate() - i);
-                    const key = d.toISOString().slice(0, 10);
-                    arr.push({ date: key, hours: Math.round((Math.random() * 6) * 100) / 100 });
-                  }
-                  return arr;
-                })() : hoursPerDay;
+                // Build from computed billablePerDay to ensure bars when data exists
+                const filtered = (billablePerDay || []).filter((d) => (d.hours || 0) > 0);
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-surface-light p-6 rounded-lg text-center text-gray-400">
+                      No billable activity in the selected period
+                    </div>
+                  );
+                }
 
-                const maxH = Math.max(1, ...dataToShow.map((d) => d.hours)); // Ensure maxH is at least 1
+                const maxH = Math.max(1, ...filtered.map((d) => d.hours));
                 return (
                   <div className="bg-surface-light p-4 rounded-lg">
                     <div className="flex gap-3 items-end p-3 overflow-x-auto min-h-[240px]">
-                      {dataToShow.filter(d => d.hours > 0).map((d) => (
-                        <div key={d.date} className="flex flex-col items-center flex-shrink-0 w-10">
-                          <div className="text-xs font-medium text-cyan mb-1">{d.hours.toFixed(1)}</div>
-                          <div 
-                            title={`${d.hours.toFixed(2)} hours`} 
-                            style={{ height: `${(d.hours / maxH) * 160}px` }}
-                            // === MODIFICATION: Changed gradient to teal for better contrast ===
-                            className="w-7 bg-gradient-to-t from-teal-400 to-teal-600 rounded-md"
+                      {filtered.map((d) => (
+                        <div key={d.date} className="flex flex-col items-center flex-shrink-0 w-12">
+                          <div className="text-xs font-medium text-cyan mb-1">{d.hours.toFixed(1)}h</div>
+                          <div
+                            title={`${d.hours.toFixed(2)} hours`}
+                            style={{ height: `${(d.hours / maxH) * 180}px` }}
+                            className="w-8 bg-gradient-to-t from-teal-500 to-teal-600 rounded-md"
                           />
                           <div className="text-xs text-gray-400 mt-2 transform -rotate-45 whitespace-nowrap">{d.date.slice(5)}</div>
                         </div>
@@ -523,9 +582,11 @@ const AISummaryPage = () => {
                                 title={`${app.appname}: ${formatSecondsHm(app.totalDuration)} (${app.sessions.length} session${app.sessions.length !== 1 ? 's' : ''})`}
                               />
                               
-                              {/* App name label */}
-                              <div className="text-xs text-gray-300 mt-2 text-center break-words w-full line-clamp-2">
-                                {app.appname}
+                              {/* App name label (fixed height keeps bars aligned) */}
+                              <div className="mt-2 w-full min-h-[36px] flex items-start justify-center px-1">
+                                <div className="text-xs text-gray-300 text-center break-words w-full line-clamp-2">
+                                  {app.appname}
+                                </div>
                               </div>
                             </div>
                           );
@@ -588,7 +649,7 @@ const AISummaryPage = () => {
                   type="text" 
                   value={ratePerHour} 
                   onChange={(e) => {
-                    if (!isManager) return; // Only managers can edit
+                    if (!canEditRate) return; // Only project manager (creator) can edit
                     const val = e.target.value;
                     // Allow empty string, numbers, and decimal point
                     if (val === '' || /^\d*\.?\d*$/.test(val)) {
@@ -596,20 +657,23 @@ const AISummaryPage = () => {
                     }
                   }} 
                   onBlur={(e) => {
-                    if (!isManager) return; // Only managers can edit
+                    if (!canEditRate) return; // Only project manager (creator) can edit
                     // Clean up the value on blur
                     const val = e.target.value;
                     setRatePerHour(val === '' || val === '.' ? 0 : Number(val) || 0);
                   }}
                   placeholder="0"
-                  disabled={!isManager}
-                  title={isManager ? "Enter rate per hour" : "Only managers can edit the rate"}
+                  disabled={!canEditRate}
+                  title={canEditRate ? "Enter rate per hour" : "Only the project manager can edit the rate"}
                   className={`w-full py-2 px-3 rounded-lg border ${
-                    isManager 
+                    canEditRate 
                       ? 'bg-surface text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text' 
                       : 'bg-surface/50 text-gray-400 border-surface-light cursor-not-allowed opacity-60'
                   }`}
                 />
+                <div className="mt-1 text-xs text-gray-400">
+                  {canEditRate ? 'Only you (project manager) can adjust this rate.' : 'Editable by the project manager who created this project.'}
+                </div>
                 <div className="mt-4 text-xl font-bold text-white">
                   {(() => {
                     const hasLinked = typeof linkedBillableSeconds === 'number';
@@ -654,18 +718,18 @@ const AISummaryPage = () => {
               <h2 className="text-2xl font-semibold text-white mb-4">Brainstorming</h2>
               <div className="bg-surface-light p-4 rounded-lg">
                 <div className="text-sm font-semibold text-gray-400">Total brainstorm hours</div>
-                <input 
-                  type="number" 
-                  min="0"
-                  className="w-full bg-surface text-gray-200 py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface mt-1" 
-                  value={brainstormTotal} 
-                  onChange={(e) => setBrainstormTotal(Number(e.target.value || 0))} 
-                />
+                <div className="mt-2 text-3xl font-bold text-white">
+                  {brainstormingStats.totalHours.toFixed(2)} hrs
+                </div>
+                <div className="mt-1 text-sm text-gray-400">{brainstormingSessionLabel}</div>
                 <div className="mt-3 text-gray-300">
-                  <strong>Avg/day:</strong> {(() => {
-                    const days = Math.max(1, hoursPerDay.length || 1);
-                    return Math.round(((brainstormTotal || 0) / days) * 100) / 100;
-                  })()}
+                  <strong>Avg/day:</strong> {brainstormAvgPerDay.toFixed(2)} hrs
+                </div>
+                <div className="mt-3 text-gray-300">
+                  <strong>Classification:</strong>{' '}
+                  <span className={`${brainstormingStats.classificationAccent} font-semibold uppercase tracking-wide`}>
+                    {brainstormingStats.classification}
+                  </span>
                 </div>
               </div>
             </section>

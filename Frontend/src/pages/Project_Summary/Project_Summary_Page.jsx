@@ -1,11 +1,29 @@
 // src/pages/Project_Summary/Project_Summary_Page.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { RiArrowLeftLine } from 'react-icons/ri';
 import ManagerSummaryPanel from '../AI_Summary/ManagerSummaryPanel';
 import API_BASE_URL from '../../config/api';
 import buildHeaders from '../../config/fetcher';
 import { formatSecondsHm } from '../../utils/time';
+
+const normalizeMemberRatesObject = (rawRates) => {
+  if (!rawRates || typeof rawRates !== 'object') return {};
+  const normalized = {};
+  for (const [key, value] of Object.entries(rawRates)) {
+    const numeric = Number(value);
+    normalized[key] = Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+  }
+  return normalized;
+};
+
+const deriveMemberRateKey = (member) => {
+  if (!member) return '';
+  const id = member._id || member.id || member.memberId;
+  if (id) return String(id);
+  const fallback = member.username || member.email || member.displayName || member.name;
+  return fallback ? String(fallback) : '';
+};
 
 const ProjectSummaryPage = () => {
   const { projectId } = useParams();
@@ -27,7 +45,58 @@ const ProjectSummaryPage = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [project, setProject] = useState(null);
   const [isManager, setIsManager] = useState(false);
+  const [isProjectOwner, setIsProjectOwner] = useState(false);
   const [tasks, setTasks] = useState([]);
+  const [detailsLoaded, setDetailsLoaded] = useState(false);
+  const [detailsDirty, setDetailsDirty] = useState(false);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [detailsSaveError, setDetailsSaveError] = useState('');
+
+  const saveMemberRate = useCallback(async (memberId, rateValue) => {
+    if (!memberId) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/member-rates`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...buildHeaders() },
+        body: JSON.stringify({ memberId, rate: rateValue }),
+      });
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({}));
+        const message = errorBody.msg || errorBody.error || 'Failed to update hourly rate';
+        throw new Error(message);
+      }
+      const data = await res.json().catch(() => ({}));
+      if (data && data.memberRates) {
+        setMemberRates(prev => ({
+          ...prev,
+          ...normalizeMemberRatesObject(data.memberRates)
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to save member rate:', err);
+    }
+  }, [projectId]);
+
+  const handleRateChange = useCallback((memberEntry, value) => {
+    if (!isManager || !memberEntry || !memberEntry.rateKey) return;
+    const parsed = Number(value);
+    const numericValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    setMemberRates(prev => ({
+      ...prev,
+      [memberEntry.rateKey]: numericValue,
+    }));
+    if (memberEntry.memberId) {
+      saveMemberRate(memberEntry.memberId, numericValue);
+    }
+  }, [isManager, saveMemberRate]);
+
+  const formatDateForInput = (value) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().slice(0, 10);
+  };
 
   // Fetch current user and check permissions
   useEffect(() => {
@@ -82,6 +151,21 @@ const ProjectSummaryPage = () => {
           setProject(data);
           setProjectMembers(members);
           setTasks(projectTasks);
+          const incomingBudget = typeof data.budget === 'number' ? data.budget : null;
+          setProjectBudget(incomingBudget !== null ? incomingBudget.toString() : '');
+          setProjectStartDate(formatDateForInput(data.startDate || data.createdAt));
+          setProjectEndDate(formatDateForInput(data.endDate));
+          setDetailsLoaded(true);
+          setDetailsDirty(false);
+          setDetailsSaveError('');
+          const normalizedRates = normalizeMemberRatesObject(data.memberRates);
+          for (const member of members) {
+            const rateKey = deriveMemberRateKey(member);
+            if (rateKey && normalizedRates[rateKey] === undefined) {
+              normalizedRates[rateKey] = 0;
+            }
+          }
+          setMemberRates(normalizedRates);
           
           // Check if current user is manager or project creator
           if (currentUser && data) {
@@ -98,19 +182,10 @@ const ProjectSummaryPage = () => {
             }
             
             setIsManager(isManagerFlag || isCreator);
+            setIsProjectOwner(isCreator);
           }
           
           // Initialize rates for new members
-          setMemberRates(prev => {
-            const updated = { ...prev };
-            members.forEach(m => {
-              const key = m.username || m.email || m._id || '';
-              if (key && !updated[key]) {
-                updated[key] = 0;
-              }
-            });
-            return updated;
-          });
         }
       } catch (err) {
         console.error('Error fetching project members:', err);
@@ -118,6 +193,57 @@ const ProjectSummaryPage = () => {
     })();
     return () => { mounted = false; };
   }, [projectId, currentUser]);
+
+  useEffect(() => {
+    if (!detailsLoaded || !detailsDirty || !isProjectOwner) return;
+
+    let cancelled = false;
+
+    const persistDetails = async () => {
+      if (cancelled) return;
+      setIsSavingDetails(true);
+      setDetailsSaveError('');
+      try {
+        const numericBudget = Number(projectBudget);
+        const payload = {
+          budget: Number.isNaN(numericBudget) ? 0 : numericBudget,
+          startDate: projectStartDate || null,
+          endDate: projectEndDate || null,
+        };
+        const res = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/details`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...buildHeaders() },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({}));
+          const message = errorBody.msg || errorBody.error || 'Failed to save project details';
+          throw new Error(message);
+        }
+
+        if (!cancelled) {
+          setDetailsDirty(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to save project details:', err);
+          setDetailsSaveError(err.message || 'Could not save project details. Please try again.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSavingDetails(false);
+        }
+      }
+    };
+
+    persistDetails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailsLoaded, detailsDirty, isProjectOwner, projectBudget, projectStartDate, projectEndDate, projectId]);
 
   // Fetch all time entries for the project
   useEffect(() => {
@@ -201,31 +327,46 @@ const ProjectSummaryPage = () => {
 
   // Member payment table data
   const memberPaymentData = useMemo(() => {
-    const memberMap = {};
-    
-    // First, add all project members
-    for (const member of projectMembers || []) {
-      const key = member.username || member.email || member._id || '';
-      if (key && !memberMap[key]) {
-        memberMap[key] = { 
-          username: member.username || member.email || member.name || key,
-          displayName: member.name || member.username || member.email || key,
-          billableSeconds: 0 
+    const memberMap = new Map();
+    const usernameIndex = new Map();
+
+    const registerMemberEntry = (member) => {
+      const rateKey = deriveMemberRateKey(member);
+      if (!rateKey) return null;
+      if (!memberMap.has(rateKey)) {
+        const username = member.username || member.email || member.name || rateKey;
+        let memberId = null;
+        if (member._id) memberId = String(member._id);
+        else if (member.memberId) memberId = String(member.memberId);
+        const entry = {
+          memberId,
+          rateKey,
+          username: username || rateKey,
+          displayName: member.name || username || rateKey,
+          billableSeconds: 0,
         };
+        memberMap.set(rateKey, entry);
+        if (entry.username) {
+          usernameIndex.set(entry.username, rateKey);
+        }
       }
+      return memberMap.get(rateKey);
+    };
+
+    for (const member of projectMembers || []) {
+      registerMemberEntry(member);
     }
-    
-    // Then, add billable hours from time entries
+
     for (const iv of flattened || []) {
       const username = iv.username || 'Unknown';
-      if (!memberMap[username]) {
-        memberMap[username] = { username, displayName: username, billableSeconds: 0 };
-      }
-      if (iv.isBillable) {
-        memberMap[username].billableSeconds += iv.duration || 0;
+      const mappedKey = usernameIndex.get(username);
+      const entry = mappedKey ? memberMap.get(mappedKey) : null;
+      if (entry && iv.isBillable) {
+        entry.billableSeconds += iv.duration || 0;
       }
     }
-    return Object.values(memberMap).sort((a, b) => b.billableSeconds - a.billableSeconds);
+
+    return Array.from(memberMap.values()).sort((a, b) => b.billableSeconds - a.billableSeconds);
   }, [flattened, projectMembers]);
 
   // Manager AI summary (project-level)
@@ -278,6 +419,12 @@ const ProjectSummaryPage = () => {
     }
   };
 
+  const detailsStatusMessage = useMemo(() => {
+    if (detailsSaveError) return detailsSaveError;
+    if (isSavingDetails) return 'Saving changes...';
+    return 'Changes save automatically';
+  }, [detailsSaveError, isSavingDetails]);
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-brand-bg text-gray-200">
@@ -299,7 +446,7 @@ const ProjectSummaryPage = () => {
             <span>Back</span>
           </button>
           <h1 className="text-3xl font-bold text-center text-white">
-            ✨ Project Summary{projectName ? `: ${projectName}` : ''}
+            Project Summary{projectName ? `: ${projectName}` : ''}
           </h1>
           <div className="w-28" />
         </div>
@@ -371,10 +518,12 @@ const ProjectSummaryPage = () => {
                     {memberPaymentData && memberPaymentData.length > 0 ? (
                       memberPaymentData.map((member) => {
                         const hours = member.billableSeconds / 3600;
-                        const rate = memberRates[member.username] || 0;
+                        const rateKey = member.rateKey;
+                        const rate = rateKey && memberRates[rateKey] !== undefined ? memberRates[rateKey] : 0;
+                        const canEditRate = isManager && !!member.memberId;
                         const totalPay = hours * rate;
                         return (
-                          <tr key={member.username} className="border-b border-surface-light hover:bg-surface-light transition-colors">
+                          <tr key={member.rateKey || member.username} className="border-b border-surface-light hover:bg-surface-light transition-colors">
                             <td className="py-3 px-4 text-white font-medium">{member.displayName || member.username}</td>
                             <td className="py-3 px-4 text-cyan text-right">{hours.toFixed(2)} hrs</td>
                             <td className="py-3 px-4 text-gray-300 text-right">
@@ -383,19 +532,12 @@ const ProjectSummaryPage = () => {
                                 min="0"
                                 step="0.01"
                                 value={rate}
-                                onChange={(e) => {
-                                  if (!isManager) return;
-                                  const newRate = Number(e.target.value || 0);
-                                  setMemberRates(prev => ({
-                                    ...prev,
-                                    [member.username]: newRate
-                                  }));
-                                }}
+                                onChange={(e) => handleRateChange(member, e.target.value)}
                                 placeholder="0"
-                                disabled={!isManager}
-                                title={isManager ? "Enter hourly rate" : "Only managers can edit rates"}
+                                disabled={!canEditRate}
+                                title={canEditRate ? "Enter hourly rate" : 'Rates can only be edited for project members by managers'}
                                 className={`w-20 py-1 px-2 rounded border text-sm text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                  isManager
+                                  canEditRate
                                     ? 'bg-surface text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan border-surface-light cursor-text'
                                     : 'bg-surface/50 text-gray-400 placeholder-gray-500 border-surface-light cursor-not-allowed opacity-60'
                                 }`}
@@ -423,7 +565,8 @@ const ProjectSummaryPage = () => {
                       ₹{(() => {
                         return memberPaymentData.reduce((sum, m) => {
                           const hours = m.billableSeconds / 3600;
-                          const rate = memberRates[m.username] || 0;
+                          const rateKey = m.rateKey;
+                          const rate = rateKey && memberRates[rateKey] !== undefined ? memberRates[rateKey] : 0;
                           return sum + (hours * rate);
                         }, 0).toFixed(2);
                       })()}
@@ -437,7 +580,8 @@ const ProjectSummaryPage = () => {
                           const budget = Number(projectBudget) || 0;
                           const grandTotal = memberPaymentData.reduce((sum, m) => {
                             const hours = m.billableSeconds / 3600;
-                            const rate = memberRates[m.username] || 0;
+                            const rateKey = m.rateKey;
+                            const rate = rateKey && memberRates[rateKey] !== undefined ? memberRates[rateKey] : 0;
                             return sum + (hours * rate);
                           }, 0);
                           const remaining = budget - grandTotal;
@@ -458,58 +602,67 @@ const ProjectSummaryPage = () => {
               <h2 className="text-2xl font-semibold text-white mb-4">Project Details</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-400 mb-2">Project Budget (INR)</label>
+                  <label htmlFor="project-budget" className="block text-sm font-semibold text-gray-400 mb-2">Project Budget (INR)</label>
                   <input
+                    id="project-budget"
                     type="number"
                     min="0"
                     step="0.01"
                     value={projectBudget}
                     onChange={(e) => {
-                      if (!isManager) return;
+                      if (!isProjectOwner) return;
                       setProjectBudget(e.target.value);
+                      if (detailsLoaded) setDetailsDirty(true);
                     }}
                     placeholder="Enter project budget"
-                    disabled={!isManager}
-                    title={isManager ? "Enter project budget" : "Only managers can edit budget"}
+                    disabled={!isProjectOwner}
+                    title={isProjectOwner ? "Enter project budget" : "Only the project manager (creator) can edit budget"}
                     className={`w-full py-2 px-3 rounded-lg border [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                      isManager
+                      isProjectOwner
                         ? 'bg-surface-light text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text'
                         : 'bg-surface-light/50 text-gray-400 placeholder-gray-500 border-surface-light cursor-not-allowed opacity-60'
                     }`}
                   />
+                  {!isProjectOwner && (
+                    <p className="text-xs text-gray-500 mt-1">Only the project manager who created this project can change the budget.</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-400 mb-2">Start Date</label>
+                    <label htmlFor="project-start-date" className="block text-sm font-semibold text-gray-400 mb-2">Start Date</label>
                     <input
+                      id="project-start-date"
                       type="date"
                       value={projectStartDate}
                       onChange={(e) => {
-                        if (!isManager) return;
+                        if (!isProjectOwner) return;
                         setProjectStartDate(e.target.value);
+                        if (detailsLoaded) setDetailsDirty(true);
                       }}
-                      disabled={!isManager}
-                      title={isManager ? "Set project start date" : "Only managers can edit dates"}
+                      disabled={!isProjectOwner}
+                      title={isProjectOwner ? "Set project start date" : "Only the project manager (creator) can edit dates"}
                       className={`w-full py-2 px-3 rounded-lg border ${
-                        isManager
+                        isProjectOwner
                           ? 'bg-surface-light text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text'
                           : 'bg-surface-light/50 text-gray-400 border-surface-light cursor-not-allowed opacity-60'
                       }`}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-400 mb-2">End Date</label>
+                    <label htmlFor="project-end-date" className="block text-sm font-semibold text-gray-400 mb-2">End Date</label>
                     <input
+                      id="project-end-date"
                       type="date"
                       value={projectEndDate}
                       onChange={(e) => {
-                        if (!isManager) return;
+                        if (!isProjectOwner) return;
                         setProjectEndDate(e.target.value);
+                        if (detailsLoaded) setDetailsDirty(true);
                       }}
-                      disabled={!isManager}
-                      title={isManager ? "Set project end date" : "Only managers can edit dates"}
+                      disabled={!isProjectOwner}
+                      title={isProjectOwner ? "Set project end date" : "Only the project manager (creator) can edit dates"}
                       className={`w-full py-2 px-3 rounded-lg border ${
-                        isManager
+                        isProjectOwner
                           ? 'bg-surface-light text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan border-surface cursor-text'
                           : 'bg-surface-light/50 text-gray-400 border-surface-light cursor-not-allowed opacity-60'
                       }`}
@@ -525,10 +678,16 @@ const ProjectSummaryPage = () => {
                         const end = new Date(projectEndDate);
                         const diffTime = Math.abs(end - start);
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        return `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+                        const pluralSuffix = diffDays === 1 ? '' : 's';
+                        return `${diffDays} day${pluralSuffix}`;
                       })()}
                     </div>
                   </div>
+                )}
+                {isProjectOwner && (
+                  <p className={`text-xs mt-1 ${detailsSaveError ? 'text-red-400' : 'text-gray-500'}`}>
+                    {detailsStatusMessage}
+                  </p>
                 )}
               </div>
             </section>
