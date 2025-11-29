@@ -698,6 +698,13 @@ export default function TaskPage() {
   const isTaskCompleted = (task?.status || 'todo') === 'done';
   const canStartStop = Boolean(isAssigned) && !isTaskCompleted;
   const canCompleteTask = Boolean(isAssigned);
+  const canStartBrainstorm = canStartStop;
+  const startBrainstormButtonTitle = (() => {
+    if (isTaskCompleted) return 'Task completed. Brainstorming is locked.';
+    if (!canStartBrainstorm) return 'Only the assigned member may start brainstorming.';
+    if (isBrainstorming) return 'Brainstorming session already running.';
+    return 'Start brainstorming session';
+  })();
 
   const updateTaskStatus = async (newStatus) => {
     if (!canCompleteTask) {
@@ -968,12 +975,13 @@ export default function TaskPage() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => {
-                      if (isTaskCompleted) return;
-                      setShowBrainstormDialog(true);
+                      if (canStartBrainstorm && !isBrainstorming) {
+                        setShowBrainstormDialog(true);
+                      }
                     }}
-                    disabled={isBrainstorming || isTaskCompleted}
+                    disabled={isBrainstorming || !canStartBrainstorm}
                     className="flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-600 hover:to-pink-600 shadow-md transition-all duration-200 ease-in-out  disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={isTaskCompleted ? 'Task completed. Brainstorming is locked.' : isBrainstorming ? 'Brainstorming session already running.' : 'Start brainstorming session'}
+                    title={startBrainstormButtonTitle}
                   >
                     <RiBrainLine />
                     Start Brainstorming

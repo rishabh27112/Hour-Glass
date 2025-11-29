@@ -64,6 +64,10 @@ const ProjectSummaryPage = () => {
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [detailsSaveError, setDetailsSaveError] = useState('');
   const [dateValidationError, setDateValidationError] = useState('');
+  const canGenerateDailySummary = Boolean(isProjectOwner);
+  const generateSummaryButtonTitle = canGenerateDailySummary
+    ? 'Generate a fresh daily summary for this project.'
+    : 'Only the project manager (creator) can generate daily summaries.';
 
   const saveMemberRate = useCallback(async (memberId, rateValue) => {
     if (!memberId) return;
@@ -482,8 +486,14 @@ const ProjectSummaryPage = () => {
             />
           </label>
           <button
-            onClick={() => postDailySummary(selectedDate)}
-            className="bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg hover:brightness-90"
+            onClick={() => {
+              if (canGenerateDailySummary) {
+                postDailySummary(selectedDate);
+              }
+            }}
+            disabled={!canGenerateDailySummary}
+            title={generateSummaryButtonTitle}
+            className="bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg hover:brightness-90 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Generate Daily Summary
           </button>

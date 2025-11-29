@@ -22,7 +22,7 @@ function HowItWorks() {
                 {step.icon}
               </div>
               <h3 className="text-xl font-semibold text-white">{step.title}</h3>
-              <p className="mt-2 text-base text-gray-300">A short description of this simple step goes here.</p>
+              <p className="mt-2 text-base text-gray-300">Start timer and get your activity tracked</p>
             </div>
           ))}
         </div>

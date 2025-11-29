@@ -71,7 +71,11 @@ const AISummaryPage = () => {
   const [memberRateKey, setMemberRateKey] = useState(null);
   const [rateSaveError, setRateSaveError] = useState('');
   const [isSavingRate, setIsSavingRate] = useState(false);
-  const [isManager, setIsManager] = useState(false);
+  const [isProjectOwner, setIsProjectOwner] = useState(false);
+  const canGenerateDailySummary = Boolean(isProjectOwner);
+  const generateDailySummaryTitle = canGenerateDailySummary
+    ? 'Generate daily summary for this member.'
+    : 'Only the project manager (creator) can generate daily summaries.';
 
   // Fetch current user and project info
   useEffect(() => {
@@ -100,7 +104,6 @@ const AISummaryPage = () => {
           // Check if current user is manager/creator
           if (userData && userData.userData) {
             const user = userData.userData;
-            const hasManagerRole = user.role === 'manager' || user.isManager === true;
             
             // Check if user is project creator
             let isCreator = false;
@@ -114,7 +117,7 @@ const AISummaryPage = () => {
             }
             
             setCanEditRate(isCreator);
-            setIsManager(hasManagerRole || isCreator);
+            setIsProjectOwner(isCreator);
           }
 
           const normalizedRates = normalizeMemberRates(projectData.memberRates);
@@ -128,7 +131,7 @@ const AISummaryPage = () => {
         console.error('Error fetching user/project data:', err);
         if (mounted) {
           setCanEditRate(false);
-          setIsManager(false);
+          setIsProjectOwner(false);
         }
       }
     })();
@@ -178,10 +181,6 @@ const AISummaryPage = () => {
         } else {
           // For manager view, server returns `isManager: true` and `employeeStats`.
           let memberEntries = [];
-          if (typeof data?.isManager === 'boolean') {
-            setIsManager((prev) => prev || data.isManager);
-          }
-
           if (data && data.isManager && Array.isArray(data.employeeStats)) {
             const found = data.employeeStats.find(e => (e.username || '').toLowerCase() === (name || '').toLowerCase());
             if (found && Array.isArray(found.entries)) {
@@ -270,7 +269,7 @@ const AISummaryPage = () => {
   };
 
   const handleDailySummaryClick = () => {
-    if (!isManager) return;
+    if (!canGenerateDailySummary) return;
     postDailySummary(selectedDate);
   };
 
@@ -561,11 +560,11 @@ const AISummaryPage = () => {
           </label>
           <button
             onClick={handleDailySummaryClick}
-            disabled={!isManager}
-            aria-disabled={!isManager}
-            title={isManager ? 'Generate daily summary for this member' : 'Only project managers can generate daily summaries'}
+            disabled={!canGenerateDailySummary}
+            aria-disabled={!canGenerateDailySummary}
+            title={generateDailySummaryTitle}
             className={`bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-opacity ${
-              isManager ? 'hover:brightness-90' : 'opacity-60 cursor-not-allowed'
+              canGenerateDailySummary ? 'hover:brightness-90' : 'opacity-60 cursor-not-allowed'
             }`}
           >
             Generate Daily Summary
@@ -576,9 +575,9 @@ const AISummaryPage = () => {
           >
             Load AI Summary
           </button>
-          {!isManager && (
+          {!canGenerateDailySummary && (
             <span className="text-xs text-gray-400 w-full text-right">
-              Only project managers can generate daily summaries.
+              Only the project manager can generate daily summaries.
             </span>
           )}
         </div>
