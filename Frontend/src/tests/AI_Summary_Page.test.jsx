@@ -98,7 +98,7 @@ describe('AISummaryPage Component', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     // Default Fetch Mock
-    global.fetch = vi.fn((url, options) => {
+    globalThis.fetch = vi.fn((url, options) => {
       // User Data
       if (url.includes('/api/user/data')) {
         return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_MANAGER }) });
@@ -132,7 +132,7 @@ describe('AISummaryPage Component', () => {
 
   it('renders loading state initially', async () => {
     // Delay fetch to check loading state
-    global.fetch = vi.fn(() => new Promise(() => {}));
+    globalThis.fetch = vi.fn(() => new Promise(() => {}));
     renderComponent();
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
@@ -144,7 +144,7 @@ describe('AISummaryPage Component', () => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText(/AI Summary for test_user/)).toBeInTheDocument();
+    expect(screen.getByText(/Summary for test_user/)).toBeInTheDocument();
     expect(screen.getByText('1h 0m')).toBeInTheDocument(); 
     expect(screen.getByText('From task (linked)')).toBeInTheDocument();
   });
@@ -172,13 +172,48 @@ describe('AISummaryPage Component', () => {
     expect(screen.getByText('Working... contacting server')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/daily-summary/manager'),
         expect.objectContaining({ method: 'POST' })
       );
    
       expect(screen.getByTestId('manager-summary-panel')).toBeInTheDocument();
     });
+  });
+
+  it('disables daily summary button for non-managers', async () => {
+    globalThis.fetch = vi.fn((url, options = {}) => {
+      if (url.includes('/api/user/data')) {
+        return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_EMPLOYEE }) });
+      }
+      if (url.includes('/api/projects/')) {
+        return Promise.resolve({ ok: true, json: async () => MOCK_PROJECT });
+      }
+      if (url.includes('/api/time-entries/project/')) {
+        return Promise.resolve({ ok: true, json: async () => ({ isManager: false, employeeStats: MOCK_ENTRIES_MANAGER_VIEW.employeeStats }) });
+      }
+      if (url.includes('/daily-summary/manager') && options.method === 'POST') {
+        return Promise.resolve({ ok: true, json: async () => MOCK_AI_SUMMARY_DATA });
+      }
+      if (url.includes('/ai-summary/manager')) {
+        return Promise.resolve({ ok: true, json: async () => MOCK_AI_SUMMARY_DATA });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    renderComponent();
+
+    await waitFor(() => screen.getByText('Generate Daily Summary'));
+
+    const btn = screen.getByRole('button', { name: /Generate Daily Summary/i });
+    expect(btn).toBeDisabled();
+
+    fireEvent.click(btn);
+
+    const postCalls = globalThis.fetch.mock.calls.filter(([requestUrl, requestOptions]) => (
+      String(requestUrl).includes('/daily-summary/manager') && (requestOptions?.method === 'POST')
+    ));
+    expect(postCalls.length).toBe(0);
   });
 
   it('handles loading AI summary (GET)', async () => {
@@ -191,7 +226,7 @@ describe('AISummaryPage Component', () => {
     expect(screen.getByText('Working... contacting server')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/ai-summary/manager'),
         expect.anything()
       );
@@ -205,7 +240,7 @@ describe('AISummaryPage Component', () => {
     await waitFor(() => screen.getByText('Load AI Summary'));
 
     // Mock error response
-    global.fetch.mockImplementation((url) => {
+    globalThis.fetch.mockImplementation((url) => {
       if (url.includes('/ai-summary/manager')) {
         return Promise.resolve({ ok: false, status: 500, json: async () => ({ error: 'AI Service Down' }) });
       }
@@ -239,7 +274,7 @@ describe('AISummaryPage Component', () => {
   });
 
   it('prevents non-manager from editing rate', async () => {
-    global.fetch.mockImplementation((url) => {
+    globalThis.fetch.mockImplementation((url) => {
       if (url.includes('/api/user/data')) return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_EMPLOYEE }) });
       if (url.includes('/api/projects/')) return Promise.resolve({ ok: true, json: async () => MOCK_PROJECT });
       if (url.includes('/api/time-entries/project/')) return Promise.resolve({ ok: true, json: async () => MOCK_ENTRIES_MANAGER_VIEW });
@@ -266,7 +301,7 @@ describe('AISummaryPage Component', () => {
   });
 
   it('handles fetch error for time entries', async () => {
-    global.fetch.mockImplementation((url) => {
+    globalThis.fetch.mockImplementation((url) => {
       if (url.includes('/api/time-entries/project/')) {
         return Promise.resolve({ ok: false, status: 404, json: async () => ({ msg: 'No entries found' }) });
       }

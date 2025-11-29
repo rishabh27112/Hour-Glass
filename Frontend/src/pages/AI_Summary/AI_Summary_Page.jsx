@@ -71,6 +71,7 @@ const AISummaryPage = () => {
   const [memberRateKey, setMemberRateKey] = useState(null);
   const [rateSaveError, setRateSaveError] = useState('');
   const [isSavingRate, setIsSavingRate] = useState(false);
+  const [isManager, setIsManager] = useState(false);
 
   // Fetch current user and project info
   useEffect(() => {
@@ -99,6 +100,7 @@ const AISummaryPage = () => {
           // Check if current user is manager/creator
           if (userData && userData.userData) {
             const user = userData.userData;
+            const hasManagerRole = user.role === 'manager' || user.isManager === true;
             
             // Check if user is project creator
             let isCreator = false;
@@ -112,6 +114,7 @@ const AISummaryPage = () => {
             }
             
             setCanEditRate(isCreator);
+            setIsManager(hasManagerRole || isCreator);
           }
 
           const normalizedRates = normalizeMemberRates(projectData.memberRates);
@@ -125,6 +128,7 @@ const AISummaryPage = () => {
         console.error('Error fetching user/project data:', err);
         if (mounted) {
           setCanEditRate(false);
+          setIsManager(false);
         }
       }
     })();
@@ -174,6 +178,10 @@ const AISummaryPage = () => {
         } else {
           // For manager view, server returns `isManager: true` and `employeeStats`.
           let memberEntries = [];
+          if (typeof data?.isManager === 'boolean') {
+            setIsManager((prev) => prev || data.isManager);
+          }
+
           if (data && data.isManager && Array.isArray(data.employeeStats)) {
             const found = data.employeeStats.find(e => (e.username || '').toLowerCase() === (name || '').toLowerCase());
             if (found && Array.isArray(found.entries)) {
@@ -259,6 +267,11 @@ const AISummaryPage = () => {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const handleDailySummaryClick = () => {
+    if (!isManager) return;
+    postDailySummary(selectedDate);
   };
 
   // GET AI summary for manager
@@ -529,7 +542,7 @@ const AISummaryPage = () => {
             <span>Back</span>
           </button>
           <h1 className="text-3xl font-bold text-center  text-white ">
-            AI Summary for {memberName}
+            Summary for {memberName}
           </h1>
           <div className="w-28"></div> {/* Spacer to balance header */}
         </div>
@@ -547,8 +560,13 @@ const AISummaryPage = () => {
             />
           </label>
           <button
-            onClick={() => postDailySummary(selectedDate)}
-            className="bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg hover:brightness-90"
+            onClick={handleDailySummaryClick}
+            disabled={!isManager}
+            aria-disabled={!isManager}
+            title={isManager ? 'Generate daily summary for this member' : 'Only project managers can generate daily summaries'}
+            className={`bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-opacity ${
+              isManager ? 'hover:brightness-90' : 'opacity-60 cursor-not-allowed'
+            }`}
           >
             Generate Daily Summary
           </button>
@@ -558,6 +576,11 @@ const AISummaryPage = () => {
           >
             Load AI Summary
           </button>
+          {!isManager && (
+            <span className="text-xs text-gray-400 w-full text-right">
+              Only project managers can generate daily summaries.
+            </span>
+          )}
         </div>
 
         {/* Error Message */}
