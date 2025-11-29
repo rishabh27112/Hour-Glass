@@ -54,6 +54,8 @@ const BinPage = () => {
         description: p.Description || p.description,
         archived: p.status === 'archived',
         deleted: p.status === 'deleted',
+        createdById: p.createdById,
+        owner: p.owner,
         raw: p,
       })) : []);
     } catch (err) {
