@@ -28,14 +28,7 @@ const evaluateTaskStatusByDueDate = (task, nowMs) => {
 
   if (!task.dueDate) {
     return task.status === 'incomplete' ? setStatus('in-progress', false) : false;
-      const statusesChanged = syncTaskDueStatuses(project);
-      if (statusesChanged) {
-        await project.save();
-        await project.populate('createdBy', 'username name')
-          .populate('members', 'username name')
-          .populate('tasks.assignee', 'username name');
-      }
-      res.json(serializeProjectResponse(project));
+  }
 
   const dueMs = task.dueDate instanceof Date ? task.dueDate.getTime() : new Date(task.dueDate).getTime();
   if (Number.isNaN(dueMs)) return false;
