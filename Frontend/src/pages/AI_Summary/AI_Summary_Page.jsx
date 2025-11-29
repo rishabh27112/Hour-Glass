@@ -1,5 +1,5 @@
 // src/pages/AI_Summary_Page.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { RiArrowLeftLine } from 'react-icons/ri';
 import ManagerSummaryPanel from './ManagerSummaryPanel';
@@ -7,9 +7,54 @@ import buildHeaders from '../../config/fetcher';
 import API_BASE_URL from '../../config/api';
 import { formatSecondsHm } from '../../utils/time';
 
+const normalizeMemberRates = (rawRates) => {
+  if (!rawRates) return {};
+  if (rawRates instanceof Map) {
+    const normalized = {};
+    rawRates.forEach((value, key) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric >= 0) normalized[String(key)] = numeric;
+    });
+    return normalized;
+  }
+  if (typeof rawRates === 'object') {
+    return Object.entries(rawRates).reduce((acc, [key, value]) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric >= 0) acc[String(key)] = numeric;
+      return acc;
+    }, {});
+  }
+  return {};
+};
+
+const collectMemberIdentifiers = (member) => {
+  if (!member || typeof member !== 'object') return [];
+  return [member._id, member.id, member.memberId, member.username, member.email, member.name, member.displayName]
+    .filter(Boolean)
+    .map((val) => String(val).trim().toLowerCase());
+};
+
+const resolveMemberRateKey = (members, identifier, rates) => {
+  const normalizedTarget = (identifier || '').trim().toLowerCase();
+  if (!normalizedTarget) return null;
+  for (const member of members || []) {
+    const identifiers = collectMemberIdentifiers(member);
+    if (identifiers.includes(normalizedTarget)) {
+      const key = member && (member._id || member.id || member.memberId);
+      if (key) return String(key);
+    }
+  }
+  if (rates && typeof rates === 'object') {
+    const matchKey = Object.keys(rates).find((key) => key.toLowerCase() === normalizedTarget);
+    if (matchKey) return matchKey;
+  }
+  return null;
+};
+
 const AISummaryPage = () => {
   const { projectId, memberId } = useParams();
   const navigate = useNavigate();
+  const decodedMemberIdentifier = useMemo(() => decodeURIComponent(memberId || '').trim(), [memberId]);
 
   const [loading, setLoading] = useState(true);
   const [memberName, setMemberName] = useState('');
@@ -17,12 +62,15 @@ const AISummaryPage = () => {
   const [fetchError, setFetchError] = useState('');
   const [ratePerHour, setRatePerHour] = useState(0);
   const [entries, setEntries] = useState([]);
-  const [selectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [aiSummary, setAiSummary] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [linkedBillableSeconds, setLinkedBillableSeconds] = useState(null); // from TaskPage if provided
   const [canEditRate, setCanEditRate] = useState(false);
+  const [memberRateKey, setMemberRateKey] = useState(null);
+  const [rateSaveError, setRateSaveError] = useState('');
+  const [isSavingRate, setIsSavingRate] = useState(false);
 
   // Fetch current user and project info
   useEffect(() => {
@@ -65,6 +113,13 @@ const AISummaryPage = () => {
             
             setCanEditRate(isCreator);
           }
+
+          const normalizedRates = normalizeMemberRates(projectData.memberRates);
+          const resolvedKey = resolveMemberRateKey(projectData.members || [], decodedMemberIdentifier, normalizedRates);
+          setMemberRateKey(resolvedKey);
+          if (resolvedKey && normalizedRates[resolvedKey] !== undefined) {
+            setRatePerHour(normalizedRates[resolvedKey]);
+          }
         }
       } catch (err) {
         console.error('Error fetching user/project data:', err);
@@ -74,15 +129,40 @@ const AISummaryPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [projectId]);
+  }, [projectId, decodedMemberIdentifier]);
+
+  const persistMemberRate = useCallback(async (nextRate) => {
+    if (!canEditRate || !memberRateKey || !projectId) return;
+    setIsSavingRate(true);
+    setRateSaveError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/member-rates`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...buildHeaders() },
+        body: JSON.stringify({ memberId: memberRateKey, rate: nextRate }),
+      });
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({}));
+        const message = errorBody.msg || errorBody.error || 'Failed to save rate';
+        throw new Error(message);
+      }
+      setRateSaveError('');
+    } catch (err) {
+      console.error('Failed to persist member rate', err);
+      setRateSaveError(err.message || 'Unable to save rate');
+    } finally {
+      setIsSavingRate(false);
+    }
+  }, [canEditRate, memberRateKey, projectId]);
 
   useEffect(() => {
-    setMemberName(decodeURIComponent(memberId || ''));
+    setMemberName(decodedMemberIdentifier || '');
     let mounted = true; // Define mounted here
     (async () => {
       setLoading(true);
       setFetchError('');
-      const name = decodeURIComponent(memberId || '');
+      const name = decodedMemberIdentifier || '';
       try {
         // Use existing server route that returns project-level entries.
         const url = `${API_BASE_URL}/api/time-entries/project/${encodeURIComponent(projectId)}`;
@@ -150,7 +230,7 @@ const AISummaryPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [memberId, projectId]);
+  }, [decodedMemberIdentifier, projectId]);
   // --- End of Preserved Logic ---
 
   // POST manager daily summary
@@ -454,8 +534,18 @@ const AISummaryPage = () => {
           <div className="w-28"></div> {/* Spacer to balance header */}
         </div>
 
-        {/* Manager Summary Controls (date selector removed) */}
-        <div className="flex-shrink-0 flex items-center justify-end gap-3 mb-4">
+        {/* Manager Summary Controls */}
+        <div className="flex-shrink-0 flex flex-wrap items-center justify-end gap-3 mb-4">
+          <label className="flex items-center gap-2 bg-surface-light text-gray-200 border border-surface rounded-lg px-3 py-2 text-sm">
+            <span className="whitespace-nowrap font-semibold">Select Date</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent border-0 text-white focus:outline-none cursor-pointer"
+              max={new Date().toISOString().slice(0, 10)}
+            />
+          </label>
           <button
             onClick={() => postDailySummary(selectedDate)}
             className="bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg hover:brightness-90"
@@ -567,7 +657,7 @@ const AISummaryPage = () => {
                             >
                               {/* Sessions count */}
                               <div className="text-xs text-gray-400 mb-0.5">
-                                {app.sessions.length} session{app.sessions.length !== 1 ? 's' : ''}
+                                {app.sessions.length} session{app.sessions.length === 1 ? '' : 's'}
                               </div>
                               
                               {/* Hours label */}
@@ -579,7 +669,7 @@ const AISummaryPage = () => {
                               <div 
                                 className={`w-full ${barColor} rounded-t-md hover:brightness-110 transition-all duration-200 cursor-pointer`}
                                 style={{ height: `${heightPx}px` }}
-                                title={`${app.appname}: ${formatSecondsHm(app.totalDuration)} (${app.sessions.length} session${app.sessions.length !== 1 ? 's' : ''})`}
+                                title={`${app.appname}: ${formatSecondsHm(app.totalDuration)} (${app.sessions.length} session${app.sessions.length === 1 ? '' : 's'})`}
                               />
                               
                               {/* App name label (fixed height keeps bars aligned) */}
@@ -651,16 +741,19 @@ const AISummaryPage = () => {
                   onChange={(e) => {
                     if (!canEditRate) return; // Only project manager (creator) can edit
                     const val = e.target.value;
-                    // Allow empty string, numbers, and decimal point
                     if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                      setRateSaveError('');
                       setRatePerHour(val === '' ? 0 : Number(val) || 0);
                     }
                   }} 
                   onBlur={(e) => {
                     if (!canEditRate) return; // Only project manager (creator) can edit
-                    // Clean up the value on blur
                     const val = e.target.value;
-                    setRatePerHour(val === '' || val === '.' ? 0 : Number(val) || 0);
+                    const normalized = val === '' || val === '.' ? 0 : Number(val) || 0;
+                    setRatePerHour(normalized);
+                    if (memberRateKey) {
+                      persistMemberRate(normalized);
+                    }
                   }}
                   placeholder="0"
                   disabled={!canEditRate}
@@ -674,6 +767,12 @@ const AISummaryPage = () => {
                 <div className="mt-1 text-xs text-gray-400">
                   {canEditRate ? 'Only you (project manager) can adjust this rate.' : 'Editable by the project manager who created this project.'}
                 </div>
+                {rateSaveError && (
+                  <div className="mt-1 text-xs text-red-400">{rateSaveError}</div>
+                )}
+                {!rateSaveError && isSavingRate && (
+                  <div className="mt-1 text-xs text-gray-400">Saving rate…</div>
+                )}
                 <div className="mt-4 text-xl font-bold text-white">
                   {(() => {
                     const hasLinked = typeof linkedBillableSeconds === 'number';

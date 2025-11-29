@@ -4,7 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import API_BASE_URL from '../../config/api';
 import buildHeaders from '../../config/fetcher';
 import { 
-  RiArrowLeftLine, RiCloseLine, RiBrainLine, RiStopCircleLine 
+  RiArrowLeftLine, RiCloseLine, RiBrainLine, RiStopCircleLine,
+  RiArrowDownSLine
 } from 'react-icons/ri';
 
 // --- Native time tracker helpers (All logic is 100% preserved) ---
@@ -1044,7 +1045,10 @@ export default function TaskPage() {
                                     className="cursor-pointer flex justify-between items-center mb-3"
                                   >
                                     <div className="flex items-center gap-2">
-                                      <span className="text-cyan text-lg">{isExpanded ? '▼' : '▶'}</span>
+                                      <RiArrowDownSLine
+                                        className={`text-cyan text-xl transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                        aria-hidden="true"
+                                      />
                                       {(() => {
                                         const firstEntry = entries[0];
                                         const isBillable = firstEntry?.appointment?.isBillable;
@@ -1117,11 +1121,10 @@ export default function TaskPage() {
                                 
                                 {isExpanded && (
                                   <div className="overflow-x-auto">
-                                    <table className="w-full text-left min-w-[700px]">
+                                    <table className="w-full text-left min-w-[600px]">
                                       <thead className="border-b border-surface">
                                         <tr>
                                           <th className="p-2 text-xs text-gray-400">Title</th>
-                                          <th className="p-2 text-xs text-gray-400">Category</th>
                                           <th className="p-2 text-xs text-gray-400">Start Time</th>
                                           <th className="p-2 text-xs text-gray-400">End Time</th>
                                           <th className="p-2 text-xs text-gray-400">Duration</th>
@@ -1129,21 +1132,9 @@ export default function TaskPage() {
                                       </thead>
                                       <tbody>
                                         {entries.map((e) => {
-                                          const isBillable = e.appointment?.isBillable;
-                                          const category = e.appointment?.suggestedCategory;
-                                          let categoryBadge;
-                                          if (isBillable) {
-                                            categoryBadge = <span className="text-xs px-2 py-1 rounded bg-green-900/50 text-green-400 border border-green-700">Billable</span>;
-                                          } else if (category === 'non-billable') {
-                                            categoryBadge = <span className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-400 border border-red-700">Non-Billable</span>;
-                                          } else {
-                                            categoryBadge = <span className="text-xs px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700">Ambiguous</span>;
-                                          }
-                                          
                                           return (
                                             <tr key={e._id} className="border-b border-surface">
                                               <td className="p-2 text-sm text-gray-300 truncate max-w-xs">{e.appointment?.apptitle || '-'}</td>
-                                              <td className="p-2 text-sm">{categoryBadge}</td>
                                               <td className="p-2 text-sm text-gray-300">{e.appointment?.startTime ? formatDateTime(e.appointment.startTime) : '-'}</td>
                                               <td className="p-2 text-sm text-gray-300">{e.appointment?.endTime ? formatDateTime(e.appointment.endTime) : '-'}</td>
                                               <td className="p-2 text-sm text-gray-300">{e.appointment?.duration != null ? formatMs(e.appointment.duration * 1000) : '-'}</td>
@@ -1178,7 +1169,6 @@ export default function TaskPage() {
                     <thead className="border-b border-surface-light">
                       <tr>
                         <th className="p-2 text-xs text-gray-400">Description</th>
-                        <th className="p-2 text-xs text-gray-400">Classification</th>
                         <th className="p-2 text-xs text-gray-400">Confidence</th>
                         <th className="p-2 text-xs text-gray-400">Reasoning</th>
                         <th className="p-2 text-xs text-gray-400">Date</th>
@@ -1186,19 +1176,9 @@ export default function TaskPage() {
                     </thead>
                     <tbody>
                       {brainstormEntries.map((entry) => {
-                        const classification = entry.classification || 'ambiguous';
-                        let badgeClass = 'bg-yellow-900/50 text-yellow-400 border-yellow-700';
-                        if (classification === 'billable') badgeClass = 'bg-green-900/50 text-green-400 border-green-700';
-                        else if (classification === 'non-billable') badgeClass = 'bg-red-900/50 text-red-400 border-red-700';
-                        
                         return (
                           <tr key={entry._id} className="border-b border-surface-light">
                             <td className="p-2 text-sm text-gray-300">{entry.description || '-'}</td>
-                            <td className="p-2 text-sm">
-                              <span className={`text-xs px-2 py-1 rounded border ${badgeClass}`}>
-                                {classification}
-                              </span>
-                            </td>
                             <td className="p-2 text-sm text-gray-300">
                               {entry.confidence != null ? `${Math.round(entry.confidence * 100)}%` : '-'}
                             </td>

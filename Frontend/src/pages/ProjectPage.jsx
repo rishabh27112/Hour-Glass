@@ -826,7 +826,12 @@ const ProjectPage = () => {
       if (asg !== filterMember) return false;
     }
     if (filterStatus) {
-      if ((t.status || 'todo') !== filterStatus) return false;
+      const normalizedStatus = String(t.status || 'todo').toLowerCase();
+      if (filterStatus === 'incomplete') {
+        if (normalizedStatus === 'done' || normalizedStatus === 'completed') return false;
+      } else if (normalizedStatus !== filterStatus) {
+        return false;
+      }
     }
     return true;
   });

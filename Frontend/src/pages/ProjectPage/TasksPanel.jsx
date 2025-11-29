@@ -117,6 +117,7 @@ export default function TasksPanel(props) {
                   <option value="">All</option>
                   <option value="todo">To do</option>
                   <option value="in-progress">In progress</option>
+                  <option value="incomplete">Incomplete</option>
                   <option value="done">Done</option>
                 </select>
               </label>

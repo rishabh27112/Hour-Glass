@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   RiSearchLine, RiCloseLine, RiAddLine, RiArchiveLine, RiDeleteBinLine,
-  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiMenuFoldLine, RiMenuUnfoldLine
+  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine
 } from 'react-icons/ri';
 import NavLogo from '../components/NavLogo';
 import API_BASE_URL from '../config/api';
@@ -103,7 +103,6 @@ const ManagerDashboard = () => {
     setMemberQuery('');
   };
   const [search, setSearch] = useState('');
-  const [isLeftOpen, setIsLeftOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileMenuRef = useRef(null);
   const avatarButtonRef = useRef(null);
@@ -598,36 +597,7 @@ const ManagerDashboard = () => {
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Collapsible Left Sidebar */}
-        <div
-          className={`relative bg-surface transition-all duration-300 ease-in-out ${isLeftOpen ? 'w-60' : 'w-16'} z-10`} // w-64 to w-60
-          onMouseLeave={() => setIsLeftOpen(false)}
-        >
-
-          <div className="p-3 h-full flex flex-col">
-
-            {/* Hamburger Menu Toggle */}
-            <button
-              className="text-xl text-gray-300 hover:text-cyan mb-3"
-              onMouseEnter={() => setIsLeftOpen(true)}
-              onClick={() => setIsLeftOpen(!isLeftOpen)}
-              aria-label={isLeftOpen ? 'Close left panel' : 'Open left panel'}
-            >
-              {isLeftOpen ? <RiMenuFoldLine /> : <RiMenuUnfoldLine />}
-            </button>
-
-
-            <div className={`flex-1 flex flex-col min-h-0 ${!isLeftOpen && 'hidden'}`}>
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-3 text-gray-500 text-sm">
-                <p>Browse your projects using the main dashboard panels.</p>
-                <p className="mt-2">Use the buttons above to add projects or manage members.</p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Middle Content Panel */}
+        {/* Main Content Panel */}
         <div className="flex-1 flex flex-col overflow-hidden relative z-0">
 
           {/* Middle Header */}
