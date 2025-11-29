@@ -14,6 +14,7 @@ const router = express.Router();
 router.post('/', userAuth, async (req, res) => {
   try {
     const { projectId, taskId, description, descriptions } = req.body;
+    let { durationSeconds } = req.body;
     
     // Support both single description and multiple descriptions
     const descList = descriptions && Array.isArray(descriptions) 
@@ -39,6 +40,10 @@ router.post('/', userAuth, async (req, res) => {
     if (!currentUser) return res.status(401).json({ msg: 'User not found' });
     const username = currentUser.username;
     
+    // Normalize duration (optional field from client)
+    const parsedDuration = Number(durationSeconds);
+    const safeDuration = Number.isFinite(parsedDuration) && parsedDuration > 0 ? Math.floor(parsedDuration) : null;
+
     // Process all descriptions
     const results = [];
     for (const desc of descList) {
@@ -55,7 +60,9 @@ router.post('/', userAuth, async (req, res) => {
         description: desc.trim(),
         classification: classResult.classification,
         confidence: classResult.confidence,
-        reasoning: classResult.reasoning
+        reasoning: classResult.reasoning,
+        durationSeconds: safeDuration,
+        sessionCount: safeDuration ? 1 : undefined
       });
       
       const savedEntry = await entry.save();

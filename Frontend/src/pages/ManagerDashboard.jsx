@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   RiSearchLine, RiCloseLine, RiAddLine, RiArchiveLine, RiDeleteBinLine,
-  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiBriefcaseLine, RiMenuFoldLine, RiMenuUnfoldLine
+  RiArrowLeftSLine, RiArrowRightSLine, RiLogoutBoxRLine, RiCheckLine, RiMenuFoldLine, RiMenuUnfoldLine
 } from 'react-icons/ri';
 import NavLogo from '../components/NavLogo';
 import API_BASE_URL from '../config/api';
@@ -119,6 +119,72 @@ const ManagerDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifPollRef = useRef(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
+  const MAX_DESCRIPTION_PREVIEW = 50;
+
+  const chunkDescription = (text, chunkSize = MAX_DESCRIPTION_PREVIEW) => {
+    if (!text) return [];
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = '';
+
+    const flushCurrent = () => {
+      if (current) {
+        lines.push(current);
+        current = '';
+      }
+    };
+
+    words.forEach((word) => {
+      if (word.length > chunkSize) {
+        flushCurrent();
+        for (let i = 0; i < word.length; i += chunkSize) {
+          lines.push(word.slice(i, i + chunkSize));
+        }
+        return;
+      }
+
+      const tentative = current ? `${current} ${word}` : word;
+      if (tentative.length <= chunkSize) {
+        current = tentative;
+      } else {
+        flushCurrent();
+        current = word;
+      }
+    });
+
+    flushCurrent();
+    return lines; // array of strings, each up to chunkSize chars
+  };
+
+  const renderProjectDescription = (project, fallbackKey) => {
+    const raw = project && typeof project.description === 'string' ? project.description.trim() : '';
+    if (!raw) {
+      return <p className="text-gray-500 mt-1 text-xs italic">No description provided.</p>;
+    }
+    const key = project._id || fallbackKey || project.name || 'project';
+    const lines = chunkDescription(raw, MAX_DESCRIPTION_PREVIEW);
+    const hasMoreThanPreview = lines.length > 1;
+    const expanded = !!expandedDescriptions[key];
+    const display = expanded || !hasMoreThanPreview ? lines.join('\n') : `${lines[0]}…`;
+    return (
+      <div className="mt-1">
+        <p className="text-gray-400 text-xs whitespace-pre-line break-words">{display}</p>
+        {hasMoreThanPreview && (
+          <button
+            type="button"
+            className="text-[11px] text-cyan-light hover:underline focus:outline-none"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedDescriptions((prev) => ({ ...prev, [key]: !expanded }));
+            }}
+          >
+            {expanded ? 'Show less' : '...more'}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   // Manual trigger for notification job (calls server test route)
   const handleNotifyDeadlines = async () => {
@@ -552,152 +618,10 @@ const ManagerDashboard = () => {
 
 
             <div className={`flex-1 flex flex-col min-h-0 ${!isLeftOpen && 'hidden'}`}>
-
-              {/* --- Projects You Lead (Scrollable) --- */}
-              <div className="flex-shrink-0">
-                <h3 className="mt-3 mb-2 text-sm font-semibold uppercase text-cyan-light">
-                  Projects you lead
-                </h3>
-                <div className="w-full max-h-40 overflow-y-auto">
-                  {projects.filter((p) => !p.archived && !p.deleted && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById))).length > 0 ? (
-                    <ul className="space-y-1">
-                      {projects
-                        .filter((p) => !p.archived && !p.deleted && (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))
-                        .map((project) => {
-                          const realIndex = projects.indexOf(project);
-                          return (
-                            <li key={realIndex}>
-                              <button
-                                className="block w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-cyan transition-colors text-sm"
-                                onClick={() => {
-                                  setIsAddingProject(false);
-                                  setProfileOpen(false);
-                                  setSelectionMode('none');
-                                  setSelected([]);
-                                  navigate(`/projects/${project._id || realIndex}`);
-                                }}
-                              >
-                                {project.name}
-                              </button>
-                            </li>
-                          );
-                        })}
-                    </ul>
-                  ) : (
-                    <p className="px-3 py-1.5 text-xs text-gray-500">You are not leading any projects.</p>
-                  )}
-                </div>
+              <div className="flex-1 flex flex-col items-center justify-center text-center px-3 text-gray-500 text-sm">
+                <p>Browse your projects using the main dashboard panels.</p>
+                <p className="mt-2">Use the buttons above to add projects or manage members.</p>
               </div>
-
-              {/* --- Projects You Are Part Of (Scrollable) --- */}
-              <div className="flex-shrink-0 mt-3">
-                <h3 className="mb-2 text-sm font-semibold uppercase text-cyan-light">
-                  Projects you are part of
-                </h3>
-                <div className="w-full max-h-40 overflow-y-auto">
-                  {projects.filter((p) => !p.archived && !p.deleted && p.employees && currentUserIds.length > 0 && p.employees.some(e => currentUserIds.includes(String(e))) && !((p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))).length > 0 ? (
-                    <ul className="space-y-1">
-                      {projects
-                        .filter((p) => !p.archived && !p.deleted && p.employees && currentUserIds.length > 0 && p.employees.some(e => currentUserIds.includes(String(e))) && !((p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById))))
-                        .map((project) => {
-                          const realIndex = projects.indexOf(project);
-                          return (
-                            <li key={realIndex}>
-                              <button
-                                className="block w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-cyan transition-colors text-sm"
-                                onClick={() => {
-                                  setIsAddingProject(false);
-                                  setProfileOpen(false);
-                                  setSelectionMode('none');
-                                  setSelected([]);
-                                  navigate(`/projects/${project._id || realIndex}`);
-                                }}
-                              >
-                                {project.name}
-                              </button>
-                            </li>
-                          );
-                        })}
-                    </ul>
-                  ) : (
-                    <p className="px-3 py-1.5 text-xs text-gray-500">You are not part of any projects.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* This 'spacer' div pushes the buttons to the bottom */}
-              <div className="flex-1"></div>
-
-              <div className="flex-shrink-0 mt-3 pt-3 border-t border-surface-light space-y-1">
-                <button
-                  className="flex items-center gap-2 w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-white text-sm"
-                  onClick={() => navigate('/archive')}
-                  aria-label="Open archived projects"
-                >
-                  <RiArchiveLine className="text-xl" />
-                  <span>Archive</span>
-                </button>
-                <button
-                  className="flex items-center gap-2 w-full text-left px-3 py-1.5 rounded-md text-gray-300 hover:bg-surface-light hover:text-red-500 text-sm"
-                  onClick={() => navigate('/bin')}
-                  aria-label="Open bin (deleted projects)"
-                >
-                  <RiDeleteBinLine className="text-xl" />
-                  <span>Bin</span>
-                </button>
-              </div>
-            </div>
-
-            {/* --- Icon-Only View (Visible when closed) --- */}
-            <div className={`flex flex-col items-center space-y-5 mt-6 ${isLeftOpen && 'hidden'}`}>
-              <button
-                className="relative group text-xl text-gray-300 hover:text-cyan"
-                aria-label="Projects"
-                onClick={() => setIsLeftOpen(true)}
-              >
-                <RiBriefcaseLine />
-                <span className="
-                  absolute left-full top-1/2 -translate-y-1/2 ml-3
-                  bg-cyan text-brand-bg text-xs font-semibold px-2 py-0.5 rounded
-                  scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100
-                  transition-all duration-200 origin-left
-                  whitespace-nowrap
-                ">
-                  Projects
-                </span>
-              </button>
-              <button
-                className="relative group text-xl text-gray-300 hover:text-gray-400"
-                onClick={() => navigate('/archive')}
-                aria-label="Open archived projects"
-              >
-                <RiArchiveLine />
-                <span className="
-                  absolute left-full top-1/2 -translate-y-1/2 ml-3
-                  bg-gray-200 text-brand-bg text-xs font-semibold px-2 py-0.5 rounded
-                  scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100
-                  transition-all duration-200 origin-left
-                  whitespace-nowrap
-                ">
-                  Archive
-                </span>
-              </button>
-              <button
-                className="relative group text-xl text-gray-300 hover:text-red-500"
-                onClick={() => navigate('/bin')}
-                aria-label="Open bin (deleted projects)"
-              >
-                <RiDeleteBinLine />
-                <span className="
-                  absolute left-full top-1/2 -translate-y-1/2 ml-3
-                  bg-red-500 text-white text-xs font-semibold px-2 py-0.5 rounded
-                  scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100
-                  transition-all duration-200 origin-left
-                  whitespace-nowrap
-                ">
-                  Bin
-                </span>
-              </button>
             </div>
 
           </div>
@@ -774,6 +698,26 @@ const ManagerDashboard = () => {
               </button>
             </div>
           </header>
+
+          {/* Quick navigation buttons */}
+          <div className="flex flex-wrap justify-end gap-2 px-3">
+            <button
+              className="flex items-center gap-2 rounded-md border border-surface-light px-3 py-1.5 text-sm text-gray-200 hover:text-white hover:border-cyan"
+              onClick={() => navigate('/archive')}
+              aria-label="Open archived projects"
+            >
+              <RiArchiveLine />
+              <span>View Archive</span>
+            </button>
+            <button
+              className="flex items-center gap-2 rounded-md border border-surface-light px-3 py-1.5 text-sm text-gray-200 hover:text-white hover:border-red-500"
+              onClick={() => navigate('/bin')}
+              aria-label="Open bin (deleted projects)"
+            >
+              <RiDeleteBinLine />
+              <span>View Bin</span>
+            </button>
+          </div>
 
 
           <div className="flex-1 p-3 overflow-y-auto">
@@ -1013,79 +957,142 @@ const ManagerDashboard = () => {
               </div>
             )}
 
-            {/* Project List */}
+            {/* Project List split into lead vs member columns */}
             <h2 className="text-xl font-bold text-white mb-3">Projects</h2>
 
-            {projects.length > 0 ? (
-              (() => {
-                const filtered = projects
-                  .filter((p) => !p.archived && !p.deleted)
-                  .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
-                return filtered.length > 0 ? (
-                  <ul className="space-y-3">
-                    {filtered.map((project, index) => {
-                      const realIndex = projects.indexOf(project);
-                      const checked = selected.includes(realIndex);
-                      return (
-                        <li key={realIndex} className="bg-surface rounded-lg shadow-md flex items-center p-3 transition-all hover:shadow-lg hover:border-surface-light border border-transparent">
-                          {selectionMode !== 'none' && (
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelected([...selected, realIndex]);
-                                } else {
-                                  setSelected(selected.filter(i => i !== realIndex));
-                                }
-                              }}
-                              className="h-4 w-4 rounded bg-surface-light border-gray-500 text-cyan focus:ring-cyan mr-3"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <h3>
-                              <button
-                                className="text-lg font-semibold text-white hover:text-cyan transition-colors"
-                                onClick={() => {
-                                  setIsAddingProject(false);
-                                  setProfileOpen(false);
-                                  setSelectionMode('none');
-                                  setSelected([]);
-                                  navigate(`/projects/${project._id || realIndex}`);
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Projects You Lead */}
+              <div>
+                <h3 className="text-lg font-semibold text-cyan-light mb-2">Projects You Lead</h3>
+                {(() => {
+                  const lead = projects
+                    .filter((p) => !p.archived && !p.deleted)
+                    .filter((p) => (p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById)))
+                    .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
+                  if (lead.length === 0) return <p className="text-gray-400 text-sm">No projects you lead.</p>;
+                  return (
+                    <ul className="space-y-3">
+                      {lead.map((project) => {
+                        const realIndex = projects.indexOf(project);
+                        const checked = selected.includes(realIndex);
+                        return (
+                          <li key={realIndex} className="bg-surface rounded-lg shadow-md flex items-center p-3 transition-all hover:shadow-lg hover:border-surface-light border border-transparent">
+                            {selectionMode !== 'none' && (
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelected([...selected, realIndex]);
+                                  } else {
+                                    setSelected(selected.filter(i => i !== realIndex));
+                                  }
                                 }}
-                              >
-                                {project.name}
-                              </button>
-                            </h3>
-                            <p className="text-gray-400 mt-1 text-xs">{project.description}</p>
-                            <p className="text-xs text-gray-500 mt-2">Owner: {project.owner || 'N/A'}</p>
-                          </div>
-                         <button
-  className="
-    ml-4 flex items-center gap-2 rounded-lg border border-cyan 
-    py-2 px-4 text-sm font-semibold text-cyan 
-    transition-all duration-200 
-    hover:bg-cyan hover:text-brand-bg hover:shadow-lg hover:shadow-cyan/10
-  "
-  onClick={(e) => {
-    e.stopPropagation();
-    navigate(`/project-summary/${project._id || realIndex}`);
-  }}
-  title="Generate Report"
->
-  <span>Report</span>
-</button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="text-gray-400 text-sm">No projects match your search.</p>
-                );
-              })()
-            ) : (
-              <p className="text-gray-400 text-sm">No projects added yet.</p>
-            )}
+                                className="h-4 w-4 rounded bg-surface-light border-gray-500 text-cyan focus:ring-cyan mr-3"
+                              />
+                            )}
+                            <div className="flex-1">
+                              <h4>
+                                <button
+                                  className="text-lg font-semibold text-white hover:text-cyan transition-colors"
+                                  onClick={() => {
+                                    setIsAddingProject(false);
+                                    setProfileOpen(false);
+                                    setSelectionMode('none');
+                                    setSelected([]);
+                                    navigate(`/projects/${project._id || realIndex}`);
+                                  }}
+                                >
+                                  {project.name}
+                                </button>
+                              </h4>
+                              {renderProjectDescription(project, `lead-${realIndex}`)}
+                              <p className="text-xs text-gray-500 mt-2">Owner: {project.owner || 'N/A'}</p>
+                            </div>
+                            <button
+                              className="ml-4 flex items-center gap-2 rounded-lg border border-cyan py-2 px-4 text-sm font-semibold text-cyan transition-all duration-200 hover:bg-cyan hover:text-brand-bg hover:shadow-lg hover:shadow-cyan/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/project-summary/${project._id || realIndex}`);
+                              }}
+                              title="Generate Report"
+                            >
+                              <span>Report</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  );
+                })()}
+              </div>
+
+              {/* Projects You Are Part Of */}
+              <div>
+                <h3 className="text-lg font-semibold text-cyan-light mb-2">Projects You Are Part Of</h3>
+                {(() => {
+                  const partOf = projects
+                    .filter((p) => !p.archived && !p.deleted && p.employees && currentUserIds.length > 0 && p.employees.some(e => currentUserIds.includes(String(e))))
+                    .filter((p) => !((p.owner || p.createdById) && currentUserIds.includes(String(p.owner || p.createdById))))
+                    .filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
+                  if (partOf.length === 0) return <p className="text-gray-400 text-sm">No projects you're part of.</p>;
+                  return (
+                    <ul className="space-y-3">
+                      {partOf.map((project) => {
+                        const realIndex = projects.indexOf(project);
+                        const checked = selected.includes(realIndex);
+                        return (
+                          <li key={realIndex} className="bg-surface rounded-lg shadow-md flex items-center p-3 transition-all hover:shadow-lg hover:border-surface-light border border-transparent">
+                            {selectionMode !== 'none' && (
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelected([...selected, realIndex]);
+                                  } else {
+                                    setSelected(selected.filter(i => i !== realIndex));
+                                  }
+                                }}
+                                className="h-4 w-4 rounded bg-surface-light border-gray-500 text-cyan focus:ring-cyan mr-3"
+                              />
+                            )}
+                            <div className="flex-1">
+                              <h4>
+                                <button
+                                  className="text-lg font-semibold text-white hover:text-cyan transition-colors"
+                                  onClick={() => {
+                                    setIsAddingProject(false);
+                                    setProfileOpen(false);
+                                    setSelectionMode('none');
+                                    setSelected([]);
+                                    navigate(`/projects/${project._id || realIndex}`);
+                                  }}
+                                >
+                                  {project.name}
+                                </button>
+                              </h4>
+                              {renderProjectDescription(project, `member-${realIndex}`)}
+                              <p className="text-xs text-gray-500 mt-2">Owner: {project.owner || 'N/A'}</p>
+                            </div>
+                            <button
+                              className="ml-4 flex items-center gap-2 rounded-lg border border-cyan py-2 px-4 text-sm font-semibold text-cyan transition-all duration-200 hover:bg-cyan hover:text-brand-bg hover:shadow-lg hover:shadow-cyan/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/project-summary/${project._id || realIndex}`);
+                              }}
+                              title="Generate Report"
+                            >
+                              <span>Report</span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  );
+                })()}
+              </div>
+            </div>
           </div>
         </div>
       </div>

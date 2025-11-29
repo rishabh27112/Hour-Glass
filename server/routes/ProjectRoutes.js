@@ -6,6 +6,78 @@ import userModel from '../models/userModel.js';
 
 const router = express.Router();
 
+const parseDateOrThrow = (value, label) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    const err = new Error(`Invalid ${label}`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return parsed;
+};
+
+const evaluateTaskStatusByDueDate = (task, nowMs) => {
+  if (!task || task.status === 'done') return false;
+
+  const setStatus = (status, isDelayed = false) => {
+    if (task.status === status && task.isDelayed === isDelayed) return false;
+    task.status = status;
+    task.isDelayed = isDelayed;
+    return true;
+  };
+
+  if (!task.dueDate) {
+    return task.status === 'incomplete' ? setStatus('in-progress', false) : false;
+  }
+
+  const dueMs = task.dueDate instanceof Date ? task.dueDate.getTime() : new Date(task.dueDate).getTime();
+  if (Number.isNaN(dueMs)) return false;
+
+  if (dueMs < nowMs) {
+    if (task.status === 'incomplete') return false;
+    return setStatus('incomplete', true);
+  }
+
+  if (task.status === 'incomplete') {
+    return setStatus('in-progress', false);
+  }
+
+  return false;
+};
+
+const syncTaskDueStatuses = (project) => {
+  if (!project || !Array.isArray(project.tasks)) return false;
+  const now = Date.now();
+  let changed = false;
+
+  for (const task of project.tasks) {
+    if (evaluateTaskStatusByDueDate(task, now)) {
+      changed = true;
+    }
+  }
+
+  if (changed && typeof project.markModified === 'function') {
+    project.markModified('tasks');
+  }
+  return changed;
+};
+
+const ensureTaskDueStatuses = async (project) => {
+  if (!project) return false;
+  const changed = syncTaskDueStatuses(project);
+  if (changed) {
+    await project.save();
+  }
+  return changed;
+};
+
+const serializeProjectResponse = (project) => {
+  if (!project) return project;
+  const plain = project.toObject({ virtuals: true });
+  plain.memberRates = project.memberRates ? Object.fromEntries(project.memberRates) : {};
+  return plain;
+};
+
 
 // POST /api/projects - Create a new project
 router.post('/', userAuth, async (req, res) => {
@@ -59,6 +131,12 @@ router.get('/', userAuth, async (req, res) => {
     .populate('members', 'username name')
     .sort({ createdAt: -1 });
 
+    for (const project of projects) {
+      if (syncTaskDueStatuses(project)) {
+        await project.save();
+      }
+    }
+
     res.json(projects);
   } catch (err) {
     console.error(err);
@@ -87,8 +165,95 @@ router.get('/:id', userAuth, async (req, res) => {
       return res.status(403).json({ msg: 'Not authorized' });
     }
 
-    res.json(project);
+    const projectData = project.toObject({ virtuals: true });
+    projectData.memberRates = project.memberRates ? Object.fromEntries(project.memberRates) : {};
+    res.json(projectData);
   } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// PATCH /api/projects/:id/member-rates - Update hourly rates for members (creator or manager role)
+router.patch('/:id/member-rates', userAuth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+    const currentUser = await userModel.findById(req.userId).select('role isManager');
+    const isCreator = project.createdBy.toString() === req.userId;
+    const hasManagerRole = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+    if (!isCreator && !hasManagerRole) {
+      return res.status(403).json({ msg: 'Not authorized' });
+    }
+
+    const { memberId, rate } = req.body || {};
+    if (!memberId) return res.status(400).json({ msg: 'memberId is required' });
+    const numericRate = Number(rate);
+    if (Number.isNaN(numericRate) || numericRate < 0) {
+      return res.status(400).json({ msg: 'Rate must be a non-negative number' });
+    }
+
+    const memberExists = (project.members || []).some(m => (m._id || m).toString() === String(memberId));
+    if (!memberExists) {
+      return res.status(400).json({ msg: 'User is not a member of this project' });
+    }
+
+    project.memberRates = project.memberRates || new Map();
+    project.memberRates.set(String(memberId), numericRate);
+    await project.save();
+
+    const response = project.toObject();
+    response.memberRates = Object.fromEntries(project.memberRates);
+    res.json({ memberRates: response.memberRates });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// PATCH /api/projects/:id/details - Update summary details (only creator)
+router.patch('/:id/details', userAuth, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+    if (project.createdBy.toString() !== req.userId) return res.status(403).json({ msg: 'Not authorized' });
+
+    const { budget, startDate, endDate } = req.body || {};
+    const updates = {};
+
+    if (budget !== undefined) {
+      const parsedBudget = Number(budget);
+      if (Number.isNaN(parsedBudget) || parsedBudget < 0) {
+        return res.status(400).json({ msg: 'Budget must be a non-negative number' });
+      }
+      updates.budget = parsedBudget;
+    }
+
+    if (startDate !== undefined) {
+      updates.startDate = startDate
+        ? parseDateOrThrow(startDate, 'startDate')
+        : (project.createdAt || new Date());
+    }
+
+    if (endDate !== undefined) {
+      updates.endDate = endDate ? parseDateOrThrow(endDate, 'endDate') : null;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      Object.assign(project, updates);
+      await project.save();
+    }
+
+    const populated = await Project.findById(project._id)
+      .populate('createdBy', 'username name')
+      .populate('members', 'username name')
+      .populate('tasks.assignee', 'username name');
+    res.json(populated);
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ msg: err.message });
+    }
     console.error(err);
     res.status(500).send('Server Error');
   }
@@ -214,6 +379,8 @@ router.post('/:id/members', userAuth, async (req, res) => {
     }
 
     project.members.push(memberId);
+    project.memberRates = project.memberRates || new Map();
+    project.memberRates.set(memberId.toString(), project.memberRates.get(memberId.toString()) || 0);
     await project.save();
 
     // Return populated project
@@ -244,6 +411,9 @@ router.delete('/:id/members/:username', userAuth, async (req, res) => {
     if (!project.members.some(m => m.toString() === memberId)) return res.status(400).json({ msg: 'User not a member' });
 
     project.members = project.members.filter(u => u.toString() !== memberId);
+    if (project.memberRates) {
+      project.memberRates.delete(memberId);
+    }
     await project.save();
 
     const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name');
@@ -317,6 +487,7 @@ router.delete('/:id/members/:username', userAuth, async (req, res) => {
         task.isDelayed = parsed.getTime() < Date.now();
       }
       project.tasks.push(task);
+      syncTaskDueStatuses(project);
       await project.save();
 
       const populated = await Project.findById(project._id).populate('createdBy', 'username name').populate('members', 'username name').populate('tasks.assignee', 'username name');
@@ -419,12 +590,54 @@ router.patch('/:id/tasks/:taskId/alerted', userAuth, async (req, res) => {
     }
   });
 
+// PATCH /api/projects/:id/tasks/:taskId/due-date - Update a task's due date (creator or manager role)
+router.patch('/:id/tasks/:taskId/due-date', userAuth, async (req, res) => {
+  try {
+    const { dueDate } = req.body || {};
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ msg: 'Project not found' });
+
+    const currentUser = await userModel.findById(req.userId).select('role isManager');
+    const isCreator = project.createdBy.toString() === req.userId;
+    const hasManagerRole = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
+    if (!isCreator && !hasManagerRole) return res.status(403).json({ msg: 'Not authorized' });
+
+    const task = project.tasks.id(req.params.taskId);
+    if (!task) return res.status(404).json({ msg: 'Task not found' });
+
+    const isClearingDate = dueDate === undefined || dueDate === null || String(dueDate).trim() === '';
+    if (isClearingDate) {
+      task.dueDate = undefined;
+      task.isDelayed = false;
+    } else {
+      const parsed = new Date(dueDate);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ msg: 'Invalid dueDate' });
+      }
+      task.dueDate = parsed;
+      task.isDelayed = parsed.getTime() < Date.now();
+    }
+
+    syncTaskDueStatuses(project);
+    await project.save();
+
+    const populated = await Project.findById(project._id)
+      .populate('createdBy', 'username name')
+      .populate('members', 'username name')
+      .populate('tasks.assignee', 'username name');
+    res.json(populated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
 
   // PATCH /api/projects/:id/tasks/:taskId/status - Update task status (members or creator)
   router.patch('/:id/tasks/:taskId/status', userAuth, async (req, res) => {
     try {
       const { status } = req.body;
-      const allowed = ['todo', 'in-progress', 'done'];
+      const allowed = ['todo', 'in-progress', 'incomplete', 'done'];
       if (!status || !allowed.includes(status)) return res.status(400).json({ msg: `status is required and must be one of: ${allowed.join(', ')}` });
 
       const project = await Project.findById(req.params.id);

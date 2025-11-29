@@ -451,12 +451,8 @@ const ProjectPage = () => {
 
   const openAddMember = (open = true) => {
     if (open === false) { setShowAddDialog(false); return; }
-    const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-    
-    // --- BUG FIX: Simplified 'openAddMember' permission check ---
-    // The old check was complex and redundant. This is simpler.
-    if (!(isCreator || isManagerFlag)) {
-      alert('You are not permitted to add members');
+    if (!isCreator) {
+      alert('Only the project manager can add members.');
       return;
     }
     setShowAddDialog(true);
@@ -464,11 +460,9 @@ const ProjectPage = () => {
   
   const openAddTask = (open = true) => {
     if (open === false) { setShowAddTaskDialog(false); return; }
-    // Manager/creator check
-    const isManagerFlag = currentUser && (currentUser.role === 'manager' || currentUser.isManager === true);
-    if (!isCreator && !isManagerFlag) { 
-      alert('You are not permitted to add tasks'); 
-      return; 
+    if (!isCreator) {
+      alert('Only the project manager can add tasks.');
+      return;
     }
     
     const candidates = [];
@@ -947,7 +941,7 @@ const ProjectPage = () => {
             <div className="bg-surface rounded-lg shadow-md p-6 flex-1 flex flex-col min-h-0">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h3 className="text-2xl font-semibold text-white">Team Members</h3>
-                {(isCreator || (currentUser && (currentUser.role === 'manager' || currentUser.isManager === true))) && (
+                {isCreator && (
                   <button
                     type="button"
                     onClick={() => openAddMember(true)}

@@ -36,6 +36,17 @@ export default function TasksPanel(props) {
     isCreator,
   } = props;
 
+  const toLocalISODate = (date) => {
+    const tzOffsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+  };
+
+  const minDueDate = React.useMemo(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return toLocalISODate(tomorrow);
+  }, []);
+
   const handleCancel = () => {
     setShowAddTaskDialog(false);
     setTaskTitle('');
@@ -47,8 +58,8 @@ export default function TasksPanel(props) {
     if (setTaskDueDate) setTaskDueDate('');
   };
 
-  // Permission check for Add Task button
-  const canAddTask = isCreator || (currentUser && (currentUser.role === 'manager' || currentUser.isManager === true));
+  // Only the project creator (manager) can add tasks
+  const canAddTask = Boolean(isCreator);
 
   return (
     // === MODIFICATION: Root div is now a full-height flex column ===
@@ -249,6 +260,7 @@ export default function TasksPanel(props) {
                   <input
                     type="date"
                     value={taskDueDate}
+                    min={minDueDate}
                     onChange={(e) => setTaskDueDate(e.target.value)}
                     className="w-full bg-surface text-gray-200 py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan border border-surface-light"
                   />
