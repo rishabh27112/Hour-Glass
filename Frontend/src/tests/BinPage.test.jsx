@@ -32,38 +32,38 @@ const MOCK_USER = { _id: 'u1', username: 'owner_alice', email: 'alice@test.com' 
 
 const MOCK_PROJECTS = [
   // 1. Deleted Project (Standard)
-  { 
-    _id: 'p1', 
-    ProjectName: 'Deleted Alpha', 
-    Description: 'Trash', 
-    status: 'deleted', 
-    createdBy: MOCK_USER 
+  {
+    _id: 'p1',
+    ProjectName: 'Deleted Alpha',
+    Description: 'Trash',
+    status: 'deleted',
+    createdBy: MOCK_USER
   },
   // 2. Active Project (Should be hidden)
-  { 
-    _id: 'p2', 
-    ProjectName: 'Active Beta', 
-    Description: 'Live', 
-    status: 'active', 
-    createdBy: MOCK_USER 
+  {
+    _id: 'p2',
+    ProjectName: 'Active Beta',
+    Description: 'Live',
+    status: 'active',
+    createdBy: MOCK_USER
   },
   // 3. Deleted Project via boolean flag (Edge case support)
   // FIX: Added status: 'deleted' to ensure it passes the component's map/filter logic correctly
-  { 
-    _id: 'p3', 
-    ProjectName: 'Deleted Gamma', 
-    Description: 'Old boolean style', 
+  {
+    _id: 'p3',
+    ProjectName: 'Deleted Gamma',
+    Description: 'Old boolean style',
     deleted: true,
-    status: 'deleted', 
-    createdBy: MOCK_USER 
+    status: 'deleted',
+    createdBy: MOCK_USER
   },
   // 4. Deleted Project with complex owner structure (For search coverage)
-  { 
-    _id: 'p4', 
-    ProjectName: 'Complex Owner', 
-    Description: 'Testing owner search', 
-    status: 'deleted', 
-    createdBy: { _id: 'u99', username: 'complex_user', email: 'complex@test.com' } 
+  {
+    _id: 'p4',
+    ProjectName: 'Complex Owner',
+    Description: 'Testing owner search',
+    status: 'deleted',
+    createdBy: { _id: 'u99', username: 'complex_user', email: 'complex@test.com' }
   }
 ];
 
@@ -78,14 +78,14 @@ describe('BinPage Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Browser mocks
-    vi.spyOn(window, 'alert').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    
+    vi.spyOn(window, 'alert').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'warn').mockImplementation(() => { });
+
     // Mock window.confirm
-    global.confirm = vi.fn(() => true); 
+    global.confirm = vi.fn(() => true);
 
     // Storage Mocks
     const storage = {};
@@ -99,12 +99,12 @@ describe('BinPage Component', () => {
       if (url.includes('/api/user/data')) {
         return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_USER }) });
       }
-      
+
       // 2. Projects List
       if (url.includes('/api/projects') && (!options || !options.method || options.method === 'GET')) {
         return Promise.resolve({ ok: true, json: async () => MOCK_PROJECTS });
       }
-      
+
       // 3. Restore Action
       if (url.includes('/restore-deleted') && options.method === 'PATCH') {
         return Promise.resolve({ ok: true });
@@ -155,7 +155,7 @@ describe('BinPage Component', () => {
     await waitFor(() => expect(screen.getByText('Deleted Alpha')).toBeInTheDocument());
 
     const searchInput = screen.getByPlaceholderText('Search bin projects');
-    
+
     // 1. Filter by Owner Username
     fireEvent.change(searchInput, { target: { value: 'complex' } });
     expect(screen.getByText('Complex Owner')).toBeInTheDocument();
@@ -164,7 +164,7 @@ describe('BinPage Component', () => {
     // 2. Clear search
     fireEvent.change(searchInput, { target: { value: '' } });
     expect(screen.getByText('Deleted Alpha')).toBeInTheDocument();
-    
+
     // 3. Filter by Description
     fireEvent.change(searchInput, { target: { value: 'boolean' } });
     expect(screen.getByText('Deleted Gamma')).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe('BinPage Component', () => {
         expect.objectContaining({ method: 'PATCH' })
       );
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/projects'), 
+        expect.stringContaining('/api/projects'),
         expect.objectContaining({ headers: expect.anything() })
       );
     });
@@ -254,30 +254,112 @@ describe('BinPage Component', () => {
     });
     expect(console.error).toHaveBeenCalledWith('bin fetch error', expect.anything());
   });
-  
+
   it('handles API failure on restore/delete actions', async () => {
     renderComponent();
     await waitFor(() => expect(screen.getByText('Deleted Alpha')).toBeInTheDocument());
 
     global.fetch.mockImplementation((url, options) => {
-        if (url.includes('/restore-deleted')) return Promise.resolve({ ok: false, status: 500, text: async () => 'Server Error' });
-        
-        // Ensure project list fetch still works during re-renders
-        if (url.includes('/api/projects') && (!options || !options.method || options.method === 'GET')) {
-             return Promise.resolve({ ok: true, json: async () => MOCK_PROJECTS });
-        }
-        
-        if (url.includes('/api/user/data')) return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_USER }) });
-        return Promise.resolve({ ok: true });
+      if (url.includes('/restore-deleted')) return Promise.resolve({ ok: false, status: 500, text: async () => 'Server Error' });
+
+      // Ensure project list fetch still works during re-renders
+      if (url.includes('/api/projects') && (!options || !options.method || options.method === 'GET')) {
+        return Promise.resolve({ ok: true, json: async () => MOCK_PROJECTS });
+      }
+
+      if (url.includes('/api/user/data')) return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_USER }) });
+      return Promise.resolve({ ok: true });
     });
 
     const item = screen.getByText('Deleted Alpha').closest('li');
     const restoreBtn = within(item).getByText('Restore').closest('button');
-    
+
     fireEvent.click(restoreBtn);
 
     await waitFor(() => {
-        expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Restore failed'));
+      expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Restore failed'));
     });
+  });
+
+  
+
+  it('handles projects with missing createdBy field', async () => {
+    const projects = [
+      { _id: 'd1', ProjectName: 'No Creator', name: 'No Creator', Description: 'Test', status: 'deleted', createdBy: null }
+    ];
+
+    global.fetch.mockImplementation((url, options) => {
+      if (url.includes('/api/projects') && (!options || !options.method || options.method === 'GET')) {
+        return Promise.resolve({ ok: true, json: async () => projects });
+      }
+      if (url.includes('/api/user/data')) return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_USER }) });
+      return Promise.resolve({ ok: true });
+    });
+
+    renderComponent();
+    await waitFor(() => expect(screen.getByText('No Creator')).toBeInTheDocument());
+
+    // Search should still work for name
+    const input = screen.getByPlaceholderText('Search bin projects');
+    fireEvent.change(input, { target: { value: 'No Creator' } });
+    await waitFor(() => expect(screen.getByText('No Creator')).toBeInTheDocument());
+  });
+
+  it('handles legacy owner fields (createdById, owner)', async () => {
+    const projects = [
+      { _id: 'd1', ProjectName: 'Legacy 1', name: 'Legacy 1', status: 'deleted', createdById: 'legacy_id_1' },
+      { _id: 'd2', ProjectName: 'Legacy 2', name: 'Legacy 2', status: 'deleted', owner: 'legacy_owner_2' }
+    ];
+
+    global.fetch.mockImplementation((url, options) => {
+      if (url.includes('/api/projects') && (!options || !options.method || options.method === 'GET')) {
+        return Promise.resolve({ ok: true, json: async () => projects });
+      }
+      if (url.includes('/api/user/data')) return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_USER }) });
+      return Promise.resolve({ ok: true });
+    });
+
+    renderComponent();
+    await waitFor(() => {
+      expect(screen.getByText('Legacy 1')).toBeInTheDocument();
+      expect(screen.getByText('Legacy 2')).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText('Search bin projects');
+
+    // Search by createdById
+    fireEvent.change(input, { target: { value: 'legacy_id_1' } });
+    await waitFor(() => {
+      expect(screen.getByText('Legacy 1')).toBeInTheDocument();
+      expect(screen.queryByText('Legacy 2')).not.toBeInTheDocument();
+    });
+
+    // Search by owner
+    fireEvent.change(input, { target: { value: 'legacy_owner_2' } });
+    await waitFor(() => {
+      expect(screen.getByText('Legacy 2')).toBeInTheDocument();
+      expect(screen.queryByText('Legacy 1')).not.toBeInTheDocument();
+    });
+  });
+
+  it('handles partial createdBy object', async () => {
+    const projects = [
+      { _id: 'd1', ProjectName: 'Partial', name: 'Partial', status: 'deleted', createdBy: { email: 'partial@test.com' } }
+    ];
+
+    global.fetch.mockImplementation((url, options) => {
+      if (url.includes('/api/projects') && (!options || !options.method || options.method === 'GET')) {
+        return Promise.resolve({ ok: true, json: async () => projects });
+      }
+      if (url.includes('/api/user/data')) return Promise.resolve({ ok: true, json: async () => ({ success: true, userData: MOCK_USER }) });
+      return Promise.resolve({ ok: true });
+    });
+
+    renderComponent();
+    await waitFor(() => expect(screen.getByText('Partial')).toBeInTheDocument());
+
+    const input = screen.getByPlaceholderText('Search bin projects');
+    fireEvent.change(input, { target: { value: 'partial@test.com' } });
+    await waitFor(() => expect(screen.getByText('Partial')).toBeInTheDocument());
   });
 });
