@@ -915,16 +915,6 @@ export default function TaskPage() {
               
               <div className="border-t border-surface-light pt-4 mt-6">
                 <h4 className="text-xl font-semibold text-white mb-3">Billing</h4>
-                <dl className="space-y-3">
-                  <div className="flex flex-col sm:flex-row">
-                    <dt className="w-48 flex-shrink-0 font-semibold text-gray-400">Billable Rate (per Hour)</dt>
-                    <dd className="text-gray-200">{task.billableRate ? `₹${task.billableRate.toFixed(2)}` : 'Not specified'}</dd>
-                  </div>
-                  <div className="flex flex-col sm:flex-row">
-                    <dt className="w-48 flex-shrink-0 font-semibold text-gray-400">Total Amount</dt>
-                    <dd className="text-2xl font-bold text-cyan">{task.billableRate && displayMs > 0 ? `₹${(task.billableRate * (displayMs / 3600000)).toFixed(2)}` : '—'}</dd>
-                  </div>
-                </dl>
                 <div className="mt-4">
                   <button
                     onClick={() => {
