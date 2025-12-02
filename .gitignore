@@ -8,3 +8,4 @@ dist-react/
 dist/
 .DS_Store
 *.log
+.stryker*

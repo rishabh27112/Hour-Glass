@@ -17,7 +17,9 @@
     ],
     "win": {
       "icon": "public/logo.ico",
-      "target": ["portable"]
+      "target": [
+        "portable"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -48,7 +50,7 @@
   "devDependencies": {
     "@eslint/js": "^9.36.0",
     "@stryker-mutator/core": "^9.3.0",
-    "@stryker-mutator/vitest-runner": "^9.3.0",
+    "@stryker-mutator/vitest-runner": "^9.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.0",
     "@types/active-win": "^4.0.0",
@@ -56,7 +58,7 @@
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.3",
-    "@vitest/coverage-v8": "^3.0.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "cross-env": "^10.0.0",
     "electron": "^38.1.2",
     "electron-builder": "^26.0.12",
@@ -66,10 +68,12 @@
     "globals": "^16.4.0",
     "jsdom": "^26.0.0",
     "npm-run-all": "^4.1.5",
+    "stryker": "^1.0.1",
+    "stryker-cli": "^1.1.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.44.0",
     "vite": "npm:rolldown-vite@7.1.12",
-    "vitest": "^3.0.0"
+    "vitest": "^3.2.4"
   },
   "overrides": {
     "vite": "npm:rolldown-vite@7.1.12"

@@ -96,7 +96,12 @@ export class SystemResourceMonitor {
 	emitRendererLog('[TimeTracker] SystemResourceMonitor started');
 
 		this.monitorInterval = setInterval(async () => {
-			this.currentWindow = await this.setActiveWindowInfo();
+			try {
+				this.currentWindow = await this.setActiveWindowInfo();
+			} catch (err) {
+				console.error("Error in monitoring interval:", err);
+				this.currentWindow = { title: "Error", owner: { name: "Unknown" } };
+			}
 		}, intervalMs);
   }
 
@@ -252,6 +257,7 @@ export class TimeTracker {
 
 	private async refreshAuthTokenFromSession(): Promise<void> {
 		try {
+			// Only use session cookies for auth token
 			const cookies = await session.defaultSession.cookies.get({ name: 'token' });
 			if (cookies && cookies.length > 0) {
 				// Prefer a cookie for localhost
@@ -261,7 +267,7 @@ export class TimeTracker {
 				}
 			}
 		} catch (err) {
-			console.warn('Could not read auth token from session cookies:', err);
+			console.warn('Could not read auth token:', err);
 		}
 	}
 
@@ -573,7 +579,7 @@ export class TimeTracker {
 			emitRendererLog('[TimeTracker] Summary generation failed', { error: String(err) });
 		}
 
-		if (this.entries.length > 0) {
+		if (this.entries && this.entries.length > 0) {
 			await this.saveTrackingData();
 		}
 		// mark stopped

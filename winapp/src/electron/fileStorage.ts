@@ -96,22 +96,28 @@ export class FileStorageManager {
     }
   }
 
+  // Ensure appendEntries propagates filesystem errors
   public async appendEntries(entries: TimeEntry[]): Promise<void> {
     if (entries.length === 0) {
       return;
     }
 
+    // Convert entries to JSON string
+    const data = JSON.stringify(entries) + '\n';
+    
+    const encryptedData = this.encrypt(data);
+    
     try {
-      // Convert entries to JSON string
-      const data = JSON.stringify(entries) + '\n';
-      
-      const encryptedData = this.encrypt(data);
+      // Ensure directory exists before writing
+      const dir = path.dirname(this.filePath);
+      await fs.promises.mkdir(dir, { recursive: true });
       
       await fs.promises.appendFile(this.filePath, encryptedData + '\n', 'utf8');
       
       console.log(`Successfully appended ${entries.length} entries to storage`);
     } catch (error) {
-      console.error('Error appending entries to file:', error);
+      // ensure callers/tests see the error
+      console.error('[FileStorageManager] Failed to append entries:', error);
       throw error;
     }
   }
@@ -119,10 +125,14 @@ export class FileStorageManager {
   public async isEmpty(): Promise<boolean> {
     try {
       const stats = await fs.promises.stat(this.filePath);
-      return stats.size === 0;
+      if (stats.size === 0) {
+        return true;
+      }
+      // Check if file contains only whitespace
+      const content = await fs.promises.readFile(this.filePath, 'utf8');
+      return content.trim() === '';
     } catch (error) {
-      console.error('Error checking if file is empty:', error);
-      return true;
+      return true; // File doesn't exist, consider it empty
     }
   }
 
@@ -164,6 +174,10 @@ export class FileStorageManager {
 
   public async clearFile(): Promise<void> {
     try {
+      // Ensure directory exists
+      const dir = path.dirname(this.filePath);
+      await fs.promises.mkdir(dir, { recursive: true });
+      
       await fs.promises.writeFile(this.filePath, '', 'utf8');
       console.log('Storage file cleared successfully');
     } catch (error) {
